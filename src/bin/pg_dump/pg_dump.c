@@ -351,6 +351,7 @@ main(int argc, char **argv)
 		{"snapshot", required_argument, NULL, 6},
 		{"strict-names", no_argument, &strict_names, 1},
 		{"use-set-session-authorization", no_argument, &dopt.use_setsessauth, 1},
+		{"no-comments", no_argument, &dopt.no_comments, 1},
 		{"no-publications", no_argument, &dopt.no_publications, 1},
 		{"no-security-labels", no_argument, &dopt.no_security_labels, 1},
 		{"no-synchronized-snapshots", no_argument, &dopt.no_synchronized_snapshots, 1},
@@ -952,6 +953,7 @@ help(const char *progname)
 	printf(_("  --exclude-table-data=TABLE   do NOT dump data for the named table(s)\n"));
 	printf(_("  --if-exists                  use IF EXISTS when dropping objects\n"));
 	printf(_("  --inserts                    dump data as INSERT commands, rather than COPY\n"));
+	printf(_("  --no-comments                do not dump comments\n"));
 	printf(_("  --no-publications            do not dump publications\n"));
 	printf(_("  --no-security-labels         do not dump security label assignments\n"));
 	printf(_("  --no-subscriptions           do not dump subscriptions\n"));
