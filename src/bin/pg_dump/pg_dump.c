@@ -2713,8 +2713,9 @@ dumpDatabase(Archive *fout)
 		destroyPQExpBuffer(loOutQry);
 	}
 
-	/* Dump DB comment if any */
-	if (fout->remoteVersion >= 80200)
+
+	/* Dump DB comment if any, and comments not disabled  */
+	if (fout->remoteVersion >= 80200 && !dopt->no_comments)
 	{
 		/*
 		 * 8.2 keeps comments on shared objects in a shared table, so we
@@ -9070,6 +9071,10 @@ dumpComment(Archive *fout, const char *target,
 			return;
 	}
 
+	/* do nothing, if --no-comments is supplied */
+	if (dopt->no_comments)
+		return;
+
 	/* Search for comments associated with catalogId, using table */
 	ncomments = findComments(fout, catalogId.tableoid, catalogId.oid,
 							 &comments);
@@ -9126,6 +9131,10 @@ dumpTableComment(Archive *fout, TableInfo *tbinfo,
 
 	/* Comments are SCHEMA not data */
 	if (dopt->dataOnly)
+		return;
+
+	/* do nothing, if --no-comments is supplied */
+	if (dopt->no_comments)
 		return;
 
 	/* Search for comments associated with relation, using table */
@@ -10774,6 +10783,10 @@ dumpCompositeTypeColComments(Archive *fout, TypeInfo *tyinfo)
 	int			ntups;
 	int			i_attname;
 	int			i_attnum;
+
+	/* do nothing, if --no-comments is supplied */
+	if (fout->dopt->no_comments)
+		return;
 
 	query = createPQExpBuffer();
 
