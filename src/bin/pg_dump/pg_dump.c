@@ -2714,7 +2714,7 @@ dumpDatabase(Archive *fout)
 	}
 
 
-	/* Dump DB comment if any, and comments not disabled  */
+	/* Dump DB comment if any, and if --no-comments is not supplied  */
 	if (fout->remoteVersion >= 80200 && !dopt->no_comments)
 	{
 		/*
