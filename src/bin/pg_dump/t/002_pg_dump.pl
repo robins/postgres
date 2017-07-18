@@ -194,6 +194,11 @@ my %pgdump_runs = (
 			'pg_dump',                      '--no-sync',
 			"--file=$tempdir/no_blobs.sql", '-B',
 			'postgres', ], },
+        no_comments => {
+                dump_cmd => [
+                        'pg_dump',                      '--no-sync',
+                        "--file=$tempdir/no_comments.sql", '--no-comments',
+                        'postgres', ], },
 	no_privs => {
 		dump_cmd => [
 			'pg_dump',                      '--no-sync',
@@ -1577,6 +1582,7 @@ qr/^ALTER (?!LARGE OBJECT|PUBLICATION|SUBSCRIPTION)(.*) OWNER TO .*;/m,
 			exclude_test_table       => 1,
 			exclude_test_table_data  => 1,
 			no_blobs                 => 1,
+			no_comments              => 1,
 			no_privs                 => 1,
 			no_owner                 => 1,
 			pg_dumpall_dbprivs       => 1,
