@@ -132,7 +132,7 @@ split_path(const char *path, char **dir, char **fname)
 	if (sep != NULL)
 	{
 		*dir = pg_strdup(path);
-		(*dir)[(sep - path) + 1] = '\0';		/* no strndup */
+		(*dir)[(sep - path) + 1] = '\0';	/* no strndup */
 		*fname = pg_strdup(sep + 1);
 	}
 	/* local directory */
@@ -363,6 +363,35 @@ XLogDumpReadPage(XLogReaderState *state, XLogRecPtr targetPagePtr, int reqLen,
 }
 
 /*
+ * Calculate the size of a record, split into !FPI and FPI parts.
+ */
+static void
+XLogDumpRecordLen(XLogReaderState *record, uint32 *rec_len, uint32 *fpi_len)
+{
+	int			block_id;
+
+	/*
+	 * Calculate the amount of FPI data in the record.
+	 *
+	 * XXX: We peek into xlogreader's private decoded backup blocks for the
+	 * bimg_len indicating the length of FPI data. It doesn't seem worth it to
+	 * add an accessor macro for this.
+	 */
+	*fpi_len = 0;
+	for (block_id = 0; block_id <= record->max_block_id; block_id++)
+	{
+		if (XLogRecHasBlockImage(record, block_id))
+			*fpi_len += record->blocks[block_id].bimg_len;
+	}
+
+	/*
+	 * Calculate the length of the record as the total length - the length of
+	 * all the block images.
+	 */
+	*rec_len = XLogRecGetTotalLen(record) - *fpi_len;
+}
+
+/*
  * Store per-rmgr and per-record statistics for a given record.
  */
 static void
@@ -373,26 +402,12 @@ XLogDumpCountRecord(XLogDumpConfig *config, XLogDumpStats *stats,
 	uint8		recid;
 	uint32		rec_len;
 	uint32		fpi_len;
-	int			block_id;
 
 	stats->count++;
 
 	rmid = XLogRecGetRmid(record);
-	rec_len = XLogRecGetDataLen(record) + SizeOfXLogRecord;
 
-	/*
-	 * Calculate the amount of FPI data in the record.
-	 *
-	 * XXX: We peek into xlogreader's private decoded backup blocks for the
-	 * bimg_len indicating the length of FPI data. It doesn't seem worth it to
-	 * add an accessor macro for this.
-	 */
-	fpi_len = 0;
-	for (block_id = 0; block_id <= record->max_block_id; block_id++)
-	{
-		if (XLogRecHasBlockImage(record, block_id))
-			fpi_len += record->blocks[block_id].bimg_len;
-	}
+	XLogDumpRecordLen(record, &rec_len, &fpi_len);
 
 	/* Update per-rmgr statistics */
 
@@ -422,6 +437,8 @@ XLogDumpDisplayRecord(XLogDumpConfig *config, XLogReaderState *record)
 {
 	const char *id;
 	const RmgrDescData *desc = &RmgrDescTable[XLogRecGetRmid(record)];
+	uint32		rec_len;
+	uint32		fpi_len;
 	RelFileNode rnode;
 	ForkNumber	forknum;
 	BlockNumber blk;
@@ -429,13 +446,15 @@ XLogDumpDisplayRecord(XLogDumpConfig *config, XLogReaderState *record)
 	uint8		info = XLogRecGetInfo(record);
 	XLogRecPtr	xl_prev = XLogRecGetPrev(record);
 
+	XLogDumpRecordLen(record, &rec_len, &fpi_len);
+
 	id = desc->rm_identify(info);
 	if (id == NULL)
 		id = psprintf("UNKNOWN (%x)", info & ~XLR_INFO_MASK);
 
 	printf("rmgr: %-11s len (rec/tot): %6u/%6u, tx: %10u, lsn: %X/%08X, prev %X/%08X, ",
 		   desc->rm_name,
-		   XLogRecGetDataLen(record), XLogRecGetTotalLen(record),
+		   rec_len, XLogRecGetTotalLen(record),
 		   XLogRecGetXid(record),
 		   (uint32) (record->ReadRecPtr >> 32), (uint32) record->ReadRecPtr,
 		   (uint32) (xl_prev >> 32), (uint32) xl_prev);
@@ -696,11 +715,11 @@ usage(void)
 			 "                         use --rmgr=list to list valid resource manager names\n"));
 	printf(_("  -s, --start=RECPTR     start reading at WAL location RECPTR\n"));
 	printf(_("  -t, --timeline=TLI     timeline from which to read log records\n"
-	"                         (default: 1 or the value used in STARTSEG)\n"));
+			 "                         (default: 1 or the value used in STARTSEG)\n"));
 	printf(_("  -V, --version          output version information, then exit\n"));
 	printf(_("  -x, --xid=XID          only show records with TransactionId XID\n"));
 	printf(_("  -z, --stats[=record]   show statistics instead of records\n"
-	 "                         (optionally, show per-record statistics)\n"));
+			 "                         (optionally, show per-record statistics)\n"));
 	printf(_("  -?, --help             show this help, then exit\n"));
 }
 
@@ -929,7 +948,7 @@ main(int argc, char **argv)
 		else if (!XLByteInSeg(private.startptr, segno))
 		{
 			fprintf(stderr,
-			   _("%s: start WAL location %X/%X is not inside file \"%s\"\n"),
+					_("%s: start WAL location %X/%X is not inside file \"%s\"\n"),
 					progname,
 					(uint32) (private.startptr >> 32),
 					(uint32) private.startptr,
@@ -973,7 +992,7 @@ main(int argc, char **argv)
 			private.endptr != (segno + 1) * XLogSegSize)
 		{
 			fprintf(stderr,
-				 _("%s: end WAL location %X/%X is not inside file \"%s\"\n"),
+					_("%s: end WAL location %X/%X is not inside file \"%s\"\n"),
 					progname,
 					(uint32) (private.endptr >> 32),
 					(uint32) private.endptr,

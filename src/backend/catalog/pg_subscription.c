@@ -28,6 +28,8 @@
 
 #include "nodes/makefuncs.h"
 
+#include "storage/lmgr.h"
+
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
@@ -227,19 +229,26 @@ textarray_to_stringlist(ArrayType *textarray)
 /*
  * Set the state of a subscription table.
  *
+ * If update_only is true and the record for given table doesn't exist, do
+ * nothing.  This can be used to avoid inserting a new record that was deleted
+ * by someone else.  Generally, subscription DDL commands should use false,
+ * workers should use true.
+ *
  * The insert-or-update logic in this function is not concurrency safe so it
  * might raise an error in rare circumstances.  But if we took a stronger lock
  * such as ShareRowExclusiveLock, we would risk more deadlocks.
  */
 Oid
 SetSubscriptionRelState(Oid subid, Oid relid, char state,
-						XLogRecPtr sublsn)
+						XLogRecPtr sublsn, bool update_only)
 {
 	Relation	rel;
 	HeapTuple	tup;
-	Oid			subrelid;
+	Oid			subrelid = InvalidOid;
 	bool		nulls[Natts_pg_subscription_rel];
 	Datum		values[Natts_pg_subscription_rel];
+
+	LockSharedObject(SubscriptionRelationId, subid, 0, AccessShareLock);
 
 	rel = heap_open(SubscriptionRelRelationId, RowExclusiveLock);
 
@@ -252,7 +261,7 @@ SetSubscriptionRelState(Oid subid, Oid relid, char state,
 	 * If the record for given table does not exist yet create new record,
 	 * otherwise update the existing one.
 	 */
-	if (!HeapTupleIsValid(tup))
+	if (!HeapTupleIsValid(tup) && !update_only)
 	{
 		/* Form the tuple. */
 		memset(values, 0, sizeof(values));
@@ -272,7 +281,7 @@ SetSubscriptionRelState(Oid subid, Oid relid, char state,
 
 		heap_freetuple(tup);
 	}
-	else
+	else if (HeapTupleIsValid(tup))
 	{
 		bool		replaces[Natts_pg_subscription_rel];
 
@@ -396,7 +405,7 @@ RemoveSubscriptionRel(Oid subid, Oid relid)
 	scan = heap_beginscan_catalog(rel, nkeys, skey);
 	while (HeapTupleIsValid(tup = heap_getnext(scan, ForwardScanDirection)))
 	{
-		simple_heap_delete(rel, &tup->t_self);
+		CatalogTupleDelete(rel, &tup->t_self);
 	}
 	heap_endscan(scan);
 

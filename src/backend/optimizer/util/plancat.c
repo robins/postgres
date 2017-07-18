@@ -354,8 +354,8 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 			/* Build targetlist using the completed indexprs data */
 			info->indextlist = build_index_tlist(root, info, relation);
 
-			info->indrestrictinfo = NIL;		/* set later, in indxpath.c */
-			info->predOK = false;		/* set later, in indxpath.c */
+			info->indrestrictinfo = NIL;	/* set later, in indxpath.c */
+			info->predOK = false;	/* set later, in indxpath.c */
 			info->unique = index->indisunique;
 			info->immediate = index->indimmediate;
 			info->hypothetical = false;
@@ -620,7 +620,7 @@ infer_arbiter_indexes(PlannerInfo *root)
 					 errmsg("whole row unique index inference specifications are not supported")));
 
 		inferAttrs = bms_add_member(inferAttrs,
-								 attno - FirstLowInvalidHeapAttributeNumber);
+									attno - FirstLowInvalidHeapAttributeNumber);
 	}
 
 	/*
@@ -715,7 +715,7 @@ infer_arbiter_indexes(PlannerInfo *root)
 
 			if (attno != 0)
 				indexedAttrs = bms_add_member(indexedAttrs,
-								 attno - FirstLowInvalidHeapAttributeNumber);
+											  attno - FirstLowInvalidHeapAttributeNumber);
 		}
 
 		/* Non-expression attributes (if any) must match */
@@ -776,7 +776,7 @@ infer_arbiter_indexes(PlannerInfo *root)
 		 */
 		predExprs = RelationGetIndexPredicate(idxRel);
 
-		if (!predicate_implied_by(predExprs, (List *) onconflict->arbiterWhere))
+		if (!predicate_implied_by(predExprs, (List *) onconflict->arbiterWhere, false))
 			goto next;
 
 		results = lappend_oid(results, idxForm->indexrelid);
@@ -827,7 +827,7 @@ infer_collation_opclass_match(InferenceElem *elem, Relation idxRel,
 							  List *idxExprs)
 {
 	AttrNumber	natt;
-	Oid			inferopfamily = InvalidOid;		/* OID of opclass opfamily */
+	Oid			inferopfamily = InvalidOid; /* OID of opclass opfamily */
 	Oid			inferopcinputtype = InvalidOid; /* OID of opclass input type */
 	int			nplain = 0;		/* # plain attrs observed */
 
@@ -1399,7 +1399,7 @@ relation_excluded_by_constraints(PlannerInfo *root,
 			safe_restrictions = lappend(safe_restrictions, rinfo->clause);
 	}
 
-	if (predicate_refuted_by(safe_restrictions, safe_restrictions))
+	if (predicate_refuted_by(safe_restrictions, safe_restrictions, false))
 		return true;
 
 	/* Only plain relations have constraints */
@@ -1438,7 +1438,7 @@ relation_excluded_by_constraints(PlannerInfo *root,
 	 * have volatile and nonvolatile subclauses, and it's OK to make
 	 * deductions with the nonvolatile parts.
 	 */
-	if (predicate_refuted_by(safe_constraints, rel->baserestrictinfo))
+	if (predicate_refuted_by(safe_constraints, rel->baserestrictinfo, false))
 		return true;
 
 	return false;
@@ -1607,7 +1607,7 @@ build_index_tlist(PlannerInfo *root, IndexOptInfo *index,
 
 			if (indexkey < 0)
 				att_tup = SystemAttributeDefinition(indexkey,
-										   heapRelation->rd_rel->relhasoids);
+													heapRelation->rd_rel->relhasoids);
 			else
 				att_tup = heapRelation->rd_att->attrs[indexkey - 1];
 

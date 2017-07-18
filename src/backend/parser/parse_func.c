@@ -64,10 +64,14 @@ static Node *ParseComplexProjection(ParseState *pstate, char *funcname,
  *
  *	The argument expressions (in fargs) must have been transformed
  *	already.  However, nothing in *fn has been transformed.
+ *
+ *	last_srf should be a copy of pstate->p_last_srf from just before we
+ *	started transforming fargs.  If the caller knows that fargs couldn't
+ *	contain any SRF calls, last_srf can just be pstate->p_last_srf.
  */
 Node *
 ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
-				  FuncCall *fn, int location)
+				  Node *last_srf, FuncCall *fn, int location)
 {
 	bool		is_column = (fn == NULL);
 	List	   *agg_order = (fn ? fn->agg_order : NIL);
@@ -113,10 +117,10 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 	if (list_length(fargs) > FUNC_MAX_ARGS)
 		ereport(ERROR,
 				(errcode(ERRCODE_TOO_MANY_ARGUMENTS),
-			 errmsg_plural("cannot pass more than %d argument to a function",
-						   "cannot pass more than %d arguments to a function",
-						   FUNC_MAX_ARGS,
-						   FUNC_MAX_ARGS),
+				 errmsg_plural("cannot pass more than %d argument to a function",
+							   "cannot pass more than %d arguments to a function",
+							   FUNC_MAX_ARGS,
+							   FUNC_MAX_ARGS),
 				 parser_errposition(pstate, location)));
 
 	/*
@@ -172,8 +176,8 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 				if (strcmp(na->name, (char *) lfirst(lc)) == 0)
 					ereport(ERROR,
 							(errcode(ERRCODE_SYNTAX_ERROR),
-						   errmsg("argument name \"%s\" used more than once",
-								  na->name),
+							 errmsg("argument name \"%s\" used more than once",
+									na->name),
 							 parser_errposition(pstate, na->location)));
 			}
 			argnames = lappend(argnames, na->name);
@@ -183,7 +187,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 			if (argnames != NIL)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
-				  errmsg("positional argument cannot follow named argument"),
+						 errmsg("positional argument cannot follow named argument"),
 						 parser_errposition(pstate, exprLocation(arg))));
 		}
 	}
@@ -268,15 +272,15 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		if (agg_star)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-			   errmsg("%s(*) specified, but %s is not an aggregate function",
-					  NameListToString(funcname),
-					  NameListToString(funcname)),
+					 errmsg("%s(*) specified, but %s is not an aggregate function",
+							NameListToString(funcname),
+							NameListToString(funcname)),
 					 parser_errposition(pstate, location)));
 		if (agg_distinct)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-			errmsg("DISTINCT specified, but %s is not an aggregate function",
-				   NameListToString(funcname)),
+					 errmsg("DISTINCT specified, but %s is not an aggregate function",
+							NameListToString(funcname)),
 					 parser_errposition(pstate, location)));
 		if (agg_within_group)
 			ereport(ERROR,
@@ -287,14 +291,14 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		if (agg_order != NIL)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-			errmsg("ORDER BY specified, but %s is not an aggregate function",
-				   NameListToString(funcname)),
+					 errmsg("ORDER BY specified, but %s is not an aggregate function",
+							NameListToString(funcname)),
 					 parser_errposition(pstate, location)));
 		if (agg_filter)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-			  errmsg("FILTER specified, but %s is not an aggregate function",
-					 NameListToString(funcname)),
+					 errmsg("FILTER specified, but %s is not an aggregate function",
+							NameListToString(funcname)),
 					 parser_errposition(pstate, location)));
 		if (over)
 			ereport(ERROR,
@@ -313,7 +317,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		int			catDirectArgs;
 
 		tup = SearchSysCache1(AGGFNOID, ObjectIdGetDatum(funcid));
-		if (!HeapTupleIsValid(tup))		/* should not happen */
+		if (!HeapTupleIsValid(tup)) /* should not happen */
 			elog(ERROR, "cache lookup failed for aggregate %u", funcid);
 		classForm = (Form_pg_aggregate) GETSTRUCT(tup);
 		aggkind = classForm->aggkind;
@@ -335,8 +339,8 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 			if (over)
 				ereport(ERROR,
 						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("OVER is not supported for ordered-set aggregate %s",
-						NameListToString(funcname)),
+						 errmsg("OVER is not supported for ordered-set aggregate %s",
+								NameListToString(funcname)),
 						 parser_errposition(pstate, location)));
 			/* gram.y rejects DISTINCT + WITHIN GROUP */
 			Assert(!agg_distinct);
@@ -394,7 +398,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 								 errmsg("function %s does not exist",
 										func_signature_string(funcname, nargs,
 															  argnames,
-														  actual_arg_types)),
+															  actual_arg_types)),
 								 errhint("There is an ordered-set aggregate %s, but it requires %d direct arguments, not %d.",
 										 NameListToString(funcname),
 										 catDirectArgs, numDirectArgs),
@@ -417,12 +421,12 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 							ereport(ERROR,
 									(errcode(ERRCODE_UNDEFINED_FUNCTION),
 									 errmsg("function %s does not exist",
-									   func_signature_string(funcname, nargs,
-															 argnames,
-														  actual_arg_types)),
+											func_signature_string(funcname, nargs,
+																  argnames,
+																  actual_arg_types)),
 									 errhint("To use the hypothetical-set aggregate %s, the number of hypothetical direct arguments (here %d) must match the number of ordering columns (here %d).",
 											 NameListToString(funcname),
-							  nvargs - numAggregatedArgs, numAggregatedArgs),
+											 nvargs - numAggregatedArgs, numAggregatedArgs),
 									 parser_errposition(pstate, location)));
 					}
 					else
@@ -431,9 +435,9 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 							ereport(ERROR,
 									(errcode(ERRCODE_UNDEFINED_FUNCTION),
 									 errmsg("function %s does not exist",
-									   func_signature_string(funcname, nargs,
-															 argnames,
-														  actual_arg_types)),
+											func_signature_string(funcname, nargs,
+																  argnames,
+																  actual_arg_types)),
 									 errhint("There is an ordered-set aggregate %s, but it requires at least %d direct arguments.",
 											 NameListToString(funcname),
 											 catDirectArgs),
@@ -509,7 +513,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 							func_signature_string(funcname, nargs, argnames,
 												  actual_arg_types)),
 					 errhint("No aggregate function matches the given name and argument types. "
-					  "Perhaps you misplaced ORDER BY; ORDER BY must appear "
+							 "Perhaps you misplaced ORDER BY; ORDER BY must appear "
 							 "after all regular arguments of the aggregate."),
 					 parser_errposition(pstate, location)));
 		}
@@ -519,8 +523,8 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 					 errmsg("function %s does not exist",
 							func_signature_string(funcname, nargs, argnames,
 												  actual_arg_types)),
-			errhint("No function matches the given name and argument types. "
-					"You might need to add explicit type casts."),
+					 errhint("No function matches the given name and argument types. "
+							 "You might need to add explicit type casts."),
 					 parser_errposition(pstate, location)));
 	}
 
@@ -540,10 +544,10 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		if (nargsplusdefs >= FUNC_MAX_ARGS)
 			ereport(ERROR,
 					(errcode(ERRCODE_TOO_MANY_ARGUMENTS),
-			 errmsg_plural("cannot pass more than %d argument to a function",
-						   "cannot pass more than %d arguments to a function",
-						   FUNC_MAX_ARGS,
-						   FUNC_MAX_ARGS),
+					 errmsg_plural("cannot pass more than %d argument to a function",
+								   "cannot pass more than %d arguments to a function",
+								   FUNC_MAX_ARGS,
+								   FUNC_MAX_ARGS),
 					 parser_errposition(pstate, location)));
 
 		actual_arg_types[nargsplusdefs++] = exprType(expr);
@@ -597,7 +601,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
 					 errmsg("could not find array type for data type %s",
 							format_type_be(newa->element_typeid)),
-				  parser_errposition(pstate, exprLocation((Node *) vargs))));
+					 parser_errposition(pstate, exprLocation((Node *) vargs))));
 		/* array_collid will be set by parse_collate.c */
 		newa->multidims = false;
 		newa->location = exprLocation((Node *) vargs);
@@ -623,12 +627,12 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
 					 errmsg("VARIADIC argument must be an array"),
 					 parser_errposition(pstate,
-									  exprLocation((Node *) llast(fargs)))));
+										exprLocation((Node *) llast(fargs)))));
 	}
 
 	/* if it returns a set, check that's OK */
 	if (retset)
-		check_srf_call_placement(pstate, location);
+		check_srf_call_placement(pstate, last_srf, location);
 
 	/* build the appropriate output structure */
 	if (fdresult == FUNCDETAIL_NORMAL)
@@ -654,7 +658,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		aggref->aggfnoid = funcid;
 		aggref->aggtype = rettype;
 		/* aggcollid and inputcollid will be set by parse_collate.c */
-		aggref->aggtranstype = InvalidOid;		/* will be set by planner */
+		aggref->aggtranstype = InvalidOid;	/* will be set by planner */
 		/* aggargtypes will be set by transformAggregateCall */
 		/* aggdirectargs and args will be set by transformAggregateCall */
 		/* aggorder and aggdistinct will be set by transformAggregateCall */
@@ -663,7 +667,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		aggref->aggvariadic = func_variadic;
 		aggref->aggkind = aggkind;
 		/* agglevelsup will be set by transformAggregateCall */
-		aggref->aggsplit = AGGSPLIT_SIMPLE;		/* planner might change this */
+		aggref->aggsplit = AGGSPLIT_SIMPLE; /* planner might change this */
 		aggref->location = location;
 
 		/*
@@ -709,7 +713,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		WindowFunc *wfunc = makeNode(WindowFunc);
 
 		Assert(over);			/* lack of this was checked above */
-		Assert(!agg_within_group);		/* also checked above */
+		Assert(!agg_within_group);	/* also checked above */
 
 		wfunc->winfnoid = funcid;
 		wfunc->wintype = rettype;
@@ -727,7 +731,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		if (agg_distinct)
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				  errmsg("DISTINCT is not implemented for window functions"),
+					 errmsg("DISTINCT is not implemented for window functions"),
 					 parser_errposition(pstate, location)));
 
 		/*
@@ -759,6 +763,17 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 					 errmsg("FILTER is not implemented for non-aggregate window functions"),
 					 parser_errposition(pstate, location)));
 
+		/*
+		 * Window functions can't either take or return sets
+		 */
+		if (pstate->p_last_srf != last_srf)
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("window function calls cannot contain set-returning function calls"),
+					 errhint("You might be able to move the set-returning function into a LATERAL FROM item."),
+					 parser_errposition(pstate,
+										exprLocation(pstate->p_last_srf))));
+
 		if (retset)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
@@ -770,6 +785,10 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 
 		retval = (Node *) wfunc;
 	}
+
+	/* if it returns a set, remember it for error checks at higher levels */
+	if (retset)
+		pstate->p_last_srf = retval;
 
 	return retval;
 }
@@ -792,7 +811,7 @@ int
 func_match_argtypes(int nargs,
 					Oid *input_typeids,
 					FuncCandidateList raw_candidates,
-					FuncCandidateList *candidates)		/* return value */
+					FuncCandidateList *candidates)	/* return value */
 {
 	FuncCandidateList current_candidate;
 	FuncCandidateList next_candidate;
@@ -815,7 +834,7 @@ func_match_argtypes(int nargs,
 	}
 
 	return ncandidates;
-}	/* func_match_argtypes() */
+}								/* func_match_argtypes() */
 
 
 /* func_select_candidate()
@@ -899,10 +918,10 @@ func_select_candidate(int nargs,
 	if (nargs > FUNC_MAX_ARGS)
 		ereport(ERROR,
 				(errcode(ERRCODE_TOO_MANY_ARGUMENTS),
-			 errmsg_plural("cannot pass more than %d argument to a function",
-						   "cannot pass more than %d arguments to a function",
-						   FUNC_MAX_ARGS,
-						   FUNC_MAX_ARGS)));
+				 errmsg_plural("cannot pass more than %d argument to a function",
+							   "cannot pass more than %d arguments to a function",
+							   FUNC_MAX_ARGS,
+							   FUNC_MAX_ARGS)));
 
 	/*
 	 * If any input types are domains, reduce them to their base types. This
@@ -1058,7 +1077,7 @@ func_select_candidate(int nargs,
 
 		if (input_base_typeids[i] != UNKNOWNOID)
 			continue;
-		resolved_unknowns = true;		/* assume we can do it */
+		resolved_unknowns = true;	/* assume we can do it */
 		slot_category[i] = TYPCATEGORY_INVALID;
 		slot_has_preferred_type[i] = false;
 		have_conflict = false;
@@ -1186,7 +1205,7 @@ func_select_candidate(int nargs,
 		{
 			if (input_base_typeids[i] == UNKNOWNOID)
 				continue;
-			if (known_type == UNKNOWNOID)		/* first known arg? */
+			if (known_type == UNKNOWNOID)	/* first known arg? */
 				known_type = input_base_typeids[i];
 			else if (known_type != input_base_typeids[i])
 			{
@@ -1226,7 +1245,7 @@ func_select_candidate(int nargs,
 	}
 
 	return NULL;				/* failed to select a best candidate */
-}	/* func_select_candidate() */
+}								/* func_select_candidate() */
 
 
 /* func_get_detail()
@@ -1273,8 +1292,8 @@ func_get_detail(List *funcname,
 				bool *retset,	/* return value */
 				int *nvargs,	/* return value */
 				Oid *vatype,	/* return value */
-				Oid **true_typeids,		/* return value */
-				List **argdefaults)		/* optional return value */
+				Oid **true_typeids, /* return value */
+				List **argdefaults) /* optional return value */
 {
 	FuncCandidateList raw_candidates;
 	FuncCandidateList best_candidate;
@@ -1381,7 +1400,7 @@ func_get_detail(List *funcname,
 						case COERCION_PATH_COERCEVIAIO:
 							if ((sourceType == RECORDOID ||
 								 ISCOMPLEX(sourceType)) &&
-							  TypeCategory(targetType) == TYPCATEGORY_STRING)
+								TypeCategory(targetType) == TYPCATEGORY_STRING)
 								iscoercion = false;
 							else
 								iscoercion = true;
@@ -2083,9 +2102,13 @@ LookupAggWithArgs(ObjectWithArgs *agg, bool noError)
  *		and throw a nice error if not.
  *
  * A side-effect is to set pstate->p_hasTargetSRFs true if appropriate.
+ *
+ * last_srf should be a copy of pstate->p_last_srf from just before we
+ * started transforming the function's arguments.  This allows detection
+ * of whether the SRF's arguments contain any SRFs.
  */
 void
-check_srf_call_placement(ParseState *pstate, int location)
+check_srf_call_placement(ParseState *pstate, Node *last_srf, int location)
 {
 	const char *err;
 	bool		errkind;
@@ -2121,7 +2144,15 @@ check_srf_call_placement(ParseState *pstate, int location)
 			errkind = true;
 			break;
 		case EXPR_KIND_FROM_FUNCTION:
-			/* okay ... but we can't check nesting here */
+			/* okay, but we don't allow nested SRFs here */
+			/* errmsg is chosen to match transformRangeFunction() */
+			/* errposition should point to the inner SRF */
+			if (pstate->p_last_srf != last_srf)
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("set-returning functions must appear at top level of FROM"),
+						 parser_errposition(pstate,
+											exprLocation(pstate->p_last_srf))));
 			break;
 		case EXPR_KIND_WHERE:
 			errkind = true;
@@ -2202,7 +2233,7 @@ check_srf_call_placement(ParseState *pstate, int location)
 			err = _("set-returning functions are not allowed in trigger WHEN conditions");
 			break;
 		case EXPR_KIND_PARTITION_EXPRESSION:
-			err = _("set-returning functions are not allowed in partition key expression");
+			err = _("set-returning functions are not allowed in partition key expressions");
 			break;
 
 			/*

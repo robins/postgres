@@ -14,4 +14,6 @@
 
 extern void ApplyWorkerMain(Datum main_arg);
 
-#endif   /* LOGICALWORKER_H */
+extern bool IsLogicalWorker(void);
+
+#endif							/* LOGICALWORKER_H */

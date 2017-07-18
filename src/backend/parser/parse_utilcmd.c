@@ -91,7 +91,7 @@ typedef struct
 								 * the table */
 	IndexStmt  *pkey;			/* PRIMARY KEY index, if any */
 	bool		ispartitioned;	/* true if table is partitioned */
-	Node	   *partbound;		/* transformed FOR VALUES */
+	PartitionBoundSpec *partbound;	/* transformed FOR VALUES */
 } CreateStmtContext;
 
 /* State shared by transformCreateSchemaStmt and its subroutines */
@@ -135,6 +135,8 @@ static void transformConstraintAttrs(CreateStmtContext *cxt,
 static void transformColumnType(CreateStmtContext *cxt, ColumnDef *column);
 static void setSchemaName(char *context_schema, char **stmt_schema_name);
 static void transformPartitionCmd(CreateStmtContext *cxt, PartitionCmd *cmd);
+static Const *transformPartitionBoundValue(ParseState *pstate, A_Const *con,
+							 const char *colName, Oid colType, int32 colTypmod);
 
 
 /*
@@ -256,24 +258,10 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 
 	if (stmt->partspec)
 	{
-		int			partnatts = list_length(stmt->partspec->partParams);
-
 		if (stmt->inhRelations && !stmt->partbound)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-			errmsg("cannot create partitioned table as inheritance child")));
-
-		if (partnatts > PARTITION_MAX_KEYS)
-			ereport(ERROR,
-					(errcode(ERRCODE_TOO_MANY_COLUMNS),
-					 errmsg("cannot partition using more than %d columns",
-							PARTITION_MAX_KEYS)));
-
-		if (!pg_strcasecmp(stmt->partspec->strategy, "list") &&
-			partnatts > 1)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-				errmsg("cannot list partition using more than one column")));
+					 errmsg("cannot create partitioned table as inheritance child")));
 	}
 
 	/*
@@ -357,6 +345,15 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 	return result;
 }
 
+/*
+ * generateSerialExtraStmts
+ *		Generate CREATE SEQUENCE and ALTER SEQUENCE ... OWNED BY statements
+ *		to create the sequence for a serial or identity column.
+ *
+ * This includes determining the name the sequence will have.  The caller
+ * can ask to get back the name components by passing non-null pointers
+ * for snamespace_p and sname_p.
+ */
 static void
 generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
 						 Oid seqtypid, List *seqoptions, bool for_identity,
@@ -385,7 +382,6 @@ generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
 	 * problem, especially since few people would need two serial columns in
 	 * one table.
 	 */
-
 	foreach(option, seqoptions)
 	{
 		DefElem    *defel = lfirst_node(DefElem, option);
@@ -405,7 +401,17 @@ generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
 		RangeVar   *rv = makeRangeVarFromNameList(castNode(List, nameEl->arg));
 
 		snamespace = rv->schemaname;
+		if (!snamespace)
+		{
+			/* Given unqualified SEQUENCE NAME, select namespace */
+			if (cxt->rel)
+				snamespaceid = RelationGetNamespace(cxt->rel);
+			else
+				snamespaceid = RangeVarGetCreationNamespace(cxt->relation);
+			snamespace = get_namespace_name(snamespaceid);
+		}
 		sname = rv->relname;
+		/* Remove the SEQUENCE NAME item from seqoptions */
 		seqoptions = list_delete_ptr(seqoptions, nameEl);
 	}
 	else
@@ -445,7 +451,9 @@ generateSerialExtraStmts(CreateStmtContext *cxt, ColumnDef *column,
 	 * not our synthetic one.
 	 */
 	if (seqtypid)
-		seqstmt->options = lcons(makeDefElem("as", (Node *) makeTypeNameFromOid(seqtypid, -1), -1),
+		seqstmt->options = lcons(makeDefElem("as",
+											 (Node *) makeTypeNameFromOid(seqtypid, -1),
+											 -1),
 								 seqstmt->options);
 
 	/*
@@ -660,12 +668,12 @@ transformColumnDefinition(CreateStmtContext *cxt, ColumnDef *column)
 						ereport(ERROR,
 								(errcode(ERRCODE_SYNTAX_ERROR),
 								 errmsg("multiple identity specifications for column \"%s\" of table \"%s\"",
-									column->colname, cxt->relation->relname),
+										column->colname, cxt->relation->relname),
 								 parser_errposition(cxt->pstate,
 													constraint->location)));
 
 					generateSerialExtraStmts(cxt, column,
-										  typeOid, constraint->options, true,
+											 typeOid, constraint->options, true,
 											 NULL, NULL);
 
 					column->identity = constraint->generated_when;
@@ -907,7 +915,7 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
 	if (cxt->isforeign)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			   errmsg("LIKE is not supported for creating foreign tables")));
+				 errmsg("LIKE is not supported for creating foreign tables")));
 
 	relation = relation_openrv(table_like_clause->relation, AccessShareLock);
 
@@ -1068,7 +1076,7 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
 
 			stmt->objtype = OBJECT_COLUMN;
 			stmt->object = (Node *) list_make3(makeString(cxt->relation->schemaname),
-										  makeString(cxt->relation->relname),
+											   makeString(cxt->relation->relname),
 											   makeString(def->colname));
 			stmt->comment = comment;
 
@@ -1125,7 +1133,7 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
 			/* Copy comment on constraint */
 			if ((table_like_clause->options & CREATE_TABLE_LIKE_COMMENTS) &&
 				(comment = GetComment(get_relation_constraint_oid(RelationGetRelid(relation),
-														  n->conname, false),
+																  n->conname, false),
 									  ConstraintRelationId,
 									  0)) != NULL)
 			{
@@ -1133,7 +1141,7 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
 
 				stmt->objtype = OBJECT_TABCONSTRAINT;
 				stmt->object = (Node *) list_make3(makeString(cxt->relation->schemaname),
-										  makeString(cxt->relation->relname),
+												   makeString(cxt->relation->relname),
 												   makeString(n->conname));
 				stmt->comment = comment;
 
@@ -1205,7 +1213,7 @@ transformOfType(CreateStmtContext *cxt, TypeName *ofTypename)
 	tuple = typenameType(NULL, ofTypename, NULL);
 	check_of_type(tuple);
 	ofTypeId = HeapTupleGetOid(tuple);
-	ofTypename->typeOid = ofTypeId;		/* cached for later */
+	ofTypename->typeOid = ofTypeId; /* cached for later */
 
 	tupdesc = lookup_rowtype_tupdesc(ofTypeId, -1);
 	for (i = 0; i < tupdesc->natts; i++)
@@ -1538,8 +1546,8 @@ generateClonedIndexStmt(CreateStmtContext *cxt, Relation source_idx,
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 					 errmsg("cannot convert whole-row table reference"),
-			  errdetail("Index \"%s\" contains a whole-row table reference.",
-						RelationGetRelationName(source_idx))));
+					 errdetail("Index \"%s\" contains a whole-row table reference.",
+							   RelationGetRelationName(source_idx))));
 
 		index->whereClause = pred_tree;
 	}
@@ -1745,8 +1753,8 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 		if (cxt->pkey != NULL)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
-			 errmsg("multiple primary keys for table \"%s\" are not allowed",
-					cxt->relation->relname),
+					 errmsg("multiple primary keys for table \"%s\" are not allowed",
+							cxt->relation->relname),
 					 parser_errposition(cxt->pstate, constraint->location)));
 		cxt->pkey = index;
 
@@ -1827,8 +1835,8 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 		if (OidIsValid(get_index_constraint(index_oid)))
 			ereport(ERROR,
 					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-			   errmsg("index \"%s\" is already associated with a constraint",
-					  index_name),
+					 errmsg("index \"%s\" is already associated with a constraint",
+							index_name),
 					 parser_errposition(cxt->pstate, constraint->location)));
 
 		/* Perform validity checks on the index */
@@ -1916,7 +1924,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 			}
 			else
 				attform = SystemAttributeDefinition(attnum,
-											   heap_rel->rd_rel->relhasoids);
+													heap_rel->rd_rel->relhasoids);
 			attname = pstrdup(NameStr(attform->attname));
 
 			/*
@@ -1934,7 +1942,7 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 						(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 						 errmsg("index \"%s\" does not have default sorting behavior", index_name),
 						 errdetail("Cannot create a primary key or unique constraint using such an index."),
-					 parser_errposition(cxt->pstate, constraint->location)));
+						 parser_errposition(cxt->pstate, constraint->location)));
 
 			constraint->keys = lappend(constraint->keys, makeString(attname));
 		}
@@ -2078,13 +2086,13 @@ transformIndexConstraint(Constraint *constraint, CreateStmtContext *cxt)
 							(errcode(ERRCODE_DUPLICATE_COLUMN),
 							 errmsg("column \"%s\" appears twice in primary key constraint",
 									key),
-					 parser_errposition(cxt->pstate, constraint->location)));
+							 parser_errposition(cxt->pstate, constraint->location)));
 				else
 					ereport(ERROR,
 							(errcode(ERRCODE_DUPLICATE_COLUMN),
-					errmsg("column \"%s\" appears twice in unique constraint",
-						   key),
-					 parser_errposition(cxt->pstate, constraint->location)));
+							 errmsg("column \"%s\" appears twice in unique constraint",
+									key),
+							 parser_errposition(cxt->pstate, constraint->location)));
 			}
 		}
 
@@ -2388,14 +2396,14 @@ transformRuleStmt(RuleStmt *stmt, const char *queryString,
 
 	/* take care of the where clause */
 	*whereClause = transformWhereClause(pstate,
-									  (Node *) copyObject(stmt->whereClause),
+										(Node *) copyObject(stmt->whereClause),
 										EXPR_KIND_WHERE,
 										"WHERE");
 	/* we have to fix its collations too */
 	assign_expr_collations(pstate, *whereClause);
 
 	/* this is probably dead code without add_missing_from: */
-	if (list_length(pstate->p_rtable) != 2)		/* naughty, naughty... */
+	if (list_length(pstate->p_rtable) != 2) /* naughty, naughty... */
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 				 errmsg("rule WHERE condition cannot contain references to other relations")));
@@ -2412,7 +2420,7 @@ transformRuleStmt(RuleStmt *stmt, const char *queryString,
 
 		nothing_qry->commandType = CMD_NOTHING;
 		nothing_qry->rtable = pstate->p_rtable;
-		nothing_qry->jointree = makeFromExpr(NIL, NULL);		/* no join wanted */
+		nothing_qry->jointree = makeFromExpr(NIL, NULL);	/* no join wanted */
 
 		*actions = list_make1(nothing_qry);
 	}
@@ -2779,7 +2787,7 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
 						AlterSeqStmt *altseqstmt = makeNode(AlterSeqStmt);
 
 						altseqstmt->sequence = makeRangeVar(get_namespace_name(get_rel_namespace(seq_relid)),
-													 get_rel_name(seq_relid),
+															get_rel_name(seq_relid),
 															-1);
 						altseqstmt->options = list_make1(makeDefElem("as", (Node *) makeTypeNameFromOid(typeOid, -1), -1));
 						altseqstmt->for_identity = true;
@@ -2855,7 +2863,7 @@ transformAlterTableStmt(Oid relid, AlterTableStmt *stmt,
 							seqstmt = makeNode(AlterSeqStmt);
 							seq_relid = linitial_oid(seqlist);
 							seqstmt->sequence = makeRangeVar(get_namespace_name(get_rel_namespace(seq_relid)),
-												get_rel_name(seq_relid), -1);
+															 get_rel_name(seq_relid), -1);
 							seqstmt->options = newseqopts;
 							seqstmt->for_identity = true;
 							seqstmt->missing_ok = false;
@@ -3280,24 +3288,33 @@ transformPartitionCmd(CreateStmtContext *cxt, PartitionCmd *cmd)
 /*
  * transformPartitionBound
  *
- * Transform partition bound specification
+ * Transform a partition bound specification
  */
-Node *
-transformPartitionBound(ParseState *pstate, Relation parent, Node *bound)
+PartitionBoundSpec *
+transformPartitionBound(ParseState *pstate, Relation parent,
+						PartitionBoundSpec *spec)
 {
-	PartitionBoundSpec *spec = (PartitionBoundSpec *) bound,
-			   *result_spec;
+	PartitionBoundSpec *result_spec;
 	PartitionKey key = RelationGetPartitionKey(parent);
 	char		strategy = get_partition_strategy(key);
 	int			partnatts = get_partition_natts(key);
 	List	   *partexprs = get_partition_exprs(key);
 
+	/* Avoid scribbling on input */
 	result_spec = copyObject(spec);
 
 	if (strategy == PARTITION_STRATEGY_LIST)
 	{
 		ListCell   *cell;
 		char	   *colname;
+		Oid			coltype;
+		int32		coltypmod;
+
+		if (spec->strategy != PARTITION_STRATEGY_LIST)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
+					 errmsg("invalid bound specification for a list partition"),
+					 parser_errposition(pstate, exprLocation((Node *) spec))));
 
 		/* Get the only column's name in case we need to output an error */
 		if (key->partattrs[0] != 0)
@@ -3305,50 +3322,29 @@ transformPartitionBound(ParseState *pstate, Relation parent, Node *bound)
 											   key->partattrs[0]);
 		else
 			colname = deparse_expression((Node *) linitial(partexprs),
-						 deparse_context_for(RelationGetRelationName(parent),
-											 RelationGetRelid(parent)),
+										 deparse_context_for(RelationGetRelationName(parent),
+															 RelationGetRelid(parent)),
 										 false, false);
-
-		if (spec->strategy != PARTITION_STRATEGY_LIST)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
-				  errmsg("invalid bound specification for a list partition"),
-					 parser_errposition(pstate, exprLocation(bound))));
+		/* Need its type data too */
+		coltype = get_partition_col_typid(key, 0);
+		coltypmod = get_partition_col_typmod(key, 0);
 
 		result_spec->listdatums = NIL;
 		foreach(cell, spec->listdatums)
 		{
-			A_Const    *con = (A_Const *) lfirst(cell);
-			Node	   *value;
+			A_Const    *con = castNode(A_Const, lfirst(cell));
+			Const	   *value;
 			ListCell   *cell2;
 			bool		duplicate;
 
-			value = (Node *) make_const(pstate, &con->val, con->location);
-			value = coerce_to_target_type(pstate,
-										  value, exprType(value),
-										  get_partition_col_typid(key, 0),
-										  get_partition_col_typmod(key, 0),
-										  COERCION_ASSIGNMENT,
-										  COERCE_IMPLICIT_CAST,
-										  -1);
-
-			if (value == NULL)
-				ereport(ERROR,
-						(errcode(ERRCODE_DATATYPE_MISMATCH),
-						 errmsg("specified value cannot be cast to type \"%s\" of column \"%s\"",
-							 format_type_be(get_partition_col_typid(key, 0)),
-								colname),
-						 parser_errposition(pstate,
-											exprLocation((Node *) con))));
-
-			/* Simplify the expression */
-			value = (Node *) expression_planner((Expr *) value);
+			value = transformPartitionBoundValue(pstate, con,
+												 colname, coltype, coltypmod);
 
 			/* Don't add to the result if the value is a duplicate */
 			duplicate = false;
 			foreach(cell2, result_spec->listdatums)
 			{
-				Const	   *value2 = (Const *) lfirst(cell2);
+				Const	   *value2 = castNode(Const, lfirst(cell2));
 
 				if (equal(value, value2))
 				{
@@ -3369,16 +3365,13 @@ transformPartitionBound(ParseState *pstate, Relation parent, Node *bound)
 				   *cell2;
 		int			i,
 					j;
-		char	   *colname;
 		bool		seen_unbounded;
 
 		if (spec->strategy != PARTITION_STRATEGY_RANGE)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
-				 errmsg("invalid bound specification for a range partition"),
-					 parser_errposition(pstate, exprLocation(bound))));
-
-		Assert(spec->lowerdatums != NIL && spec->upperdatums != NIL);
+					 errmsg("invalid bound specification for a range partition"),
+					 parser_errposition(pstate, exprLocation((Node *) spec))));
 
 		if (list_length(spec->lowerdatums) != partnatts)
 			ereport(ERROR,
@@ -3390,50 +3383,51 @@ transformPartitionBound(ParseState *pstate, Relation parent, Node *bound)
 					 errmsg("TO must specify exactly one value per partitioning column")));
 
 		/*
-		 * Check that no finite value follows a UNBOUNDED literal in either of
+		 * Check that no finite value follows an UNBOUNDED item in either of
 		 * lower and upper bound lists.
 		 */
 		seen_unbounded = false;
 		foreach(cell1, spec->lowerdatums)
 		{
-			PartitionRangeDatum *ldatum;
+			PartitionRangeDatum *ldatum = castNode(PartitionRangeDatum,
+												   lfirst(cell1));
 
-			ldatum = (PartitionRangeDatum *) lfirst(cell1);
 			if (ldatum->infinite)
 				seen_unbounded = true;
 			else if (seen_unbounded)
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
-					   errmsg("cannot specify finite value after UNBOUNDED"),
-				 parser_errposition(pstate, exprLocation((Node *) ldatum))));
+						 errmsg("cannot specify finite value after UNBOUNDED"),
+						 parser_errposition(pstate, exprLocation((Node *) ldatum))));
 		}
 		seen_unbounded = false;
 		foreach(cell1, spec->upperdatums)
 		{
-			PartitionRangeDatum *rdatum;
+			PartitionRangeDatum *rdatum = castNode(PartitionRangeDatum,
+												   lfirst(cell1));
 
-			rdatum = (PartitionRangeDatum *) lfirst(cell1);
 			if (rdatum->infinite)
 				seen_unbounded = true;
 			else if (seen_unbounded)
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
-					   errmsg("cannot specify finite value after UNBOUNDED"),
-				 parser_errposition(pstate, exprLocation((Node *) rdatum))));
+						 errmsg("cannot specify finite value after UNBOUNDED"),
+						 parser_errposition(pstate, exprLocation((Node *) rdatum))));
 		}
 
+		/* Transform all the constants */
 		i = j = 0;
 		result_spec->lowerdatums = result_spec->upperdatums = NIL;
 		forboth(cell1, spec->lowerdatums, cell2, spec->upperdatums)
 		{
-			PartitionRangeDatum *ldatum,
-					   *rdatum;
-			Node	   *value;
-			A_Const    *lcon = NULL,
-					   *rcon = NULL;
+			PartitionRangeDatum *ldatum = (PartitionRangeDatum *) lfirst(cell1);
+			PartitionRangeDatum *rdatum = (PartitionRangeDatum *) lfirst(cell2);
+			char	   *colname;
+			Oid			coltype;
+			int32		coltypmod;
+			A_Const    *con;
+			Const	   *value;
 
-			ldatum = (PartitionRangeDatum *) lfirst(cell1);
-			rdatum = (PartitionRangeDatum *) lfirst(cell2);
 			/* Get the column's name in case we need to output an error */
 			if (key->partattrs[i] != 0)
 				colname = get_relid_attribute_name(RelationGetRelid(parent),
@@ -3441,75 +3435,47 @@ transformPartitionBound(ParseState *pstate, Relation parent, Node *bound)
 			else
 			{
 				colname = deparse_expression((Node *) list_nth(partexprs, j),
-						 deparse_context_for(RelationGetRelationName(parent),
-											 RelationGetRelid(parent)),
+											 deparse_context_for(RelationGetRelationName(parent),
+																 RelationGetRelid(parent)),
 											 false, false);
 				++j;
 			}
+			/* Need its type data too */
+			coltype = get_partition_col_typid(key, i);
+			coltypmod = get_partition_col_typmod(key, i);
 
-			if (!ldatum->infinite)
-				lcon = (A_Const *) ldatum->value;
-			if (!rdatum->infinite)
-				rcon = (A_Const *) rdatum->value;
-
-			if (lcon)
+			if (ldatum->value)
 			{
-				value = (Node *) make_const(pstate, &lcon->val, lcon->location);
-				if (((Const *) value)->constisnull)
+				con = castNode(A_Const, ldatum->value);
+				value = transformPartitionBoundValue(pstate, con,
+													 colname,
+													 coltype, coltypmod);
+				if (value->constisnull)
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 							 errmsg("cannot specify NULL in range bound")));
-				value = coerce_to_target_type(pstate,
-											  value, exprType(value),
-											  get_partition_col_typid(key, i),
-											get_partition_col_typmod(key, i),
-											  COERCION_ASSIGNMENT,
-											  COERCE_IMPLICIT_CAST,
-											  -1);
-				if (value == NULL)
-					ereport(ERROR,
-							(errcode(ERRCODE_DATATYPE_MISMATCH),
-							 errmsg("specified value cannot be cast to type \"%s\" of column \"%s\"",
-							 format_type_be(get_partition_col_typid(key, i)),
-									colname),
-							 parser_errposition(pstate, exprLocation((Node *) ldatum))));
-
-				/* Simplify the expression */
-				value = (Node *) expression_planner((Expr *) value);
-				ldatum->value = value;
+				ldatum = copyObject(ldatum);	/* don't scribble on input */
+				ldatum->value = (Node *) value;
 			}
 
-			if (rcon)
+			if (rdatum->value)
 			{
-				value = (Node *) make_const(pstate, &rcon->val, rcon->location);
-				if (((Const *) value)->constisnull)
+				con = castNode(A_Const, rdatum->value);
+				value = transformPartitionBoundValue(pstate, con,
+													 colname,
+													 coltype, coltypmod);
+				if (value->constisnull)
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 							 errmsg("cannot specify NULL in range bound")));
-				value = coerce_to_target_type(pstate,
-											  value, exprType(value),
-											  get_partition_col_typid(key, i),
-											get_partition_col_typmod(key, i),
-											  COERCION_ASSIGNMENT,
-											  COERCE_IMPLICIT_CAST,
-											  -1);
-				if (value == NULL)
-					ereport(ERROR,
-							(errcode(ERRCODE_DATATYPE_MISMATCH),
-							 errmsg("specified value cannot be cast to type \"%s\" of column \"%s\"",
-							 format_type_be(get_partition_col_typid(key, i)),
-									colname),
-							 parser_errposition(pstate, exprLocation((Node *) rdatum))));
-
-				/* Simplify the expression */
-				value = (Node *) expression_planner((Expr *) value);
-				rdatum->value = value;
+				rdatum = copyObject(rdatum);	/* don't scribble on input */
+				rdatum->value = (Node *) value;
 			}
 
 			result_spec->lowerdatums = lappend(result_spec->lowerdatums,
-											   copyObject(ldatum));
+											   ldatum);
 			result_spec->upperdatums = lappend(result_spec->upperdatums,
-											   copyObject(rdatum));
+											   rdatum);
 
 			++i;
 		}
@@ -3517,5 +3483,50 @@ transformPartitionBound(ParseState *pstate, Relation parent, Node *bound)
 	else
 		elog(ERROR, "unexpected partition strategy: %d", (int) strategy);
 
-	return (Node *) result_spec;
+	return result_spec;
+}
+
+/*
+ * Transform one constant in a partition bound spec
+ */
+static Const *
+transformPartitionBoundValue(ParseState *pstate, A_Const *con,
+							 const char *colName, Oid colType, int32 colTypmod)
+{
+	Node	   *value;
+
+	/* Make it into a Const */
+	value = (Node *) make_const(pstate, &con->val, con->location);
+
+	/* Coerce to correct type */
+	value = coerce_to_target_type(pstate,
+								  value, exprType(value),
+								  colType,
+								  colTypmod,
+								  COERCION_ASSIGNMENT,
+								  COERCE_IMPLICIT_CAST,
+								  -1);
+
+	if (value == NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				 errmsg("specified value cannot be cast to type %s for column \"%s\"",
+						format_type_be(colType), colName),
+				 parser_errposition(pstate, con->location)));
+
+	/* Simplify the expression, in case we had a coercion */
+	if (!IsA(value, Const))
+		value = (Node *) expression_planner((Expr *) value);
+
+	/* Fail if we don't have a constant (i.e., non-immutable coercion) */
+	if (!IsA(value, Const))
+		ereport(ERROR,
+				(errcode(ERRCODE_DATATYPE_MISMATCH),
+				 errmsg("specified value cannot be cast to type %s for column \"%s\"",
+						format_type_be(colType), colName),
+				 errdetail("The cast requires a non-immutable conversion."),
+				 errhint("Try putting the literal value in single quotes."),
+				 parser_errposition(pstate, con->location)));
+
+	return (Const *) value;
 }

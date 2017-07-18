@@ -294,9 +294,9 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 		if (found < remoterel->natts)
 			ereport(ERROR,
 					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-			errmsg("logical replication target relation \"%s.%s\" is missing "
-				   "some replicated columns",
-				   remoterel->nspname, remoterel->relname)));
+					 errmsg("logical replication target relation \"%s.%s\" is missing "
+							"some replicated columns",
+							remoterel->nspname, remoterel->relname)));
 
 		/*
 		 * Check that replica identity matches. We allow for stricter replica
@@ -334,9 +334,9 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 			if (!AttrNumberIsForUserDefinedAttr(attnum))
 				ereport(ERROR,
 						(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("logical replication target relation \"%s.%s\" uses "
-						"system columns in REPLICA IDENTITY index",
-						remoterel->nspname, remoterel->relname)));
+						 errmsg("logical replication target relation \"%s.%s\" uses "
+								"system columns in REPLICA IDENTITY index",
+								remoterel->nspname, remoterel->relname)));
 
 			attnum = AttrNumberGetAttrOffset(attnum);
 

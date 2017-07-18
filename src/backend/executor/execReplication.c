@@ -24,12 +24,14 @@
 #include "parser/parsetree.h"
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
+#include "utils/builtins.h"
 #include "utils/datum.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "utils/snapmgr.h"
 #include "utils/syscache.h"
+#include "utils/typcache.h"
 #include "utils/tqual.h"
 
 
@@ -224,13 +226,15 @@ tuple_equals_slot(TupleDesc desc, HeapTuple tup, TupleTableSlot *slot)
 	Datum		values[MaxTupleAttributeNumber];
 	bool		isnull[MaxTupleAttributeNumber];
 	int			attrnum;
-	Form_pg_attribute att;
 
 	heap_deform_tuple(tup, desc, values, isnull);
 
 	/* Check equality of the attributes. */
 	for (attrnum = 0; attrnum < desc->natts; attrnum++)
 	{
+		Form_pg_attribute att;
+		TypeCacheEntry *typentry;
+
 		/*
 		 * If one value is NULL and other is not, then they are certainly not
 		 * equal
@@ -245,8 +249,17 @@ tuple_equals_slot(TupleDesc desc, HeapTuple tup, TupleTableSlot *slot)
 			continue;
 
 		att = desc->attrs[attrnum];
-		if (!datumIsEqual(values[attrnum], slot->tts_values[attrnum],
-						  att->attbyval, att->attlen))
+
+		typentry = lookup_type_cache(att->atttypid, TYPECACHE_EQ_OPR_FINFO);
+		if (!OidIsValid(typentry->eq_opr_finfo.fn_oid))
+			ereport(ERROR,
+					(errcode(ERRCODE_UNDEFINED_FUNCTION),
+					 errmsg("could not identify an equality operator for type %s",
+							format_type_be(att->atttypid))));
+
+		if (!DatumGetBool(FunctionCall2(&typentry->eq_opr_finfo,
+										values[attrnum],
+										slot->tts_values[attrnum])))
 			return false;
 	}
 
@@ -404,7 +417,13 @@ ExecSimpleRelationInsert(EState *estate, TupleTableSlot *slot)
 
 		/* AFTER ROW INSERT Triggers */
 		ExecARInsertTriggers(estate, resultRelInfo, tuple,
-							 recheckIndexes);
+							 recheckIndexes, NULL);
+
+		/*
+		 * XXX we should in theory pass a TransitionCaptureState object to the
+		 * above to capture transition tuples, but after statement triggers
+		 * don't actually get fired by replication yet anyway
+		 */
 
 		list_free(recheckIndexes);
 	}
@@ -466,7 +485,7 @@ ExecSimpleRelationUpdate(EState *estate, EPQState *epqstate,
 		/* AFTER ROW UPDATE Triggers */
 		ExecARUpdateTriggers(estate, resultRelInfo,
 							 &searchslot->tts_tuple->t_self,
-							 NULL, tuple, recheckIndexes);
+							 NULL, tuple, recheckIndexes, NULL);
 
 		list_free(recheckIndexes);
 	}
@@ -509,7 +528,7 @@ ExecSimpleRelationDelete(EState *estate, EPQState *epqstate,
 
 		/* AFTER ROW DELETE Triggers */
 		ExecARDeleteTriggers(estate, resultRelInfo,
-							 &searchslot->tts_tuple->t_self, NULL);
+							 &searchslot->tts_tuple->t_self, NULL, NULL);
 
 		list_free(recheckIndexes);
 	}
@@ -568,6 +587,6 @@ CheckSubscriptionRelkind(char relkind, const char *nspname,
 	if (relkind != RELKIND_RELATION)
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-		errmsg("logical replication target relation \"%s.%s\" is not a table",
-			   nspname, relname)));
+				 errmsg("logical replication target relation \"%s.%s\" is not a table",
+						nspname, relname)));
 }

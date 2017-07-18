@@ -55,6 +55,8 @@
 #include "pg_getopt.h"
 #include "postmaster/autovacuum.h"
 #include "postmaster/postmaster.h"
+#include "replication/logicallauncher.h"
+#include "replication/logicalworker.h"
 #include "replication/slot.h"
 #include "replication/walsender.h"
 #include "rewrite/rewriteHandler.h"
@@ -122,13 +124,6 @@ char	   *register_stack_base_ptr = NULL;
 #endif
 
 /*
- * Flag to mark SIGHUP. Whenever the main loop comes around it
- * will reread the configuration file. (Better than doing the
- * reading in the signal handler, ey?)
- */
-static volatile sig_atomic_t got_SIGHUP = false;
-
-/*
  * Flag to keep track of whether we have started a transaction.
  * For extended query protocol this has to be remembered across messages.
  */
@@ -158,7 +153,7 @@ static CachedPlanSource *unnamed_stmt_psrc = NULL;
 /* assorted command-line switches */
 static const char *userDoption = NULL;	/* -D switch */
 static bool EchoQuery = false;	/* -E switch */
-static bool UseSemiNewlineNewline = false;		/* -j switch */
+static bool UseSemiNewlineNewline = false;	/* -j switch */
 
 /* whether or not, and why, we were canceled by conflict with recovery */
 static bool RecoveryConflictPending = false;
@@ -186,7 +181,6 @@ static bool IsTransactionExitStmt(Node *parsetree);
 static bool IsTransactionExitStmtList(List *pstmts);
 static bool IsTransactionStmtList(List *pstmts);
 static void drop_unnamed_stmt(void);
-static void SigHupHandler(SIGNAL_ARGS);
 static void log_disconnections(int code, Datum arg);
 
 
@@ -385,7 +379,7 @@ SocketBackend(StringInfo inBuf)
 						whereToSendOutput = DestNone;
 						ereport(DEBUG1,
 								(errcode(ERRCODE_CONNECTION_DOES_NOT_EXIST),
-							 errmsg("unexpected EOF on client connection")));
+								 errmsg("unexpected EOF on client connection")));
 					}
 					return EOF;
 				}
@@ -412,7 +406,7 @@ SocketBackend(StringInfo inBuf)
 						whereToSendOutput = DestNone;
 						ereport(DEBUG1,
 								(errcode(ERRCODE_CONNECTION_DOES_NOT_EXIST),
-							 errmsg("unexpected EOF on client connection")));
+								 errmsg("unexpected EOF on client connection")));
 					}
 					return EOF;
 				}
@@ -688,7 +682,7 @@ pg_analyze_and_rewrite_params(RawStmt *parsetree,
 	Query	   *query;
 	List	   *querytree_list;
 
-	Assert(query_string != NULL);		/* required as of 8.4 */
+	Assert(query_string != NULL);	/* required as of 8.4 */
 
 	TRACE_POSTGRESQL_QUERY_REWRITE_START(query_string);
 
@@ -1001,7 +995,7 @@ exec_simple_query(const char *query_string)
 			ereport(ERROR,
 					(errcode(ERRCODE_IN_FAILED_SQL_TRANSACTION),
 					 errmsg("current transaction is aborted, "
-						  "commands ignored until end of transaction block"),
+							"commands ignored until end of transaction block"),
 					 errdetail_abort()));
 
 		/* Make sure we are in a transaction command */
@@ -1199,9 +1193,9 @@ exec_simple_query(const char *query_string)
  */
 static void
 exec_parse_message(const char *query_string,	/* string to execute */
-				   const char *stmt_name,		/* name for prepared stmt */
-				   Oid *paramTypes,		/* parameter types */
-				   int numParams)		/* number of parameters */
+				   const char *stmt_name,	/* name for prepared stmt */
+				   Oid *paramTypes, /* parameter types */
+				   int numParams)	/* number of parameters */
 {
 	MemoryContext unnamed_stmt_context = NULL;
 	MemoryContext oldcontext;
@@ -1283,7 +1277,7 @@ exec_parse_message(const char *query_string,	/* string to execute */
 	if (list_length(parsetree_list) > 1)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
-		errmsg("cannot insert multiple commands into a prepared statement")));
+				 errmsg("cannot insert multiple commands into a prepared statement")));
 
 	if (parsetree_list != NIL)
 	{
@@ -1311,7 +1305,7 @@ exec_parse_message(const char *query_string,	/* string to execute */
 			ereport(ERROR,
 					(errcode(ERRCODE_IN_FAILED_SQL_TRANSACTION),
 					 errmsg("current transaction is aborted, "
-						  "commands ignored until end of transaction block"),
+							"commands ignored until end of transaction block"),
 					 errdetail_abort()));
 
 		/*
@@ -1352,8 +1346,8 @@ exec_parse_message(const char *query_string,	/* string to execute */
 			if (ptype == InvalidOid || ptype == UNKNOWNOID)
 				ereport(ERROR,
 						(errcode(ERRCODE_INDETERMINATE_DATATYPE),
-					 errmsg("could not determine data type of parameter $%d",
-							i + 1)));
+						 errmsg("could not determine data type of parameter $%d",
+								i + 1)));
 		}
 
 		if (log_parser_stats)
@@ -1546,8 +1540,8 @@ exec_bind_message(StringInfo input_message)
 	if (numPFormats > 1 && numPFormats != numParams)
 		ereport(ERROR,
 				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-			errmsg("bind message has %d parameter formats but %d parameters",
-				   numPFormats, numParams)));
+				 errmsg("bind message has %d parameter formats but %d parameters",
+						numPFormats, numParams)));
 
 	if (numParams != psrc->num_params)
 		ereport(ERROR,
@@ -1666,7 +1660,7 @@ exec_bind_message(StringInfo input_message)
 			}
 			else
 			{
-				pbuf.data = NULL;		/* keep compiler quiet */
+				pbuf.data = NULL;	/* keep compiler quiet */
 				csave = 0;
 			}
 
@@ -1700,7 +1694,7 @@ exec_bind_message(StringInfo input_message)
 				if (pstring && pstring != pbuf.data)
 					pfree(pstring);
 			}
-			else if (pformat == 1)		/* binary mode */
+			else if (pformat == 1)	/* binary mode */
 			{
 				Oid			typreceive;
 				Oid			typioparam;
@@ -2561,7 +2555,7 @@ drop_unnamed_stmt(void)
 void
 quickdie(SIGNAL_ARGS)
 {
-	sigaddset(&BlockSig, SIGQUIT);		/* prevent nested calls */
+	sigaddset(&BlockSig, SIGQUIT);	/* prevent nested calls */
 	PG_SETMASK(&BlockSig);
 
 	/*
@@ -2587,10 +2581,10 @@ quickdie(SIGNAL_ARGS)
 	ereport(WARNING,
 			(errcode(ERRCODE_CRASH_SHUTDOWN),
 			 errmsg("terminating connection because of crash of another server process"),
-	errdetail("The postmaster has commanded this server process to roll back"
-			  " the current transaction and exit, because another"
-			  " server process exited abnormally and possibly corrupted"
-			  " shared memory."),
+			 errdetail("The postmaster has commanded this server process to roll back"
+					   " the current transaction and exit, because another"
+					   " server process exited abnormally and possibly corrupted"
+					   " shared memory."),
 			 errhint("In a moment you should be able to reconnect to the"
 					 " database and repeat your command.")));
 
@@ -2683,13 +2677,19 @@ FloatExceptionHandler(SIGNAL_ARGS)
 					   "invalid operation, such as division by zero.")));
 }
 
-/* SIGHUP: set flag to re-read config file at next convenient time */
-static void
-SigHupHandler(SIGNAL_ARGS)
+/*
+ * SIGHUP: set flag to re-read config file at next convenient time.
+ *
+ * Sets the ConfigReloadPending flag, which should be checked at convenient
+ * places inside main loops. (Better than doing the reading in the signal
+ * handler, ey?)
+ */
+void
+PostgresSigHupHandler(SIGNAL_ARGS)
 {
 	int			save_errno = errno;
 
-	got_SIGHUP = true;
+	ConfigReloadPending = true;
 	SetLatch(MyLatch);
 
 	errno = save_errno;
@@ -2832,7 +2832,7 @@ ProcessInterrupts(void)
 	if (ProcDiePending)
 	{
 		ProcDiePending = false;
-		QueryCancelPending = false;		/* ProcDie trumps QueryCancel */
+		QueryCancelPending = false; /* ProcDie trumps QueryCancel */
 		LockErrorCleanup();
 		/* As in quickdie, don't risk sending to client during auth */
 		if (ClientAuthInProgress && whereToSendOutput == DestRemote)
@@ -2845,12 +2845,27 @@ ProcessInterrupts(void)
 			ereport(FATAL,
 					(errcode(ERRCODE_ADMIN_SHUTDOWN),
 					 errmsg("terminating autovacuum process due to administrator command")));
+		else if (IsLogicalWorker())
+			ereport(FATAL,
+					(errcode(ERRCODE_ADMIN_SHUTDOWN),
+					 errmsg("terminating logical replication worker due to administrator command")));
+		else if (IsLogicalLauncher())
+		{
+			ereport(DEBUG1,
+					(errmsg("logical replication launcher shutting down")));
+
+			/*
+			 * The logical replication launcher can be stopped at any time.
+			 * Use exit status 1 so the background worker is restarted.
+			 */
+			proc_exit(1);
+		}
 		else if (RecoveryConflictPending && RecoveryConflictRetryable)
 		{
 			pgstat_report_recovery_conflict(RecoveryConflictReason);
 			ereport(FATAL,
 					(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
-			  errmsg("terminating connection due to conflict with recovery"),
+					 errmsg("terminating connection due to conflict with recovery"),
 					 errdetail_recovery_conflict()));
 		}
 		else if (RecoveryConflictPending)
@@ -2860,17 +2875,17 @@ ProcessInterrupts(void)
 			pgstat_report_recovery_conflict(RecoveryConflictReason);
 			ereport(FATAL,
 					(errcode(ERRCODE_DATABASE_DROPPED),
-			  errmsg("terminating connection due to conflict with recovery"),
+					 errmsg("terminating connection due to conflict with recovery"),
 					 errdetail_recovery_conflict()));
 		}
 		else
 			ereport(FATAL,
 					(errcode(ERRCODE_ADMIN_SHUTDOWN),
-			 errmsg("terminating connection due to administrator command")));
+					 errmsg("terminating connection due to administrator command")));
 	}
 	if (ClientConnectionLost)
 	{
-		QueryCancelPending = false;		/* lost connection trumps QueryCancel */
+		QueryCancelPending = false; /* lost connection trumps QueryCancel */
 		LockErrorCleanup();
 		/* don't send to client, we already know the connection to be dead. */
 		whereToSendOutput = DestNone;
@@ -2887,13 +2902,13 @@ ProcessInterrupts(void)
 	 */
 	if (RecoveryConflictPending && DoingCommandRead)
 	{
-		QueryCancelPending = false;		/* this trumps QueryCancel */
+		QueryCancelPending = false; /* this trumps QueryCancel */
 		RecoveryConflictPending = false;
 		LockErrorCleanup();
 		pgstat_report_recovery_conflict(RecoveryConflictReason);
 		ereport(FATAL,
 				(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
-			  errmsg("terminating connection due to conflict with recovery"),
+				 errmsg("terminating connection due to conflict with recovery"),
 				 errdetail_recovery_conflict(),
 				 errhint("In a moment you should be able to reconnect to the"
 						 " database and repeat your command.")));
@@ -2937,7 +2952,7 @@ ProcessInterrupts(void)
 		 */
 		if (lock_timeout_occurred && stmt_timeout_occurred &&
 			get_timeout_finish_time(STATEMENT_TIMEOUT) < get_timeout_finish_time(LOCK_TIMEOUT))
-			lock_timeout_occurred = false;		/* report stmt timeout */
+			lock_timeout_occurred = false;	/* report stmt timeout */
 
 		if (lock_timeout_occurred)
 		{
@@ -2967,7 +2982,7 @@ ProcessInterrupts(void)
 			pgstat_report_recovery_conflict(RecoveryConflictReason);
 			ereport(ERROR,
 					(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
-				 errmsg("canceling statement due to conflict with recovery"),
+					 errmsg("canceling statement due to conflict with recovery"),
 					 errdetail_recovery_conflict()));
 		}
 
@@ -3029,15 +3044,15 @@ ia64_get_bsp(void)
 	char	   *ret;
 
 	/* the ;; is a "stop", seems to be required before fetching BSP */
-	__asm__		__volatile__(
-										 ";;\n"
-										 "	mov	%0=ar.bsp	\n"
-							 :			 "=r"(ret));
+	__asm__ __volatile__(
+						 ";;\n"
+						 "	mov	%0=ar.bsp	\n"
+:						 "=r"(ret));
 
 	return ret;
 }
 #endif
-#endif   /* IA64 */
+#endif							/* IA64 */
 
 
 /*
@@ -3107,7 +3122,7 @@ check_stack_depth(void)
 				(errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
 				 errmsg("stack depth limit exceeded"),
 				 errhint("Increase the configuration parameter \"max_stack_depth\" (currently %dkB), "
-			  "after ensuring the platform's stack depth limit is adequate.",
+						 "after ensuring the platform's stack depth limit is adequate.",
 						 max_stack_depth)));
 	}
 }
@@ -3155,7 +3170,7 @@ stack_is_too_deep(void)
 	if (stack_depth > max_stack_depth_bytes &&
 		register_stack_base_ptr != NULL)
 		return true;
-#endif   /* IA64 */
+#endif							/* IA64 */
 
 	return false;
 }
@@ -3270,7 +3285,7 @@ get_stats_option_name(const char *arg)
 	switch (arg[0])
 	{
 		case 'p':
-			if (optarg[1] == 'a')		/* "parser" */
+			if (optarg[1] == 'a')	/* "parser" */
 				return "log_parser_stats";
 			else if (optarg[1] == 'l')	/* "planner" */
 				return "log_planner_stats";
@@ -3326,7 +3341,7 @@ process_postgres_switches(int argc, char *argv[], GucContext ctx,
 	}
 	else
 	{
-		gucsource = PGC_S_CLIENT;		/* switches came from client */
+		gucsource = PGC_S_CLIENT;	/* switches came from client */
 	}
 
 #ifdef HAVE_INT_OPTERR
@@ -3532,13 +3547,13 @@ process_postgres_switches(int argc, char *argv[], GucContext ctx,
 			ereport(FATAL,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 					 errmsg("invalid command-line argument for server process: %s", argv[optind]),
-			  errhint("Try \"%s --help\" for more information.", progname)));
+					 errhint("Try \"%s --help\" for more information.", progname)));
 		else
 			ereport(FATAL,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 					 errmsg("%s: invalid command-line argument: %s",
 							progname, argv[optind]),
-			  errhint("Try \"%s --help\" for more information.", progname)));
+					 errhint("Try \"%s --help\" for more information.", progname)));
 	}
 
 	/*
@@ -3627,9 +3642,9 @@ PostgresMain(int argc, char *argv[],
 		WalSndSignals();
 	else
 	{
-		pqsignal(SIGHUP, SigHupHandler);		/* set flag to read config
-												 * file */
-		pqsignal(SIGINT, StatementCancelHandler);		/* cancel current query */
+		pqsignal(SIGHUP, PostgresSigHupHandler);	/* set flag to read config
+													 * file */
+		pqsignal(SIGINT, StatementCancelHandler);	/* cancel current query */
 		pqsignal(SIGTERM, die); /* cancel current query and exit */
 
 		/*
@@ -3638,9 +3653,9 @@ PostgresMain(int argc, char *argv[],
 		 * rather than quickdie().
 		 */
 		if (IsUnderPostmaster)
-			pqsignal(SIGQUIT, quickdie);		/* hard crash time */
+			pqsignal(SIGQUIT, quickdie);	/* hard crash time */
 		else
-			pqsignal(SIGQUIT, die);		/* cancel current query and exit */
+			pqsignal(SIGQUIT, die); /* cancel current query and exit */
 		InitializeTimeouts();	/* establishes SIGALRM handler */
 
 		/*
@@ -3658,8 +3673,8 @@ PostgresMain(int argc, char *argv[],
 		 * Reset some signals that are accepted by postmaster but not by
 		 * backend
 		 */
-		pqsignal(SIGCHLD, SIG_DFL);		/* system() requires this on some
-										 * platforms */
+		pqsignal(SIGCHLD, SIG_DFL); /* system() requires this on some
+									 * platforms */
 	}
 
 	pqinitmask();
@@ -3843,7 +3858,7 @@ PostgresMain(int argc, char *argv[],
 		 * forgetting a timeout cancel.
 		 */
 		disable_all_timeouts(false);
-		QueryCancelPending = false;		/* second to avoid race condition */
+		QueryCancelPending = false; /* second to avoid race condition */
 
 		/* Not reading from the client anymore. */
 		DoingCommandRead = false;
@@ -4041,9 +4056,9 @@ PostgresMain(int argc, char *argv[],
 		 * (6) check for any other interesting events that happened while we
 		 * slept.
 		 */
-		if (got_SIGHUP)
+		if (ConfigReloadPending)
 		{
-			got_SIGHUP = false;
+			ConfigReloadPending = false;
 			ProcessConfigFile(PGC_SIGHUP);
 		}
 
@@ -4206,13 +4221,13 @@ PostgresMain(int argc, char *argv[],
 						default:
 							ereport(ERROR,
 									(errcode(ERRCODE_PROTOCOL_VIOLATION),
-								   errmsg("invalid CLOSE message subtype %d",
-										  close_type)));
+									 errmsg("invalid CLOSE message subtype %d",
+											close_type)));
 							break;
 					}
 
 					if (whereToSendOutput == DestRemote)
-						pq_putemptymessage('3');		/* CloseComplete */
+						pq_putemptymessage('3');	/* CloseComplete */
 				}
 				break;
 
@@ -4241,8 +4256,8 @@ PostgresMain(int argc, char *argv[],
 						default:
 							ereport(ERROR,
 									(errcode(ERRCODE_PROTOCOL_VIOLATION),
-								errmsg("invalid DESCRIBE message subtype %d",
-									   describe_type)));
+									 errmsg("invalid DESCRIBE message subtype %d",
+											describe_type)));
 							break;
 					}
 				}
@@ -4416,7 +4431,7 @@ ShowUsage(const char *title)
 
 	appendStringInfoString(&str, "! system usage stats:\n");
 	appendStringInfo(&str,
-			"!\t%ld.%06ld s user, %ld.%06ld s system, %ld.%06ld s elapsed\n",
+					 "!\t%ld.%06ld s user, %ld.%06ld s system, %ld.%06ld s elapsed\n",
 					 (long) (r.ru_utime.tv_sec - Save_r.ru_utime.tv_sec),
 					 (long) (r.ru_utime.tv_usec - Save_r.ru_utime.tv_usec),
 					 (long) (r.ru_stime.tv_sec - Save_r.ru_stime.tv_sec),
@@ -4437,25 +4452,25 @@ ShowUsage(const char *title)
 					 r.ru_oublock - Save_r.ru_oublock,
 					 r.ru_inblock, r.ru_oublock);
 	appendStringInfo(&str,
-			  "!\t%ld/%ld [%ld/%ld] page faults/reclaims, %ld [%ld] swaps\n",
+					 "!\t%ld/%ld [%ld/%ld] page faults/reclaims, %ld [%ld] swaps\n",
 					 r.ru_majflt - Save_r.ru_majflt,
 					 r.ru_minflt - Save_r.ru_minflt,
 					 r.ru_majflt, r.ru_minflt,
 					 r.ru_nswap - Save_r.ru_nswap,
 					 r.ru_nswap);
 	appendStringInfo(&str,
-		 "!\t%ld [%ld] signals rcvd, %ld/%ld [%ld/%ld] messages rcvd/sent\n",
+					 "!\t%ld [%ld] signals rcvd, %ld/%ld [%ld/%ld] messages rcvd/sent\n",
 					 r.ru_nsignals - Save_r.ru_nsignals,
 					 r.ru_nsignals,
 					 r.ru_msgrcv - Save_r.ru_msgrcv,
 					 r.ru_msgsnd - Save_r.ru_msgsnd,
 					 r.ru_msgrcv, r.ru_msgsnd);
 	appendStringInfo(&str,
-			 "!\t%ld/%ld [%ld/%ld] voluntary/involuntary context switches\n",
+					 "!\t%ld/%ld [%ld/%ld] voluntary/involuntary context switches\n",
 					 r.ru_nvcsw - Save_r.ru_nvcsw,
 					 r.ru_nivcsw - Save_r.ru_nivcsw,
 					 r.ru_nvcsw, r.ru_nivcsw);
-#endif   /* HAVE_GETRUSAGE */
+#endif							/* HAVE_GETRUSAGE */
 
 	/* remove trailing newline */
 	if (str.data[str.len - 1] == '\n')
@@ -4497,5 +4512,5 @@ log_disconnections(int code, Datum arg)
 					"user=%s database=%s host=%s%s%s",
 					hours, minutes, seconds, msecs,
 					port->user_name, port->database_name, port->remote_host,
-				  port->remote_port[0] ? " port=" : "", port->remote_port)));
+					port->remote_port[0] ? " port=" : "", port->remote_port)));
 }

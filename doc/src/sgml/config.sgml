@@ -856,8 +856,8 @@ include_dir 'conf.d'
         Specifies the number of seconds of inactivity after which TCP
         should send a keepalive message to the client.  A value of 0 uses
         the system default.
-        This parameter is supported only on systems that support the
-        <symbol>TCP_KEEPIDLE</> or <symbol>TCP_KEEPALIVE</> symbols, and on
+        This parameter is supported only on systems that support
+        <symbol>TCP_KEEPIDLE</> or an equivalent socket option, and on
         Windows; on other systems, it must be zero.
         In sessions connected via a Unix-domain socket, this parameter is
         ignored and always reads as zero.
@@ -882,9 +882,9 @@ include_dir 'conf.d'
         Specifies the number of seconds after which a TCP keepalive message
         that is not acknowledged by the client should be retransmitted.
         A value of 0 uses the system default.
-        This parameter is supported only on systems that support the
-        <symbol>TCP_KEEPINTVL</> symbol, and on Windows; on other systems, it
-        must be zero.
+        This parameter is supported only on systems that support
+        <symbol>TCP_KEEPINTVL</> or an equivalent socket option, and on
+        Windows; on other systems, it must be zero.
         In sessions connected via a Unix-domain socket, this parameter is
         ignored and always reads as zero.
        </para>
@@ -906,10 +906,11 @@ include_dir 'conf.d'
       <listitem>
        <para>
         Specifies the number of TCP keepalives that can be lost before
-        the server's connection to the client is considered dead.  A value of 0
-        uses the system default.  This parameter is
-        supported only on systems that support the <symbol>TCP_KEEPCNT</>
-        symbol; on other systems, it must be zero.
+        the server's connection to the client is considered dead.
+        A value of 0 uses the system default.
+        This parameter is supported only on systems that support
+        <symbol>TCP_KEEPCNT</> or an equivalent socket option;
+        on other systems, it must be zero.
         In sessions connected via a Unix-domain socket, this parameter is
         ignored and always reads as zero.
        </para>
@@ -1908,10 +1909,10 @@ include_dir 'conf.d'
        <listitem>
         <para>
          Whenever more than <varname>bgwriter_flush_after</varname> bytes have
-         been written by the bgwriter, attempt to force the OS to issue these
+         been written by the background writer, attempt to force the OS to issue these
          writes to the underlying storage.  Doing so will limit the amount of
          dirty data in the kernel's page cache, reducing the likelihood of
-         stalls when an fsync is issued at the end of a checkpoint, or when
+         stalls when an <function>fsync</function> is issued at the end of a checkpoint, or when
          the OS writes data back in larger batches in the background.  Often
          that will result in greatly reduced transaction latency, but there
          also are some cases, especially with workloads that are bigger than
@@ -2029,7 +2030,7 @@ include_dir 'conf.d'
          pool of processes established by
          <xref linkend="guc-max-worker-processes">, limited by
          <xref linkend="guc-max-parallel-workers">.  Note that the requested
-         number of workers may not actually be available at runtime.  If this
+         number of workers may not actually be available at run time.  If this
          occurs, the plan will run with fewer workers than expected, which may
          be inefficient.  The default value is 2.  Setting this value to 0
          disables parallel query execution.
@@ -2090,7 +2091,7 @@ include_dir 'conf.d'
          been written by a single backend, attempt to force the OS to issue
          these writes to the underlying storage.  Doing so will limit the
          amount of dirty data in the kernel's page cache, reducing the
-         likelihood of stalls when an fsync is issued at the end of a
+         likelihood of stalls when an <function>fsync</function> is issued at the end of a
          checkpoint, or when the OS writes data back in larger batches in the
          background.  Often that will result in greatly reduced transaction
          latency, but there also are some cases, especially with workloads
@@ -2270,7 +2271,7 @@ include_dir 'conf.d'
         For reliable recovery when changing <varname>fsync</varname>
         off to on, it is necessary to force all modified buffers in the
         kernel to durable storage.  This can be done while the cluster
-        is shutdown or while fsync is on by running <command>initdb
+        is shutdown or while <varname>fsync</varname> is on by running <command>initdb
         --sync-only</command>, running <command>sync</>, unmounting the
         file system, or rebooting the server.
        </para>
@@ -2700,7 +2701,7 @@ include_dir 'conf.d'
         have been written while performing a checkpoint, attempt to force the
         OS to issue these writes to the underlying storage.  Doing so will
         limit the amount of dirty data in the kernel's page cache, reducing
-        the likelihood of stalls when an fsync is issued at the end of the
+        the likelihood of stalls when an <function>fsync</function> is issued at the end of the
         checkpoint, or when the OS writes data back in larger batches in the
         background.  Often that will result in greatly reduced transaction
         latency, but there also are some cases, especially with workloads
@@ -3073,7 +3074,19 @@ include_dir 'conf.d'
         (as shown by a state of <literal>streaming</literal> in the
         <link linkend="monitoring-stats-views-table">
         <literal>pg_stat_replication</></link> view).
-        Specifying more than one standby names can allow very high availability.
+        Specifying more than one synchronous standby can allow for very high
+        availability and protection against data loss.
+       </para>
+       <para>
+        The name of a standby server for this purpose is the
+        <varname>application_name</> setting of the standby, as set in the
+        standby's connection information.  In case of a physical replication
+        standby, this should be set in the <varname>primary_conninfo</>
+        setting in <filename>recovery.conf</filename>; the default
+        is <literal>walreceiver</literal>.  For logical replication, this can
+        be set in the connection information of the subscription, and it
+        defaults to the subscription name.  For other replication stream
+        consumers, consult their documentation.
        </para>
        <para>
         This parameter specifies a list of standby servers using
@@ -3135,15 +3148,12 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
         as a synchronous standby.
        </para>
        <para>
-        The name of a standby server for this purpose is the
-        <varname>application_name</> setting of the standby, as set in the
-        <varname>primary_conninfo</> of the standby's WAL receiver.  There is
-        no mechanism to enforce uniqueness. In case of duplicates one of the
-        matching standbys will be considered as higher priority, though
-        exactly which one is indeterminate.
-        The special entry <literal>*</> matches any
-        <varname>application_name</>, including the default application name
-        of <literal>walreceiver</>.
+        The special entry <literal>*</> matches any standby name.
+       </para>
+       <para>
+        There is no mechanism to enforce uniqueness of standby names.  In case
+        of duplicates one of the matching standbys will be considered as
+        higher priority, though exactly which one is indeterminate.
        </para>
        <note>
         <para>
@@ -3460,7 +3470,7 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
       <listitem>
        <para>
         Maximum number of synchronization workers per subscription. This
-        parameter controls the amount of paralelism of the initial data copy
+        parameter controls the amount of parallelism of the initial data copy
         during the subscription initialization or when new tables are added.
        </para>
        <para>
@@ -3495,7 +3505,7 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
        of these configuration parameters to force the optimizer to
        choose a different plan.
        Better ways to improve the quality of the
-       plans chosen by the optimizer include adjusting the planer cost
+       plans chosen by the optimizer include adjusting the planner cost
        constants (see <xref linkend="runtime-config-query-constants">),
        running <xref linkend="sql-analyze"> manually, increasing
        the value of the <xref
@@ -7004,12 +7014,6 @@ SET XML OPTION { DOCUMENT | CONTENT };
      </para>
 
      <para>
-      For each parameter, if more than one library is to be loaded, separate
-      their names with commas.  All library names are converted to lower case
-      unless double-quoted.
-     </para>
-
-     <para>
       Only shared libraries specifically intended to be used with PostgreSQL
       can be loaded this way.  Every PostgreSQL-supported library has
       a <quote>magic block</> that is checked to guarantee compatibility.  For
@@ -7037,6 +7041,10 @@ SET XML OPTION { DOCUMENT | CONTENT };
        <para>
         This variable specifies one or more shared libraries that are to be
         preloaded at connection start.
+        It contains a comma-separated list of library names, where each name
+        is interpreted as for the <xref linkend="SQL-LOAD"> command.
+        Whitespace between entries is ignored; surround a library name with
+        double quotes if you need to include whitespace or commas in the name.
         The parameter value only takes effect at the start of the connection.
         Subsequent changes have no effect.  If a specified library is not
         found, the connection attempt will fail.
@@ -7083,10 +7091,15 @@ SET XML OPTION { DOCUMENT | CONTENT };
       <listitem>
        <para>
         This variable specifies one or more shared libraries that are to be
-        preloaded at connection start.  Only superusers can change this setting.
+        preloaded at connection start.
+        It contains a comma-separated list of library names, where each name
+        is interpreted as for the <xref linkend="SQL-LOAD"> command.
+        Whitespace between entries is ignored; surround a library name with
+        double quotes if you need to include whitespace or commas in the name.
         The parameter value only takes effect at the start of the connection.
         Subsequent changes have no effect.  If a specified library is not
         found, the connection attempt will fail.
+        Only superusers can change this setting.
        </para>
 
        <para>
@@ -7120,9 +7133,13 @@ SET XML OPTION { DOCUMENT | CONTENT };
       <listitem>
        <para>
         This variable specifies one or more shared libraries to be preloaded at
-        server start.  This parameter can only be set at server
-        start.  If a specified library is not found, the server will fail to
-        start.
+        server start.
+        It contains a comma-separated list of library names, where each name
+        is interpreted as for the <xref linkend="SQL-LOAD"> command.
+        Whitespace between entries is ignored; surround a library name with
+        double quotes if you need to include whitespace or commas in the name.
+        This parameter can only be set at server start.  If a specified
+        library is not found, the server will fail to start.
        </para>
 
        <para>
@@ -7356,7 +7373,7 @@ dynamic_library_path = 'C:\tools\postgresql;H:\my_project\lib;$libdir'
         limit, while negative values
         mean <xref linkend="guc-max-pred-locks-per-transaction"> divided by
         the absolute value of this setting.  The default is -2, which keeps
-        the behaviour from previous versions of <productname>PostgreSQL</>.
+        the behavior from previous versions of <productname>PostgreSQL</>.
         This parameter can only be set in the <filename>postgresql.conf</>
         file or on the server command line.
        </para>

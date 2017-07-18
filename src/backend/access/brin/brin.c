@@ -190,7 +190,8 @@ brininsert(Relation idxRel, Datum *values, bool *nulls,
 				AutoVacuumRequestWork(AVW_BRINSummarizeRange,
 									  RelationGetRelid(idxRel),
 									  lastPageRange);
-			brin_free_tuple(lastPageTuple);
+			else
+				LockBuffer(buf, BUFFER_LOCK_UNLOCK);
 		}
 
 		brtup = brinGetTupleForHeapBlock(revmap, heapBlk, &buf, &off,
@@ -472,7 +473,7 @@ bringetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 					 */
 					Assert((key->sk_flags & SK_ISNULL) ||
 						   (key->sk_collation ==
-					  bdesc->bd_tupdesc->attrs[keyattno - 1]->attcollation));
+							bdesc->bd_tupdesc->attrs[keyattno - 1]->attcollation));
 
 					/* First time this column? look up consistent function */
 					if (consistentFn[keyattno - 1].fn_oid == InvalidOid)
@@ -1115,7 +1116,7 @@ terminate_brin_buildstate(BrinBuildState *state)
 
 		page = BufferGetPage(state->bs_currentInsertBuf);
 		RecordPageWithFreeSpace(state->bs_irel,
-							BufferGetBlockNumber(state->bs_currentInsertBuf),
+								BufferGetBlockNumber(state->bs_currentInsertBuf),
 								PageGetFreeSpace(page));
 		ReleaseBuffer(state->bs_currentInsertBuf);
 	}

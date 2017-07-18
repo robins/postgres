@@ -52,6 +52,7 @@
 
 #include "postmaster/bgworker.h"
 #include "postmaster/postmaster.h"
+#include "postmaster/walwriter.h"
 
 #include "replication/decode.h"
 #include "replication/logical.h"
@@ -71,6 +72,8 @@
 #include "storage/lmgr.h"
 #include "storage/proc.h"
 #include "storage/procarray.h"
+
+#include "tcop/tcopprot.h"
 
 #include "utils/builtins.h"
 #include "utils/catcache.h"
@@ -116,7 +119,10 @@ static void send_feedback(XLogRecPtr recvpos, bool force, bool requestReply);
 
 static void store_flush_position(XLogRecPtr remote_lsn);
 
-static void reread_subscription(void);
+static void maybe_reread_subscription(void);
+
+/* Flags set by signal handlers */
+static volatile sig_atomic_t got_SIGHUP = false;
 
 /*
  * Should this worker apply changes for given relation.
@@ -152,16 +158,18 @@ ensure_transaction(void)
 {
 	if (IsTransactionState())
 	{
+		SetCurrentStatementStartTimestamp();
+
 		if (CurrentMemoryContext != ApplyMessageContext)
 			MemoryContextSwitchTo(ApplyMessageContext);
 
 		return false;
 	}
 
+	SetCurrentStatementStartTimestamp();
 	StartTransactionCommand();
 
-	if (!MySubscriptionValid)
-		reread_subscription();
+	maybe_reread_subscription();
 
 	MemoryContextSwitchTo(ApplyMessageContext);
 	return true;
@@ -458,6 +466,12 @@ apply_handle_commit(StringInfo s)
 
 		store_flush_position(commit_data.end_lsn);
 	}
+	else
+	{
+		/* Process any invalidation messages that might have accumulated. */
+		AcceptInvalidationMessages();
+		maybe_reread_subscription();
+	}
 
 	in_remote_transaction = false;
 
@@ -615,7 +629,7 @@ check_relation_updatable(LogicalRepRelMapEntry *rel)
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("publisher does not send replica identity column "
-			 "expected by the logical replication target relation \"%s.%s\"",
+						"expected by the logical replication target relation \"%s.%s\"",
 						rel->remoterel.nspname, rel->remoterel.relname)));
 	}
 
@@ -895,7 +909,7 @@ apply_dispatch(StringInfo s)
 		default:
 			ereport(ERROR,
 					(errcode(ERRCODE_PROTOCOL_VIOLATION),
-			 errmsg("invalid logical replication message type %c", action)));
+					 errmsg("invalid logical replication message type %c", action)));
 	}
 }
 
@@ -1005,7 +1019,7 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 	/* mark as idle, before starting to loop */
 	pgstat_report_activity(STATE_IDLE, NULL);
 
-	while (!got_SIGTERM)
+	for (;;)
 	{
 		pgsocket	fd = PGINVALID_SOCKET;
 		int			rc;
@@ -1014,6 +1028,9 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 		bool		endofstream = false;
 		TimestampTz last_recv_timestamp = GetCurrentTimestamp();
 		bool		ping_sent = false;
+		long		wait_time;
+
+		CHECK_FOR_INTERRUPTS();
 
 		MemoryContextSwitchTo(ApplyMessageContext);
 
@@ -1099,10 +1116,10 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 
 				len = walrcv_receive(wrconn, &buf, &fd);
 			}
-
-			/* confirm all writes at once */
-			send_feedback(last_received, false, false);
 		}
+
+		/* confirm all writes so far */
+		send_feedback(last_received, false, false);
 
 		if (!in_remote_transaction)
 		{
@@ -1112,8 +1129,7 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 			 * now.
 			 */
 			AcceptInvalidationMessages();
-			if (!MySubscriptionValid)
-				reread_subscription();
+			maybe_reread_subscription();
 
 			/* Process any table synchronization changes. */
 			process_syncing_tables(last_received);
@@ -1133,17 +1149,32 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 		}
 
 		/*
-		 * Wait for more data or latch.
+		 * Wait for more data or latch.  If we have unflushed transactions,
+		 * wake up after WalWriterDelay to see if they've been flushed yet (in
+		 * which case we should send a feedback message).  Otherwise, there's
+		 * no particular urgency about waking up unless we get data or a
+		 * signal.
 		 */
-		rc = WaitLatchOrSocket(&MyProc->procLatch,
+		if (!dlist_is_empty(&lsn_mapping))
+			wait_time = WalWriterDelay;
+		else
+			wait_time = NAPTIME_PER_CYCLE;
+
+		rc = WaitLatchOrSocket(MyLatch,
 							   WL_SOCKET_READABLE | WL_LATCH_SET |
 							   WL_TIMEOUT | WL_POSTMASTER_DEATH,
-							   fd, NAPTIME_PER_CYCLE,
+							   fd, wait_time,
 							   WAIT_EVENT_LOGICAL_APPLY_MAIN);
 
 		/* Emergency bailout if postmaster has died */
 		if (rc & WL_POSTMASTER_DEATH)
 			proc_exit(1);
+
+		if (rc & WL_LATCH_SET)
+		{
+			ResetLatch(MyLatch);
+			CHECK_FOR_INTERRUPTS();
+		}
 
 		if (got_SIGHUP)
 		{
@@ -1187,7 +1218,7 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 				if (!ping_sent)
 				{
 					timeout = TimestampTzPlusMilliseconds(last_recv_timestamp,
-												 (wal_receiver_timeout / 2));
+														  (wal_receiver_timeout / 2));
 					if (now >= timeout)
 					{
 						requestReply = true;
@@ -1198,8 +1229,6 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 
 			send_feedback(last_received, requestReply, requestReply);
 		}
-
-		ResetLatch(&MyProc->procLatch);
 	}
 }
 
@@ -1272,9 +1301,9 @@ send_feedback(XLogRecPtr recvpos, bool force, bool requestReply)
 		resetStringInfo(reply_message);
 
 	pq_sendbyte(reply_message, 'r');
-	pq_sendint64(reply_message, recvpos);		/* write */
-	pq_sendint64(reply_message, flushpos);		/* flush */
-	pq_sendint64(reply_message, writepos);		/* apply */
+	pq_sendint64(reply_message, recvpos);	/* write */
+	pq_sendint64(reply_message, flushpos);	/* flush */
+	pq_sendint64(reply_message, writepos);	/* apply */
 	pq_sendint64(reply_message, now);	/* sendTime */
 	pq_sendbyte(reply_message, requestReply);	/* replyRequested */
 
@@ -1295,16 +1324,19 @@ send_feedback(XLogRecPtr recvpos, bool force, bool requestReply)
 		last_flushpos = flushpos;
 }
 
-
 /*
- * Reread subscription info and exit on change.
+ * Reread subscription info if needed. Most changes will be exit.
  */
 static void
-reread_subscription(void)
+maybe_reread_subscription(void)
 {
 	MemoryContext oldctx;
 	Subscription *newsub;
 	bool		started_tx = false;
+
+	/* When cache state is valid there is nothing to do here. */
+	if (MySubscriptionValid)
+		return;
 
 	/* This function might be called inside or outside of transaction. */
 	if (!IsTransactionState())
@@ -1325,11 +1357,10 @@ reread_subscription(void)
 	if (!newsub)
 	{
 		ereport(LOG,
-		   (errmsg("logical replication apply worker for subscription \"%s\" will "
-				   "stop because the subscription was removed",
-				   MySubscription->name)));
+				(errmsg("logical replication apply worker for subscription \"%s\" will "
+						"stop because the subscription was removed",
+						MySubscription->name)));
 
-		walrcv_disconnect(wrconn);
 		proc_exit(0);
 	}
 
@@ -1340,11 +1371,10 @@ reread_subscription(void)
 	if (!newsub->enabled)
 	{
 		ereport(LOG,
-		   (errmsg("logical replication apply worker for subscription \"%s\" will "
-				   "stop because the subscription was disabled",
-				   MySubscription->name)));
+				(errmsg("logical replication apply worker for subscription \"%s\" will "
+						"stop because the subscription was disabled",
+						MySubscription->name)));
 
-		walrcv_disconnect(wrconn);
 		proc_exit(0);
 	}
 
@@ -1355,11 +1385,10 @@ reread_subscription(void)
 	if (strcmp(newsub->conninfo, MySubscription->conninfo) != 0)
 	{
 		ereport(LOG,
-		   (errmsg("logical replication apply worker for subscription \"%s\" will "
-				   "restart because the connection information was changed",
-				   MySubscription->name)));
+				(errmsg("logical replication apply worker for subscription \"%s\" will "
+						"restart because the connection information was changed",
+						MySubscription->name)));
 
-		walrcv_disconnect(wrconn);
 		proc_exit(0);
 	}
 
@@ -1370,11 +1399,10 @@ reread_subscription(void)
 	if (strcmp(newsub->name, MySubscription->name) != 0)
 	{
 		ereport(LOG,
-		   (errmsg("logical replication apply worker for subscription \"%s\" will "
-				   "restart because subscription was renamed",
-				   MySubscription->name)));
+				(errmsg("logical replication apply worker for subscription \"%s\" will "
+						"restart because subscription was renamed",
+						MySubscription->name)));
 
-		walrcv_disconnect(wrconn);
 		proc_exit(0);
 	}
 
@@ -1388,11 +1416,10 @@ reread_subscription(void)
 	if (strcmp(newsub->slotname, MySubscription->slotname) != 0)
 	{
 		ereport(LOG,
-		   (errmsg("logical replication apply worker for subscription \"%s\" will "
-				   "restart because the replication slot name was changed",
-				   MySubscription->name)));
+				(errmsg("logical replication apply worker for subscription \"%s\" will "
+						"restart because the replication slot name was changed",
+						MySubscription->name)));
 
-		walrcv_disconnect(wrconn);
 		proc_exit(0);
 	}
 
@@ -1403,11 +1430,10 @@ reread_subscription(void)
 	if (!equal(newsub->publications, MySubscription->publications))
 	{
 		ereport(LOG,
-		   (errmsg("logical replication apply worker for subscription \"%s\" will "
-				   "restart because subscription's publications were changed",
-				   MySubscription->name)));
+				(errmsg("logical replication apply worker for subscription \"%s\" will "
+						"restart because subscription's publications were changed",
+						MySubscription->name)));
 
-		walrcv_disconnect(wrconn);
 		proc_exit(0);
 	}
 
@@ -1443,6 +1469,19 @@ subscription_change_cb(Datum arg, int cacheid, uint32 hashvalue)
 	MySubscriptionValid = false;
 }
 
+/* SIGHUP: set flag to reload configuration at next convenient time */
+static void
+logicalrep_worker_sighup(SIGNAL_ARGS)
+{
+	int			save_errno = errno;
+
+	got_SIGHUP = true;
+
+	/* Waken anything waiting on the process latch */
+	SetLatch(MyLatch);
+
+	errno = save_errno;
+}
 
 /* Logical Replication Apply worker entry point */
 void
@@ -1460,16 +1499,12 @@ ApplyWorkerMain(Datum main_arg)
 
 	/* Setup signal handling */
 	pqsignal(SIGHUP, logicalrep_worker_sighup);
-	pqsignal(SIGTERM, logicalrep_worker_sigterm);
+	pqsignal(SIGTERM, die);
 	BackgroundWorkerUnblockSignals();
 
 	/* Initialise stats to a sanish value */
 	MyLogicalRepWorker->last_send_time = MyLogicalRepWorker->last_recv_time =
 		MyLogicalRepWorker->reply_time = GetCurrentTimestamp();
-
-	/* Make it easy to identify our processes. */
-	SetConfigOption("application_name", MyBgworkerEntry->bgw_name,
-					PGC_USERSET, PGC_S_SESSION);
 
 	/* Load the libpq-specific functions */
 	load_file("libpqwalreceiver", false);
@@ -1503,9 +1538,9 @@ ApplyWorkerMain(Datum main_arg)
 	if (!MySubscription->enabled)
 	{
 		ereport(LOG,
-		(errmsg("logical replication apply worker for subscription \"%s\" will not "
-				"start because the subscription was disabled during startup",
-				MySubscription->name)));
+				(errmsg("logical replication apply worker for subscription \"%s\" will not "
+						"start because the subscription was disabled during startup",
+						MySubscription->name)));
 
 		proc_exit(0);
 	}
@@ -1556,8 +1591,8 @@ ApplyWorkerMain(Datum main_arg)
 
 		/*
 		 * This shouldn't happen if the subscription is enabled, but guard
-		 * against DDL bugs or manual catalog changes.  (libpqwalreceiver
-		 * will crash if slot is NULL.
+		 * against DDL bugs or manual catalog changes.  (libpqwalreceiver will
+		 * crash if slot is NULL.)
 		 */
 		if (!myslotname)
 			ereport(ERROR,
@@ -1574,7 +1609,7 @@ ApplyWorkerMain(Datum main_arg)
 		origin_startpos = replorigin_session_get_progress(false);
 		CommitTransactionCommand();
 
-		wrconn = walrcv_connect(MySubscription->conninfo, true, myslotname,
+		wrconn = walrcv_connect(MySubscription->conninfo, true, MySubscription->name,
 								&err);
 		if (wrconn == NULL)
 			ereport(ERROR,
@@ -1610,8 +1645,14 @@ ApplyWorkerMain(Datum main_arg)
 	/* Run the main loop. */
 	LogicalRepApplyLoop(origin_startpos);
 
-	walrcv_disconnect(wrconn);
-
-	/* We should only get here if we received SIGTERM */
 	proc_exit(0);
+}
+
+/*
+ * Is current process a logical replication worker?
+ */
+bool
+IsLogicalWorker(void)
+{
+	return MyLogicalRepWorker != NULL;
 }

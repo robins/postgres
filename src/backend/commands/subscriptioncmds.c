@@ -64,12 +64,14 @@ static void
 parse_subscription_options(List *options, bool *connect, bool *enabled_given,
 						   bool *enabled, bool *create_slot,
 						   bool *slot_name_given, char **slot_name,
-						   bool *copy_data, char **synchronous_commit)
+						   bool *copy_data, char **synchronous_commit,
+						   bool *refresh)
 {
 	ListCell   *lc;
 	bool		connect_given = false;
 	bool		create_slot_given = false;
 	bool		copy_data_given = false;
+	bool		refresh_given = false;
 
 	/* If connect is specified, the others also need to be. */
 	Assert(!connect || (enabled && create_slot && copy_data));
@@ -92,6 +94,8 @@ parse_subscription_options(List *options, bool *connect, bool *enabled_given,
 		*copy_data = true;
 	if (synchronous_commit)
 		*synchronous_commit = NULL;
+	if (refresh)
+		*refresh = true;
 
 	/* Parse options */
 	foreach(lc, options)
@@ -166,6 +170,16 @@ parse_subscription_options(List *options, bool *connect, bool *enabled_given,
 			(void) set_config_option("synchronous_commit", *synchronous_commit,
 									 PGC_BACKEND, PGC_S_TEST, GUC_ACTION_SET,
 									 false, 0, false);
+		}
+		else if (strcmp(defel->defname, "refresh") == 0 && refresh)
+		{
+			if (refresh_given)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+
+			refresh_given = true;
+			*refresh = defGetBoolean(defel);
 		}
 		else
 			ereport(ERROR,
@@ -315,7 +329,8 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 	 */
 	parse_subscription_options(stmt->options, &connect, &enabled_given,
 							   &enabled, &create_slot, &slotname_given,
-							   &slotname, &copy_data, &synchronous_commit);
+							   &slotname, &copy_data, &synchronous_commit,
+							   NULL);
 
 	/*
 	 * Since creating a replication slot is not transactional, rolling back
@@ -436,11 +451,8 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 										 rv->schemaname, rv->relname);
 
 				SetSubscriptionRelState(subid, relid, table_state,
-										InvalidXLogRecPtr);
+										InvalidXLogRecPtr, false);
 			}
-
-			ereport(NOTICE,
-					(errmsg("synchronized table states")));
 
 			/*
 			 * If requested, create permanent slot for the subscription. We
@@ -454,8 +466,8 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 				walrcv_create_slot(wrconn, slotname, false,
 								   CRS_NOEXPORT_SNAPSHOT, &lsn);
 				ereport(NOTICE,
-					  (errmsg("created replication slot \"%s\" on publisher",
-							  slotname)));
+						(errmsg("created replication slot \"%s\" on publisher",
+								slotname)));
 			}
 		}
 		PG_CATCH();
@@ -558,8 +570,8 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
 					 list_length(subrel_states), sizeof(Oid), oid_cmp))
 		{
 			SetSubscriptionRelState(sub->oid, relid,
-						  copy_data ? SUBREL_STATE_INIT : SUBREL_STATE_READY,
-									InvalidXLogRecPtr);
+									copy_data ? SUBREL_STATE_INIT : SUBREL_STATE_READY,
+									InvalidXLogRecPtr, false);
 			ereport(NOTICE,
 					(errmsg("added subscription for table %s.%s",
 							quote_identifier(rv->schemaname),
@@ -584,6 +596,8 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
 			char	   *namespace;
 
 			RemoveSubscriptionRel(sub->oid, relid);
+
+			logicalrep_worker_stop(sub->oid, relid);
 
 			namespace = get_namespace_name(get_rel_namespace(relid));
 			ereport(NOTICE,
@@ -630,6 +644,9 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
 	subid = HeapTupleGetOid(tup);
 	sub = GetSubscription(subid, false);
 
+	/* Lock the subscription so nobody else can do anything with it. */
+	LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
+
 	/* Form a new tuple. */
 	memset(values, 0, sizeof(values));
 	memset(nulls, false, sizeof(nulls));
@@ -645,7 +662,7 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
 
 				parse_subscription_options(stmt->options, NULL, NULL, NULL,
 										   NULL, &slotname_given, &slotname,
-										   NULL, &synchronous_commit);
+										   NULL, &synchronous_commit, NULL);
 
 				if (slotname_given)
 				{
@@ -680,7 +697,7 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
 
 				parse_subscription_options(stmt->options, NULL,
 										   &enabled_given, &enabled, NULL,
-										   NULL, NULL, NULL, NULL);
+										   NULL, NULL, NULL, NULL, NULL);
 				Assert(enabled_given);
 
 				if (!sub->slotname && enabled)
@@ -712,13 +729,13 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
 			break;
 
 		case ALTER_SUBSCRIPTION_PUBLICATION:
-		case ALTER_SUBSCRIPTION_PUBLICATION_REFRESH:
 			{
 				bool		copy_data;
+				bool		refresh;
 
 				parse_subscription_options(stmt->options, NULL, NULL, NULL,
 										   NULL, NULL, NULL, &copy_data,
-										   NULL);
+										   NULL, &refresh);
 
 				values[Anum_pg_subscription_subpublications - 1] =
 					publicationListToArray(stmt->publication);
@@ -727,12 +744,13 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
 				update_tuple = true;
 
 				/* Refresh if user asked us to. */
-				if (stmt->kind == ALTER_SUBSCRIPTION_PUBLICATION_REFRESH)
+				if (refresh)
 				{
 					if (!sub->enabled)
 						ereport(ERROR,
 								(errcode(ERRCODE_SYNTAX_ERROR),
-								 errmsg("ALTER SUBSCRIPTION ... REFRESH is not allowed for disabled subscriptions")));
+								 errmsg("ALTER SUBSCRIPTION with refresh is not allowed for disabled subscriptions"),
+								 errhint("Use ALTER SUBSCRIPTION ... SET PUBLICATION ... WITH (refresh = false).")));
 
 					/* Make sure refresh sees the new list of publications. */
 					sub->publications = stmt->publication;
@@ -754,7 +772,7 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
 
 				parse_subscription_options(stmt->options, NULL, NULL, NULL,
 										   NULL, NULL, NULL, &copy_data,
-										   NULL);
+										   NULL, NULL);
 
 				AlterSubscription_refresh(sub, copy_data);
 
@@ -942,9 +960,9 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 
 		if (res->status != WALRCV_OK_COMMAND)
 			ereport(ERROR,
-			(errmsg("could not drop the replication slot \"%s\" on publisher",
-					slotname),
-			 errdetail("The error was: %s", res->err)));
+					(errmsg("could not drop the replication slot \"%s\" on publisher",
+							slotname),
+					 errdetail("The error was: %s", res->err)));
 		else
 			ereport(NOTICE,
 					(errmsg("dropped replication slot \"%s\" on publisher",
@@ -988,9 +1006,9 @@ AlterSubscriptionOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 	if (!superuser_arg(newOwnerId))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-		   errmsg("permission denied to change owner of subscription \"%s\"",
-				  NameStr(form->subname)),
-			   errhint("The owner of a subscription must be a superuser.")));
+				 errmsg("permission denied to change owner of subscription \"%s\"",
+						NameStr(form->subname)),
+				 errhint("The owner of a subscription must be a superuser.")));
 
 	form->subowner = newOwnerId;
 	CatalogTupleUpdate(rel, &tup->t_self, tup);

@@ -31,7 +31,7 @@
 #define ZLIB_OUT_SIZE 4096
 
 /*-------------------------------------------------------------------------
- * WalDirectoryMethod - write wal to a directory looking like pg_xlog
+ * WalDirectoryMethod - write wal to a directory looking like pg_wal
  *-------------------------------------------------------------------------
  */
 
@@ -375,7 +375,7 @@ FreeWalDirectoryMethod(void)
 
 
 /*-------------------------------------------------------------------------
- * WalTarMethod - write wal to a tar file containing pg_xlog contents
+ * WalTarMethod - write wal to a tar file containing pg_wal contents
  *-------------------------------------------------------------------------
  */
 
@@ -534,7 +534,7 @@ tar_open_for_write(const char *pathname, const char *temp_suffix, size_t pad_to_
 		 * We open the tar file only when we first try to write to it.
 		 */
 		tar_data->fd = open(tar_data->tarfilename,
-						  O_WRONLY | O_CREAT | PG_BINARY, S_IRUSR | S_IWUSR);
+							O_WRONLY | O_CREAT | PG_BINARY, S_IRUSR | S_IWUSR);
 		if (tar_data->fd < 0)
 			return NULL;
 

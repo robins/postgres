@@ -293,8 +293,11 @@ SyncRepWaitForLSN(XLogRecPtr lsn, bool commit)
 	 * WalSender has checked our LSN and has removed us from queue. Clean up
 	 * state and leave.  It's OK to reset these shared memory fields without
 	 * holding SyncRepLock, because any walsenders will ignore us anyway when
-	 * we're not on the queue.
+	 * we're not on the queue.  We need a read barrier to make sure we see
+	 * the changes to the queue link (this might be unnecessary without
+	 * assertions, but better safe than sorry).
 	 */
+	pg_read_barrier();
 	Assert(SHMQueueIsDetached(&(MyProc->syncRepLinks)));
 	MyProc->syncRepState = SYNC_REP_NOT_WAITING;
 	MyProc->waitLSN = 0;
@@ -393,8 +396,8 @@ SyncRepInitConfig(void)
 		MyWalSnd->sync_standby_priority = priority;
 		LWLockRelease(SyncRepLock);
 		ereport(DEBUG1,
-			(errmsg("standby \"%s\" now has synchronous standby priority %u",
-					application_name, priority)));
+				(errmsg("standby \"%s\" now has synchronous standby priority %u",
+						application_name, priority)));
 	}
 }
 
@@ -455,7 +458,7 @@ SyncRepReleaseWaiters(void)
 		if (SyncRepConfig->syncrep_method == SYNC_REP_PRIORITY)
 			ereport(LOG,
 					(errmsg("standby \"%s\" is now a synchronous standby with priority %u",
-						application_name, MyWalSnd->sync_standby_priority)));
+							application_name, MyWalSnd->sync_standby_priority)));
 		else
 			ereport(LOG,
 					(errmsg("standby \"%s\" is now a candidate for quorum synchronous standby",
@@ -606,7 +609,7 @@ SyncRepGetOldestSyncRecPtr(XLogRecPtr *writePtr, XLogRecPtr *flushPtr,
  */
 static void
 SyncRepGetNthLatestSyncRecPtr(XLogRecPtr *writePtr, XLogRecPtr *flushPtr,
-						XLogRecPtr *applyPtr, List *sync_standbys, uint8 nth)
+							  XLogRecPtr *applyPtr, List *sync_standbys, uint8 nth)
 {
 	ListCell   *cell;
 	XLogRecPtr *write_array;
@@ -711,14 +714,24 @@ SyncRepGetSyncStandbysQuorum(bool *am_sync)
 
 	for (i = 0; i < max_wal_senders; i++)
 	{
+		XLogRecPtr	flush;
+		WalSndState	state;
+		int			pid;
+
 		walsnd = &WalSndCtl->walsnds[i];
 
+		SpinLockAcquire(&walsnd->mutex);
+		pid = walsnd->pid;
+		flush = walsnd->flush;
+		state = walsnd->state;
+		SpinLockRelease(&walsnd->mutex);
+
 		/* Must be active */
-		if (walsnd->pid == 0)
+		if (pid == 0)
 			continue;
 
 		/* Must be streaming */
-		if (walsnd->state != WALSNDSTATE_STREAMING)
+		if (state != WALSNDSTATE_STREAMING)
 			continue;
 
 		/* Must be synchronous */
@@ -726,7 +739,7 @@ SyncRepGetSyncStandbysQuorum(bool *am_sync)
 			continue;
 
 		/* Must have a valid flush position */
-		if (XLogRecPtrIsInvalid(walsnd->flush))
+		if (XLogRecPtrIsInvalid(flush))
 			continue;
 
 		/*
@@ -780,14 +793,24 @@ SyncRepGetSyncStandbysPriority(bool *am_sync)
 	 */
 	for (i = 0; i < max_wal_senders; i++)
 	{
+		XLogRecPtr	flush;
+		WalSndState	state;
+		int			pid;
+
 		walsnd = &WalSndCtl->walsnds[i];
 
+		SpinLockAcquire(&walsnd->mutex);
+		pid = walsnd->pid;
+		flush = walsnd->flush;
+		state = walsnd->state;
+		SpinLockRelease(&walsnd->mutex);
+
 		/* Must be active */
-		if (walsnd->pid == 0)
+		if (pid == 0)
 			continue;
 
 		/* Must be streaming */
-		if (walsnd->state != WALSNDSTATE_STREAMING)
+		if (state != WALSNDSTATE_STREAMING)
 			continue;
 
 		/* Must be synchronous */
@@ -796,7 +819,7 @@ SyncRepGetSyncStandbysPriority(bool *am_sync)
 			continue;
 
 		/* Must have a valid flush position */
-		if (XLogRecPtrIsInvalid(walsnd->flush))
+		if (XLogRecPtrIsInvalid(flush))
 			continue;
 
 		/*
@@ -888,7 +911,7 @@ SyncRepGetSyncStandbysPriority(bool *am_sync)
 				if (list_length(result) == SyncRepConfig->num_sync)
 				{
 					list_free(pending);
-					return result;		/* Exit if got enough sync standbys */
+					return result;	/* Exit if got enough sync standbys */
 				}
 
 				/*
@@ -1002,15 +1025,22 @@ SyncRepWakeQueue(bool all, int mode)
 									   offsetof(PGPROC, syncRepLinks));
 
 		/*
+		 * Remove thisproc from queue.
+		 */
+		SHMQueueDelete(&(thisproc->syncRepLinks));
+
+		/*
+		 * SyncRepWaitForLSN() reads syncRepState without holding the lock, so
+		 * make sure that it sees the queue link being removed before the
+		 * syncRepState change.
+		 */
+		pg_write_barrier();
+
+		/*
 		 * Set state to complete; see SyncRepWaitForLSN() for discussion of
 		 * the various states.
 		 */
 		thisproc->syncRepState = SYNC_REP_WAIT_COMPLETE;
-
-		/*
-		 * Remove thisproc from queue.
-		 */
-		SHMQueueDelete(&(thisproc->syncRepLinks));
 
 		/*
 		 * Wake only when we have set state and removed from queue.

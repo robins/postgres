@@ -119,7 +119,7 @@ pg_GSS_continue(PGconn *conn, int payloadlen)
 		if (!ginbuf.value)
 		{
 			printfPQExpBuffer(&conn->errorMessage,
-			  libpq_gettext("out of memory allocating GSSAPI buffer (%d)\n"),
+							  libpq_gettext("out of memory allocating GSSAPI buffer (%d)\n"),
 							  payloadlen);
 			return STATUS_ERROR;
 		}
@@ -133,6 +133,11 @@ pg_GSS_continue(PGconn *conn, int payloadlen)
 			return STATUS_ERROR;
 		}
 	}
+	else
+	{
+		ginbuf.length = 0;
+		ginbuf.value = NULL;
+	}
 
 	maj_stat = gss_init_sec_context(&min_stat,
 									GSS_C_NO_CREDENTIAL,
@@ -142,13 +147,13 @@ pg_GSS_continue(PGconn *conn, int payloadlen)
 									GSS_C_MUTUAL_FLAG,
 									0,
 									GSS_C_NO_CHANNEL_BINDINGS,
-				(conn->gctx == GSS_C_NO_CONTEXT) ? GSS_C_NO_BUFFER : &ginbuf,
+									(ginbuf.value == NULL) ? GSS_C_NO_BUFFER : &ginbuf,
 									NULL,
 									&goutbuf,
 									NULL,
 									NULL);
 
-	if (conn->gctx != GSS_C_NO_CONTEXT)
+	if (ginbuf.value)
 		free(ginbuf.value);
 
 	if (goutbuf.length != 0)
@@ -206,7 +211,7 @@ pg_GSS_startup(PGconn *conn, int payloadlen)
 	if (conn->gctx)
 	{
 		printfPQExpBuffer(&conn->errorMessage,
-					libpq_gettext("duplicate GSS authentication request\n"));
+						  libpq_gettext("duplicate GSS authentication request\n"));
 		return STATUS_ERROR;
 	}
 
@@ -246,7 +251,7 @@ pg_GSS_startup(PGconn *conn, int payloadlen)
 
 	return pg_GSS_continue(conn, payloadlen);
 }
-#endif   /* ENABLE_GSS */
+#endif							/* ENABLE_GSS */
 
 
 #ifdef ENABLE_SSPI
@@ -295,7 +300,7 @@ pg_SSPI_continue(PGconn *conn, int payloadlen)
 		if (!inputbuf)
 		{
 			printfPQExpBuffer(&conn->errorMessage,
-				libpq_gettext("out of memory allocating SSPI buffer (%d)\n"),
+							  libpq_gettext("out of memory allocating SSPI buffer (%d)\n"),
 							  payloadlen);
 			return STATUS_ERROR;
 		}
@@ -385,7 +390,7 @@ pg_SSPI_continue(PGconn *conn, int payloadlen)
 		if (outbuf.pBuffers[0].cbBuffer > 0)
 		{
 			if (pqPacketSend(conn, 'p',
-				   outbuf.pBuffers[0].pvBuffer, outbuf.pBuffers[0].cbBuffer))
+							 outbuf.pBuffers[0].pvBuffer, outbuf.pBuffers[0].cbBuffer))
 			{
 				FreeContextBuffer(outbuf.pBuffers[0].pvBuffer);
 				return STATUS_ERROR;
@@ -411,7 +416,12 @@ pg_SSPI_startup(PGconn *conn, int use_negotiate, int payloadlen)
 	TimeStamp	expire;
 	char	   *host = PQhost(conn);
 
-	conn->sspictx = NULL;
+	if (conn->sspictx)
+	{
+		printfPQExpBuffer(&conn->errorMessage,
+						  libpq_gettext("duplicate SSPI authentication request\n"));
+		return STATUS_ERROR;
+	}
 
 	/*
 	 * Retrieve credentials handle
@@ -467,7 +477,7 @@ pg_SSPI_startup(PGconn *conn, int use_negotiate, int payloadlen)
 
 	return pg_SSPI_continue(conn, payloadlen);
 }
-#endif   /* ENABLE_SSPI */
+#endif							/* ENABLE_SSPI */
 
 /*
  * Initialize SASL authentication exchange.
@@ -487,7 +497,7 @@ pg_SASL_init(PGconn *conn, int payloadlen)
 	if (conn->sasl_state)
 	{
 		printfPQExpBuffer(&conn->errorMessage,
-				   libpq_gettext("duplicate SASL authentication request\n"));
+						  libpq_gettext("duplicate SASL authentication request\n"));
 		goto error;
 	}
 
@@ -620,7 +630,7 @@ pg_SASL_continue(PGconn *conn, int payloadlen, bool final)
 	if (!challenge)
 	{
 		printfPQExpBuffer(&conn->errorMessage,
-				libpq_gettext("out of memory allocating SASL buffer (%d)\n"),
+						  libpq_gettext("out of memory allocating SASL buffer (%d)\n"),
 						  payloadlen);
 		return STATUS_ERROR;
 	}
@@ -722,7 +732,7 @@ pg_local_sendauth(PGconn *conn)
 	return STATUS_OK;
 #else
 	printfPQExpBuffer(&conn->errorMessage,
-			libpq_gettext("SCM_CRED authentication method not supported\n"));
+					  libpq_gettext("SCM_CRED authentication method not supported\n"));
 	return STATUS_ERROR;
 #endif
 }
@@ -813,12 +823,12 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 
 		case AUTH_REQ_KRB4:
 			printfPQExpBuffer(&conn->errorMessage,
-				 libpq_gettext("Kerberos 4 authentication not supported\n"));
+							  libpq_gettext("Kerberos 4 authentication not supported\n"));
 			return STATUS_ERROR;
 
 		case AUTH_REQ_KRB5:
 			printfPQExpBuffer(&conn->errorMessage,
-				 libpq_gettext("Kerberos 5 authentication not supported\n"));
+							  libpq_gettext("Kerberos 5 authentication not supported\n"));
 			return STATUS_ERROR;
 
 #if defined(ENABLE_GSS) || defined(ENABLE_SSPI)
@@ -889,9 +899,9 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 		case AUTH_REQ_GSS:
 		case AUTH_REQ_GSS_CONT:
 			printfPQExpBuffer(&conn->errorMessage,
-					 libpq_gettext("GSSAPI authentication not supported\n"));
+							  libpq_gettext("GSSAPI authentication not supported\n"));
 			return STATUS_ERROR;
-#endif   /* defined(ENABLE_GSS) || defined(ENABLE_SSPI) */
+#endif							/* defined(ENABLE_GSS) || defined(ENABLE_SSPI) */
 
 #ifdef ENABLE_SSPI
 		case AUTH_REQ_SSPI:
@@ -921,15 +931,15 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 #if !defined(ENABLE_GSS)
 		case AUTH_REQ_SSPI:
 			printfPQExpBuffer(&conn->errorMessage,
-					   libpq_gettext("SSPI authentication not supported\n"));
+							  libpq_gettext("SSPI authentication not supported\n"));
 			return STATUS_ERROR;
-#endif   /* !define(ENABLE_GSSAPI) */
-#endif   /* ENABLE_SSPI */
+#endif							/* !define(ENABLE_GSSAPI) */
+#endif							/* ENABLE_SSPI */
 
 
 		case AUTH_REQ_CRYPT:
 			printfPQExpBuffer(&conn->errorMessage,
-					  libpq_gettext("Crypt authentication not supported\n"));
+							  libpq_gettext("Crypt authentication not supported\n"));
 			return STATUS_ERROR;
 
 		case AUTH_REQ_MD5:
@@ -950,7 +960,7 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 				if (pg_password_sendauth(conn, password, areq) != STATUS_OK)
 				{
 					printfPQExpBuffer(&conn->errorMessage,
-					 "fe_sendauth: error sending password authentication\n");
+									  "fe_sendauth: error sending password authentication\n");
 					return STATUS_ERROR;
 				}
 				break;
@@ -983,7 +993,7 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 				/* Use error message, if set already */
 				if (conn->errorMessage.len == 0)
 					printfPQExpBuffer(&conn->errorMessage,
-							  "fe_sendauth: error in SASL authentication\n");
+									  "fe_sendauth: error in SASL authentication\n");
 				return STATUS_ERROR;
 			}
 			break;
@@ -995,7 +1005,7 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 
 		default:
 			printfPQExpBuffer(&conn->errorMessage,
-			libpq_gettext("authentication method %u not supported\n"), areq);
+							  libpq_gettext("authentication method %u not supported\n"), areq);
 			return STATUS_ERROR;
 	}
 
@@ -1042,7 +1052,7 @@ pg_fe_getauthname(PQExpBuffer errorMessage)
 		name = username;
 	else if (errorMessage)
 		printfPQExpBuffer(errorMessage,
-				 libpq_gettext("user name lookup failure: error code %lu\n"),
+						  libpq_gettext("user name lookup failure: error code %lu\n"),
 						  GetLastError());
 #else
 	pwerr = pqGetpwuid(user_id, &pwdstr, pwdbuf, sizeof(pwdbuf), &pw);
@@ -1052,12 +1062,12 @@ pg_fe_getauthname(PQExpBuffer errorMessage)
 	{
 		if (pwerr != 0)
 			printfPQExpBuffer(errorMessage,
-				   libpq_gettext("could not look up local user ID %d: %s\n"),
+							  libpq_gettext("could not look up local user ID %d: %s\n"),
 							  (int) user_id,
 							  pqStrerror(pwerr, pwdbuf, sizeof(pwdbuf)));
 		else
 			printfPQExpBuffer(errorMessage,
-					 libpq_gettext("local user with ID %d does not exist\n"),
+							  libpq_gettext("local user with ID %d does not exist\n"),
 							  (int) user_id);
 	}
 #endif
@@ -1168,7 +1178,7 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 		{
 			PQclear(res);
 			printfPQExpBuffer(&conn->errorMessage,
-					  libpq_gettext("password_encryption value too long\n"));
+							  libpq_gettext("password_encryption value too long\n"));
 			return NULL;
 		}
 		strcpy(algobuf, val);
@@ -1208,7 +1218,8 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 	else
 	{
 		printfPQExpBuffer(&conn->errorMessage,
-				   libpq_gettext("unknown password encryption algorithm\n"));
+						  libpq_gettext("unrecognized password encryption algorithm \"%s\"\n"),
+						  algorithm);
 		return NULL;
 	}
 

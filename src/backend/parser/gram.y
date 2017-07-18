@@ -239,7 +239,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	VariableSetStmt		*vsetstmt;
 	PartitionElem		*partelem;
 	PartitionSpec		*partspec;
-	PartitionRangeDatum	*partrange_datum;
+	PartitionBoundSpec	*partboundspec;
 	RoleSpec			*rolespec;
 }
 
@@ -575,11 +575,9 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <str>			part_strategy
 %type <partelem>	part_elem
 %type <list>		part_params
-%type <node>		ForValues
-%type <node>		partbound_datum
-%type <list>		partbound_datum_list
-%type <partrange_datum>	PartitionRangeDatum
-%type <list>		range_datum_list
+%type <partboundspec> ForValues
+%type <node>		partbound_datum PartitionRangeDatum
+%type <list>		partbound_datum_list range_datum_list
 
 /*
  * Non-keyword token types.  These are hard-wired into the "flex" lexer.
@@ -2020,7 +2018,7 @@ partition_cmd:
 
 					n->subtype = AT_AttachPartition;
 					cmd->name = $3;
-					cmd->bound = (Node *) $4;
+					cmd->bound = $4;
 					n->def = (Node *) cmd;
 
 					$$ = (Node *) n;
@@ -2033,6 +2031,7 @@ partition_cmd:
 
 					n->subtype = AT_DetachPartition;
 					cmd->name = $3;
+					cmd->bound = NULL;
 					n->def = (Node *) cmd;
 
 					$$ = (Node *) n;
@@ -2661,7 +2660,7 @@ ForValues:
 					n->listdatums = $5;
 					n->location = @3;
 
-					$$ = (Node *) n;
+					$$ = n;
 				}
 
 			/* a RANGE partition */
@@ -2674,7 +2673,7 @@ ForValues:
 					n->upperdatums = $9;
 					n->location = @3;
 
-					$$ = (Node *) n;
+					$$ = n;
 				}
 		;
 
@@ -2705,7 +2704,7 @@ PartitionRangeDatum:
 					n->value = NULL;
 					n->location = @1;
 
-					$$ = n;
+					$$ = (Node *) n;
 				}
 			| partbound_datum
 				{
@@ -2715,7 +2714,7 @@ PartitionRangeDatum:
 					n->value = $1;
 					n->location = @1;
 
-					$$ = n;
+					$$ = (Node *) n;
 				}
 		;
 
@@ -3144,7 +3143,7 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					n->relation = $4;
 					n->tableElts = $8;
 					n->inhRelations = list_make1($7);
-					n->partbound = (Node *) $9;
+					n->partbound = $9;
 					n->partspec = $10;
 					n->ofTypename = NULL;
 					n->constraints = NIL;
@@ -3163,7 +3162,7 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					n->relation = $7;
 					n->tableElts = $11;
 					n->inhRelations = list_make1($10);
-					n->partbound = (Node *) $12;
+					n->partbound = $12;
 					n->partspec = $13;
 					n->ofTypename = NULL;
 					n->constraints = NIL;
@@ -3835,7 +3834,7 @@ ExistingIndex:   USING INDEX index_name				{ $$ = $3; }
 /*****************************************************************************
  *
  *		QUERY :
- *				CREATE STATISTICS stats_name [(stat types)]
+ *				CREATE STATISTICS [IF NOT EXISTS] stats_name [(stat types)]
  *					ON expression-list FROM from_list
  *
  * Note: the expectation here is that the clauses after ON are a subset of
@@ -3847,15 +3846,26 @@ ExistingIndex:   USING INDEX index_name				{ $$ = $3; }
  *****************************************************************************/
 
 CreateStatsStmt:
-			CREATE opt_if_not_exists STATISTICS any_name
+			CREATE STATISTICS any_name
 			opt_name_list ON expr_list FROM from_list
 				{
 					CreateStatsStmt *n = makeNode(CreateStatsStmt);
-					n->defnames = $4;
-					n->stat_types = $5;
-					n->exprs = $7;
-					n->relations = $9;
-					n->if_not_exists = $2;
+					n->defnames = $3;
+					n->stat_types = $4;
+					n->exprs = $6;
+					n->relations = $8;
+					n->if_not_exists = false;
+					$$ = (Node *)n;
+				}
+			| CREATE STATISTICS IF_P NOT EXISTS any_name
+			opt_name_list ON expr_list FROM from_list
+				{
+					CreateStatsStmt *n = makeNode(CreateStatsStmt);
+					n->defnames = $6;
+					n->stat_types = $7;
+					n->exprs = $9;
+					n->relations = $11;
+					n->if_not_exists = true;
 					$$ = (Node *)n;
 				}
 			;
@@ -4122,6 +4132,7 @@ opt_by:		BY				{}
 
 NumericOnly:
 			FCONST								{ $$ = makeFloat($1); }
+			| '+' FCONST						{ $$ = makeFloat($2); }
 			| '-' FCONST
 				{
 					$$ = makeFloat($2);
@@ -4866,7 +4877,7 @@ CreateForeignTableStmt:
 					n->base.relation = $4;
 					n->base.inhRelations = list_make1($7);
 					n->base.tableElts = $8;
-					n->base.partbound = (Node *) $9;
+					n->base.partbound = $9;
 					n->base.ofTypename = NULL;
 					n->base.constraints = NIL;
 					n->base.options = NIL;
@@ -4887,7 +4898,7 @@ CreateForeignTableStmt:
 					n->base.relation = $7;
 					n->base.inhRelations = list_make1($10);
 					n->base.tableElts = $11;
-					n->base.partbound = (Node *) $12;
+					n->base.partbound = $12;
 					n->base.ofTypename = NULL;
 					n->base.constraints = NIL;
 					n->base.options = NIL;
@@ -9279,24 +9290,14 @@ AlterSubscriptionStmt:
 					n->options = $6;
 					$$ = (Node *)n;
 				}
-			| ALTER SUBSCRIPTION name SET PUBLICATION publication_name_list REFRESH opt_definition
-				{
-					AlterSubscriptionStmt *n =
-						makeNode(AlterSubscriptionStmt);
-					n->kind = ALTER_SUBSCRIPTION_PUBLICATION_REFRESH;
-					n->subname = $3;
-					n->publication = $6;
-					n->options = $8;
-					$$ = (Node *)n;
-				}
-			| ALTER SUBSCRIPTION name SET PUBLICATION publication_name_list SKIP REFRESH
+			| ALTER SUBSCRIPTION name SET PUBLICATION publication_name_list opt_definition
 				{
 					AlterSubscriptionStmt *n =
 						makeNode(AlterSubscriptionStmt);
 					n->kind = ALTER_SUBSCRIPTION_PUBLICATION;
 					n->subname = $3;
 					n->publication = $6;
-					n->options = NIL;
+					n->options = $7;
 					$$ = (Node *)n;
 				}
 			| ALTER SUBSCRIPTION name ENABLE_P

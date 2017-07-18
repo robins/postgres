@@ -16,7 +16,7 @@
  *
  *	See src/backend/executor/README for some background, specifically the
  *	"Expression Trees and ExprState nodes", "Expression Initialization",
- *	and "Expession Evaluation" sections.
+ *	and "Expression Evaluation" sections.
  *
  *
  * Portions Copyright (c) 1996-2017, PostgreSQL Global Development Group
@@ -344,7 +344,7 @@ ExecBuildProjectionInfo(List *targetList,
 			attnum = variable->varattno;
 
 			if (inputDesc == NULL)
-				isSafeVar = true;		/* can't check, just assume OK */
+				isSafeVar = true;	/* can't check, just assume OK */
 			else if (attnum <= inputDesc->natts)
 			{
 				Form_pg_attribute attr = inputDesc->attrs[attnum - 1];
@@ -777,7 +777,7 @@ ExecInitExprRec(Expr *node, PlanState *parent, ExprState *state,
 					if (nfuncs != winstate->numfuncs)
 						ereport(ERROR,
 								(errcode(ERRCODE_WINDOWING_ERROR),
-						  errmsg("window function calls cannot be nested")));
+								 errmsg("window function calls cannot be nested")));
 				}
 				else
 				{
@@ -1116,6 +1116,18 @@ ExecInitExprRec(Expr *node, PlanState *parent, ExprState *state,
 					 * field assignment can't be within a CASE either.  (So
 					 * saving and restoring innermost_caseval is just
 					 * paranoia, but let's do it anyway.)
+					 *
+					 * Another non-obvious point is that it's safe to use the
+					 * field's values[]/nulls[] entries as both the caseval
+					 * source and the result address for this subexpression.
+					 * That's okay only because (1) both FieldStore and
+					 * ArrayRef evaluate their arg or refexpr inputs first,
+					 * and (2) any such CaseTestExpr is directly the arg or
+					 * refexpr input.  So any read of the caseval will occur
+					 * before there's a chance to overwrite it.  Also, if
+					 * multiple entries in the newvals/fieldnums lists target
+					 * the same field, they'll effectively be applied
+					 * left-to-right which is what we want.
 					 */
 					save_innermost_caseval = state->innermost_caseval;
 					save_innermost_casenull = state->innermost_casenull;
@@ -1362,7 +1374,7 @@ ExecInitExprRec(Expr *node, PlanState *parent, ExprState *state,
 
 					/* If WHEN result isn't true, jump to next CASE arm */
 					scratch.opcode = EEOP_JUMP_IF_NOT_TRUE;
-					scratch.d.jump.jumpdone = -1;		/* computed later */
+					scratch.d.jump.jumpdone = -1;	/* computed later */
 					ExprEvalPushStep(state, &scratch);
 					whenstep = state->steps_len - 1;
 
@@ -1374,7 +1386,7 @@ ExecInitExprRec(Expr *node, PlanState *parent, ExprState *state,
 
 					/* Emit JUMP step to jump to end of CASE's code */
 					scratch.opcode = EEOP_JUMP;
-					scratch.d.jump.jumpdone = -1;		/* computed later */
+					scratch.d.jump.jumpdone = -1;	/* computed later */
 					ExprEvalPushStep(state, &scratch);
 
 					/*
@@ -1545,8 +1557,8 @@ ExecInitExprRec(Expr *node, PlanState *parent, ExprState *state,
 							ereport(ERROR,
 									(errcode(ERRCODE_DATATYPE_MISMATCH),
 									 errmsg("ROW() column has type %s instead of type %s",
-										format_type_be(exprType((Node *) e)),
-									   format_type_be(attrs[i]->atttypid))));
+											format_type_be(exprType((Node *) e)),
+											format_type_be(attrs[i]->atttypid))));
 					}
 					else
 					{
@@ -1720,7 +1732,7 @@ ExecInitExprRec(Expr *node, PlanState *parent, ExprState *state,
 
 					/* if it's not null, skip to end of COALESCE expr */
 					scratch.opcode = EEOP_JUMP_IF_NOT_NULL;
-					scratch.d.jump.jumpdone = -1;		/* adjust later */
+					scratch.d.jump.jumpdone = -1;	/* adjust later */
 					ExprEvalPushStep(state, &scratch);
 
 					adjust_jumps = lappend_int(adjust_jumps,
@@ -2076,10 +2088,10 @@ ExecInitFunc(ExprEvalStep *scratch, Expr *node, List *args, Oid funcid,
 	if (nargs > FUNC_MAX_ARGS)
 		ereport(ERROR,
 				(errcode(ERRCODE_TOO_MANY_ARGUMENTS),
-			 errmsg_plural("cannot pass more than %d argument to a function",
-						   "cannot pass more than %d arguments to a function",
-						   FUNC_MAX_ARGS,
-						   FUNC_MAX_ARGS)));
+				 errmsg_plural("cannot pass more than %d argument to a function",
+							   "cannot pass more than %d arguments to a function",
+							   FUNC_MAX_ARGS,
+							   FUNC_MAX_ARGS)));
 
 	/* Allocate function lookup data and parameter workspace for this call */
 	scratch->d.func.finfo = palloc0(sizeof(FmgrInfo));
@@ -2105,7 +2117,7 @@ ExecInitFunc(ExprEvalStep *scratch, Expr *node, List *args, Oid funcid,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("set-valued function called in context that cannot accept a set"),
 				 parent ? executor_errposition(parent->state,
-										  exprLocation((Node *) node)) : 0));
+											   exprLocation((Node *) node)) : 0));
 
 	/* Build code to evaluate arguments directly into the fcinfo struct */
 	argno = 0;
@@ -2380,7 +2392,7 @@ ExecInitArrayRef(ExprEvalStep *scratch, ArrayRef *aref, PlanState *parent,
 
 		/* Each subscript is evaluated into subscriptvalue/subscriptnull */
 		ExecInitExprRec(e, parent, state,
-					  &arefstate->subscriptvalue, &arefstate->subscriptnull);
+						&arefstate->subscriptvalue, &arefstate->subscriptnull);
 
 		/* ... and then ARRAYREF_SUBSCRIPT saves it into step's workspace */
 		scratch->opcode = EEOP_ARRAYREF_SUBSCRIPT;
@@ -2413,7 +2425,7 @@ ExecInitArrayRef(ExprEvalStep *scratch, ArrayRef *aref, PlanState *parent,
 
 		/* Each subscript is evaluated into subscriptvalue/subscriptnull */
 		ExecInitExprRec(e, parent, state,
-					  &arefstate->subscriptvalue, &arefstate->subscriptnull);
+						&arefstate->subscriptvalue, &arefstate->subscriptnull);
 
 		/* ... and then ARRAYREF_SUBSCRIPT saves it into step's workspace */
 		scratch->opcode = EEOP_ARRAYREF_SUBSCRIPT;
@@ -2443,14 +2455,14 @@ ExecInitArrayRef(ExprEvalStep *scratch, ArrayRef *aref, PlanState *parent,
 		 * refassgnexpr is itself a FieldStore or ArrayRef that needs to
 		 * obtain and modify the previous value of the array element or slice
 		 * being replaced.  If so, we have to extract that value from the
-		 * array and pass it down via the CaseTextExpr mechanism.  It's safe
+		 * array and pass it down via the CaseTestExpr mechanism.  It's safe
 		 * to reuse the CASE mechanism because there cannot be a CASE between
 		 * here and where the value would be needed, and an array assignment
 		 * can't be within a CASE either.  (So saving and restoring
 		 * innermost_caseval is just paranoia, but let's do it anyway.)
 		 *
 		 * Since fetching the old element might be a nontrivial expense, do it
-		 * only if the argument appears to actually need it.
+		 * only if the argument actually needs it.
 		 */
 		if (isAssignmentIndirectionExpr(aref->refassgnexpr))
 		{
@@ -2506,10 +2518,16 @@ ExecInitArrayRef(ExprEvalStep *scratch, ArrayRef *aref, PlanState *parent,
 
 /*
  * Helper for preparing ArrayRef expressions for evaluation: is expr a nested
- * FieldStore or ArrayRef that might need the old element value passed down?
+ * FieldStore or ArrayRef that needs the old element value passed down?
  *
  * (We could use this in FieldStore too, but in that case passing the old
  * value is so cheap there's no need.)
+ *
+ * Note: it might seem that this needs to recurse, but it does not; the
+ * CaseTestExpr, if any, will be directly the arg or refexpr of the top-level
+ * node.  Nested-assignment situations give rise to expression trees in which
+ * each level of assignment has its own CaseTestExpr, and the recursive
+ * structure appears within the newvals or refassgnexpr field.
  */
 static bool
 isAssignmentIndirectionExpr(Expr *expr)

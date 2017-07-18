@@ -90,8 +90,8 @@ CreateStatistics(CreateStatsStmt *stmt)
 		{
 			ereport(NOTICE,
 					(errcode(ERRCODE_DUPLICATE_OBJECT),
-				  errmsg("statistics object \"%s\" already exists, skipping",
-						 namestr)));
+					 errmsg("statistics object \"%s\" already exists, skipping",
+							namestr)));
 			return InvalidObjectAddress;
 		}
 
@@ -109,7 +109,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	if (list_length(stmt->relations) != 1)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-		  errmsg("only a single relation is allowed in CREATE STATISTICS")));
+				 errmsg("only a single relation is allowed in CREATE STATISTICS")));
 
 	foreach(cell, stmt->relations)
 	{
@@ -180,8 +180,8 @@ CreateStatistics(CreateStatsStmt *stmt)
 		if (!HeapTupleIsValid(atttuple))
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_COLUMN),
-			  errmsg("column \"%s\" referenced in statistics does not exist",
-					 attname)));
+					 errmsg("column \"%s\" referenced in statistics does not exist",
+							attname)));
 		attForm = (Form_pg_attribute) GETSTRUCT(atttuple);
 
 		/* Disallow use of system attributes in extended stats */
@@ -235,7 +235,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 		if (attnums[i] == attnums[i - 1])
 			ereport(ERROR,
 					(errcode(ERRCODE_DUPLICATE_COLUMN),
-				  errmsg("duplicate column name in statistics definition")));
+					 errmsg("duplicate column name in statistics definition")));
 	}
 
 	/* Form an int2vector representation of the sorted column list */
@@ -301,8 +301,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	/* insert it into pg_statistic_ext */
 	statrel = heap_open(StatisticExtRelationId, RowExclusiveLock);
 	htup = heap_form_tuple(statrel->rd_att, values, nulls);
-	CatalogTupleInsert(statrel, htup);
-	statoid = HeapTupleGetOid(htup);
+	statoid = CatalogTupleInsert(statrel, htup);
 	heap_freetuple(htup);
 	relation_close(statrel, RowExclusiveLock);
 
@@ -372,7 +371,7 @@ RemoveStatisticsById(Oid statsOid)
 
 	CacheInvalidateRelcacheByRelid(relid);
 
-	simple_heap_delete(relation, &tup->t_self);
+	CatalogTupleDelete(relation, &tup->t_self);
 
 	ReleaseSysCache(tup);
 

@@ -379,7 +379,7 @@ drop function mlparted11_trig_fn();
 -- checking its partition constraint before inserting into the leaf partition
 -- selected by tuple-routing
 insert into mlparted1 (a, b) values (2, 3);
-ERROR:  new row for relation "mlparted11" violates partition constraint
+ERROR:  new row for relation "mlparted1" violates partition constraint
 DETAIL:  Failing row contains (3, 2).
 -- check routing error through a list partitioned table when the key is null
 create table lparted_nonullpart (a int, b char) partition by list (b);
@@ -495,3 +495,34 @@ select tableoid::regclass::text, * from mcrparted order by 1;
 
 -- cleanup
 drop table mcrparted;
+-- check that a BR constraint can't make partition contain violating rows
+create table brtrigpartcon (a int, b text) partition by list (a);
+create table brtrigpartcon1 partition of brtrigpartcon for values in (1);
+create or replace function brtrigpartcon1trigf() returns trigger as $$begin new.a := 2; return new; end$$ language plpgsql;
+create trigger brtrigpartcon1trig before insert on brtrigpartcon1 for each row execute procedure brtrigpartcon1trigf();
+insert into brtrigpartcon values (1, 'hi there');
+ERROR:  new row for relation "brtrigpartcon1" violates partition constraint
+DETAIL:  Failing row contains (2, hi there).
+insert into brtrigpartcon1 values (1, 'hi there');
+ERROR:  new row for relation "brtrigpartcon1" violates partition constraint
+DETAIL:  Failing row contains (2, hi there).
+-- check that the message shows the appropriate column description in a
+-- situation where the partitioned table is not the primary ModifyTable node
+create table inserttest3 (f1 text default 'foo', f2 text default 'bar', f3 int);
+create role regress_coldesc_role;
+grant insert on inserttest3 to regress_coldesc_role;
+grant insert on brtrigpartcon to regress_coldesc_role;
+revoke select on brtrigpartcon from regress_coldesc_role;
+set role regress_coldesc_role;
+with result as (insert into brtrigpartcon values (1, 'hi there') returning 1)
+  insert into inserttest3 (f3) select * from result;
+ERROR:  new row for relation "brtrigpartcon1" violates partition constraint
+DETAIL:  Failing row contains (a, b) = (2, hi there).
+reset role;
+-- cleanup
+revoke all on inserttest3 from regress_coldesc_role;
+revoke all on brtrigpartcon from regress_coldesc_role;
+drop role regress_coldesc_role;
+drop table inserttest3;
+drop table brtrigpartcon;
+drop function brtrigpartcon1trigf();

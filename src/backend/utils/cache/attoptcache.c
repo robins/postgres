@@ -71,7 +71,7 @@ InvalidateAttoptCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 
 /*
  * InitializeAttoptCache
- *		Initialize the tablespace cache.
+ *		Initialize the attribute options cache.
  */
 static void
 InitializeAttoptCache(void)
@@ -111,8 +111,7 @@ get_attribute_options(Oid attrelid, int attnum)
 	/* Find existing cache entry, if any. */
 	if (!AttoptCacheHash)
 		InitializeAttoptCache();
-	memset(&key, 0, sizeof(key));		/* make sure any padding bits are
-										 * unset */
+	memset(&key, 0, sizeof(key));	/* make sure any padding bits are unset */
 	key.attrelid = attrelid;
 	key.attnum = attnum;
 	attopt =

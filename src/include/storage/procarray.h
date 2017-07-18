@@ -27,16 +27,15 @@
  * to avoid forcing to include proc.h when including procarray.h. So if you modify
  * PROC_XXX flags, you need to modify these flags.
  */
-#define		PROCARRAY_VACUUM_FLAG			0x02		/* currently running
-														 * lazy vacuum */
-#define		PROCARRAY_ANALYZE_FLAG			0x04		/* currently running
-														 * analyze */
-#define		PROCARRAY_LOGICAL_DECODING_FLAG 0x10		/* currently doing
-														 * logical decoding
-														 * outside xact */
+#define		PROCARRAY_VACUUM_FLAG			0x02	/* currently running lazy
+													 * vacuum */
+#define		PROCARRAY_ANALYZE_FLAG			0x04	/* currently running
+													 * analyze */
+#define		PROCARRAY_LOGICAL_DECODING_FLAG 0x10	/* currently doing logical
+													 * decoding outside xact */
 
-#define		PROCARRAY_SLOTS_XMIN			0x20		/* replication slot
-														 * xmin, catalog_xmin */
+#define		PROCARRAY_SLOTS_XMIN			0x20	/* replication slot xmin,
+													 * catalog_xmin */
 /*
  * Only flags in PROCARRAY_PROC_FLAGS_MASK are considered when matching
  * PGXACT->vacuumFlags. Other flags are used for different purposes and
@@ -82,7 +81,7 @@ extern int	GetMaxSnapshotSubxidCount(void);
 extern Snapshot GetSnapshotData(Snapshot snapshot);
 
 extern bool ProcArrayInstallImportedXmin(TransactionId xmin,
-							 TransactionId sourcexid);
+							 VirtualTransactionId *sourcevxid);
 extern bool ProcArrayInstallRestoredXmin(TransactionId xmin, PGPROC *proc);
 
 extern RunningTransactions GetRunningTransactionData(void);
@@ -120,9 +119,9 @@ extern void XidCacheRemoveRunningXids(TransactionId xid,
 						  TransactionId latestXid);
 
 extern void ProcArraySetReplicationSlotXmin(TransactionId xmin,
-							TransactionId catalog_xmin, bool already_locked);
+								TransactionId catalog_xmin, bool already_locked);
 
 extern void ProcArrayGetReplicationSlotXmin(TransactionId *xmin,
 								TransactionId *catalog_xmin);
 
-#endif   /* PROCARRAY_H */
+#endif							/* PROCARRAY_H */

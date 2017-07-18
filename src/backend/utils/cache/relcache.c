@@ -627,7 +627,7 @@ RelationBuildTupleDesc(Relation relation)
 			constr->num_check = relation->rd_rel->relchecks;
 			constr->check = (ConstrCheck *)
 				MemoryContextAllocZero(CacheMemoryContext,
-									constr->num_check * sizeof(ConstrCheck));
+									   constr->num_check * sizeof(ConstrCheck));
 			CheckConstraintFetch(relation);
 		}
 		else
@@ -1371,7 +1371,7 @@ RelationBuildDesc(Oid targetRelId, bool insertIt)
 	/*
 	 * initialize the relation lock manager information
 	 */
-	RelationInitLockInfo(relation);		/* see lmgr.c */
+	RelationInitLockInfo(relation); /* see lmgr.c */
 
 	/*
 	 * initialize physical addressing information for the relation
@@ -1446,7 +1446,7 @@ RelationInitPhysicalAddr(Relation relation)
 			Form_pg_class physrel;
 
 			phys_tuple = ScanPgRelation(RelationGetRelid(relation),
-							   RelationGetRelid(relation) != ClassOidIndexId,
+										RelationGetRelid(relation) != ClassOidIndexId,
 										true);
 			if (!HeapTupleIsValid(phys_tuple))
 				elog(ERROR, "could not find pg_class entry for %u",
@@ -2011,7 +2011,7 @@ formrdesc(const char *relationName, Oid relationReltype,
 	/*
 	 * initialize the relation lock manager information
 	 */
-	RelationInitLockInfo(relation);		/* see lmgr.c */
+	RelationInitLockInfo(relation); /* see lmgr.c */
 
 	/*
 	 * initialize physical addressing information for the relation
@@ -2423,7 +2423,7 @@ RelationClearRelation(Relation relation, bool rebuild)
 
 		if (relation->rd_rel->relkind == RELKIND_INDEX)
 		{
-			relation->rd_isvalid = false;		/* needs to be revalidated */
+			relation->rd_isvalid = false;	/* needs to be revalidated */
 			if (relation->rd_refcnt > 1 && IsTransactionState())
 				RelationReloadIndexInfo(relation);
 		}
@@ -2889,7 +2889,7 @@ RememberToFreeTupleDescAtEOX(TupleDesc td)
 		Assert(EOXactTupleDescArrayLen > 0);
 
 		EOXactTupleDescArray = (TupleDesc *) repalloc(EOXactTupleDescArray,
-												 newlen * sizeof(TupleDesc));
+													  newlen * sizeof(TupleDesc));
 		EOXactTupleDescArrayLen = newlen;
 	}
 
@@ -3657,7 +3657,7 @@ RelationCacheInitializePhase3(void)
 		formrdesc("pg_type", TypeRelation_Rowtype_Id, false,
 				  true, Natts_pg_type, Desc_pg_type);
 
-#define NUM_CRITICAL_LOCAL_RELS 4		/* fix if you change list above */
+#define NUM_CRITICAL_LOCAL_RELS 4	/* fix if you change list above */
 	}
 
 	MemoryContextSwitchTo(oldcxt);
@@ -3782,7 +3782,7 @@ RelationCacheInitializePhase3(void)
 			Form_pg_class relp;
 
 			htup = SearchSysCache1(RELOID,
-							   ObjectIdGetDatum(RelationGetRelid(relation)));
+								   ObjectIdGetDatum(RelationGetRelid(relation)));
 			if (!HeapTupleIsValid(htup))
 				elog(FATAL, "cache lookup failed for relation %u",
 					 RelationGetRelid(relation));
@@ -3960,7 +3960,7 @@ BuildHardcodedDescriptor(int natts, const FormData_pg_attribute *attrs,
 	oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
 
 	result = CreateTemplateTupleDesc(natts, hasoids);
-	result->tdtypeid = RECORDOID;		/* not right, but we don't care */
+	result->tdtypeid = RECORDOID;	/* not right, but we don't care */
 	result->tdtypmod = -1;
 
 	for (i = 0; i < natts; i++)
@@ -4045,7 +4045,7 @@ AttrDefaultFetch(Relation relation)
 				continue;
 			if (attrdef[i].adbin != NULL)
 				elog(WARNING, "multiple attrdef records found for attr %s of rel %s",
-				NameStr(relation->rd_att->attrs[adform->adnum - 1]->attname),
+					 NameStr(relation->rd_att->attrs[adform->adnum - 1]->attname),
 					 RelationGetRelationName(relation));
 			else
 				found++;
@@ -4055,7 +4055,7 @@ AttrDefaultFetch(Relation relation)
 							  adrel->rd_att, &isnull);
 			if (isnull)
 				elog(WARNING, "null adbin for attr %s of rel %s",
-				NameStr(relation->rd_att->attrs[adform->adnum - 1]->attname),
+					 NameStr(relation->rd_att->attrs[adform->adnum - 1]->attname),
 					 RelationGetRelationName(relation));
 			else
 			{
@@ -4239,7 +4239,7 @@ RelationGetFKeyList(Relation relation)
 			elog(ERROR, "null conkey for rel %s",
 				 RelationGetRelationName(relation));
 
-		arr = DatumGetArrayTypeP(adatum);		/* ensure not toasted */
+		arr = DatumGetArrayTypeP(adatum);	/* ensure not toasted */
 		nelem = ARR_DIMS(arr)[0];
 		if (ARR_NDIM(arr) != 1 ||
 			nelem < 1 ||
@@ -4258,7 +4258,7 @@ RelationGetFKeyList(Relation relation)
 			elog(ERROR, "null confkey for rel %s",
 				 RelationGetRelationName(relation));
 
-		arr = DatumGetArrayTypeP(adatum);		/* ensure not toasted */
+		arr = DatumGetArrayTypeP(adatum);	/* ensure not toasted */
 		nelem = ARR_DIMS(arr)[0];
 		if (ARR_NDIM(arr) != 1 ||
 			nelem != info->nkeys ||
@@ -4275,7 +4275,7 @@ RelationGetFKeyList(Relation relation)
 			elog(ERROR, "null conpfeqop for rel %s",
 				 RelationGetRelationName(relation));
 
-		arr = DatumGetArrayTypeP(adatum);		/* ensure not toasted */
+		arr = DatumGetArrayTypeP(adatum);	/* ensure not toasted */
 		nelem = ARR_DIMS(arr)[0];
 		if (ARR_NDIM(arr) != 1 ||
 			nelem != info->nkeys ||
@@ -4947,19 +4947,19 @@ restart:
 			if (attrnum != 0)
 			{
 				indexattrs = bms_add_member(indexattrs,
-							   attrnum - FirstLowInvalidHeapAttributeNumber);
+											attrnum - FirstLowInvalidHeapAttributeNumber);
 
 				if (isKey)
 					uindexattrs = bms_add_member(uindexattrs,
-							   attrnum - FirstLowInvalidHeapAttributeNumber);
+												 attrnum - FirstLowInvalidHeapAttributeNumber);
 
 				if (isPK)
 					pkindexattrs = bms_add_member(pkindexattrs,
-							   attrnum - FirstLowInvalidHeapAttributeNumber);
+												  attrnum - FirstLowInvalidHeapAttributeNumber);
 
 				if (isIDKey)
 					idindexattrs = bms_add_member(idindexattrs,
-							   attrnum - FirstLowInvalidHeapAttributeNumber);
+												  attrnum - FirstLowInvalidHeapAttributeNumber);
 			}
 		}
 
@@ -5448,7 +5448,7 @@ load_relcache_init_file(bool shared)
 		rel->rd_att->tdrefcount = 1;	/* mark as refcounted */
 
 		rel->rd_att->tdtypeid = relform->reltype;
-		rel->rd_att->tdtypmod = -1;		/* unnecessary, but... */
+		rel->rd_att->tdtypmod = -1; /* unnecessary, but... */
 
 		/* next read all the attribute tuple form data entries */
 		has_not_null = false;
@@ -5473,7 +5473,7 @@ load_relcache_init_file(bool shared)
 			if (fread(rel->rd_options, 1, len, fp) != len)
 				goto read_failed;
 			if (len != VARSIZE(rel->rd_options))
-				goto read_failed;		/* sanity check */
+				goto read_failed;	/* sanity check */
 		}
 		else
 		{
@@ -5790,7 +5790,7 @@ write_relcache_init_file(bool shared)
 				(errcode_for_file_access(),
 				 errmsg("could not create relation-cache initialization file \"%s\": %m",
 						tempfilename),
-			  errdetail("Continuing anyway, but there's something wrong.")));
+				 errdetail("Continuing anyway, but there's something wrong.")));
 		return;
 	}
 

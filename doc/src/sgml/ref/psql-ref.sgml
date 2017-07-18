@@ -68,7 +68,8 @@ PostgreSQL documentation
       <listitem>
       <para>
       Switches to unaligned output mode. (The default output mode is
-      otherwise aligned.)
+      otherwise aligned.)  This is equivalent to <command>\pset format
+      unaligned</command>.
       </para>
       </listitem>
     </varlistentry>
@@ -371,8 +372,8 @@ EOF
       <listitem>
       <para>
       Use <replaceable class="parameter">separator</replaceable> as the
-      record separator for unaligned output. This is equivalent to the
-      <command>\pset recordsep</command> command.
+      record separator for unaligned output. This is equivalent to
+      <command>\pset recordsep</command>.
       </para>
       </listitem>
     </varlistentry>
@@ -415,7 +416,8 @@ EOF
       <listitem>
       <para>
       Turn off printing of column names and result row count footers,
-      etc. This is equivalent to the <command>\t</command> command.
+      etc. This is equivalent to <command>\t</command> or
+      <command>\pset tuples_only</command>.
       </para>
       </listitem>
     </varlistentry>
@@ -427,7 +429,7 @@ EOF
       <para>
       Specifies options to be placed within the
       <acronym>HTML</acronym> <sgmltag>table</sgmltag> tag. See
-      <command>\pset</command> for details.
+      <command>\pset tableattr</command> for details.
       </para>
       </listitem>
     </varlistentry>
@@ -522,8 +524,8 @@ EOF
       <term><option>--expanded</></term>
       <listitem>
       <para>
-      Turn on the expanded table formatting mode. This is equivalent to the
-      <command>\x</command> command.
+      Turn on the expanded table formatting mode. This is equivalent to
+      <command>\x</command> or <command>\pset expanded</command>.
       </para>
       </listitem>
     </varlistentry>
@@ -545,7 +547,8 @@ EOF
       <term><option>--field-separator-zero</option></term>
       <listitem>
       <para>
-      Set the field separator for unaligned output to a zero byte.
+      Set the field separator for unaligned output to a zero byte.  This is
+      equvalent to <command>\pset fieldsep_zero</command>.
       </para>
       </listitem>
     </varlistentry>
@@ -557,6 +560,7 @@ EOF
       <para>
       Set the record separator for unaligned output to a zero byte.  This is
       useful for interfacing, for example, with <literal>xargs -0</literal>.
+      This is equivalent to <command>\pset recordsep_zero</command>.
       </para>
       </listitem>
     </varlistentry>
@@ -1096,7 +1100,8 @@ testdb=&gt;
 
         <listitem>
         <para>
-        For each relation (table, view, index, sequence, or foreign table)
+        For each relation (table, view, materialized view, index, sequence,
+        or foreign table)
         or composite type matching the
         <replaceable class="parameter">pattern</replaceable>, show all
         columns, their types, the tablespace (if not the default) and any
@@ -1111,8 +1116,8 @@ testdb=&gt;
 
         <para>
         For some types of relation, <literal>\d</> shows additional information
-        for each column: column values for sequences, indexed expression for
-        indexes and foreign data wrapper options for foreign tables.
+        for each column: column values for sequences, indexed expressions for
+        indexes, and foreign data wrapper options for foreign tables.
         </para>
 
         <para>
@@ -1134,8 +1139,9 @@ testdb=&gt;
         <para>
         If <command>\d</command> is used without a
         <replaceable class="parameter">pattern</replaceable> argument, it is
-        equivalent to <command>\dtvsE</command> which will show a list of
-        all visible tables, views, sequences and foreign tables.
+        equivalent to <command>\dtvmsE</command> which will show a list of
+        all visible tables, views, materialized views, sequences and
+        foreign tables.
         This is purely a convenience measure.
         </para>
         </note>
@@ -1251,6 +1257,23 @@ testdb=&gt;
 
 
       <varlistentry>
+        <term><literal>\dD[S+] [ <link linkend="APP-PSQL-patterns"><replaceable class="parameter">pattern</replaceable></link> ]</literal></term>
+        <listitem>
+        <para>
+        Lists domains. If <replaceable
+        class="parameter">pattern</replaceable>
+        is specified, only domains whose names match the pattern are shown.
+        By default, only user-created objects are shown;  supply a
+        pattern or the <literal>S</literal> modifier to include system
+        objects.
+        If <literal>+</literal> is appended to the command name, each object
+        is listed with its associated permissions and description.
+        </para>
+        </listitem>
+      </varlistentry>
+
+
+      <varlistentry>
         <term><literal>\ddp [ <link linkend="APP-PSQL-patterns"><replaceable class="parameter">pattern</replaceable></link> ]</literal></term>
         <listitem>
         <para>
@@ -1267,23 +1290,6 @@ testdb=&gt;
         default access privileges.  The meaning of the
         privilege display is explained under
         <xref linkend="sql-grant">.
-        </para>
-        </listitem>
-      </varlistentry>
-
-
-      <varlistentry>
-        <term><literal>\dD[S+] [ <link linkend="APP-PSQL-patterns"><replaceable class="parameter">pattern</replaceable></link> ]</literal></term>
-        <listitem>
-        <para>
-        Lists domains. If <replaceable
-        class="parameter">pattern</replaceable>
-        is specified, only domains whose names match the pattern are shown.
-        By default, only user-created objects are shown;  supply a
-        pattern or the <literal>S</literal> modifier to include system
-        objects.
-        If <literal>+</literal> is appended to the command name, each object
-        is listed with its associated permissions and description.
         </para>
         </listitem>
       </varlistentry>
@@ -1905,9 +1911,8 @@ Tue Oct 26 21:40:57 CEST 1999
         <listitem>
         <para>
         Sets the field separator for unaligned query output. The default
-        is the vertical bar (<literal>|</literal>). See also
-        <command>\pset</command> for a generic way of setting output
-        options.
+        is the vertical bar (<literal>|</literal>). It is equivalent to
+        <command>\pset fieldsep</command>.
         </para>
         </listitem>
       </varlistentry>
@@ -1939,18 +1944,6 @@ Tue Oct 26 21:40:57 CEST 1999
         and neither variable interpolation nor backquote expansion are
         performed in it.  The rest of the line is simply passed literally to
         the shell.
-        </para>
-        </listitem>
-      </varlistentry>
-
-
-      <varlistentry>
-        <term><literal>\gx [ <replaceable class="parameter">filename</replaceable> ]</literal></term>
-        <term><literal>\gx [ |<replaceable class="parameter">command</replaceable> ]</literal></term>
-        <listitem>
-        <para>
-        <literal>\gx</literal> is equivalent to <literal>\g</literal>, but
-        forces expanded output mode for this query.  See <literal>\x</literal>.
         </para>
         </listitem>
       </varlistentry>
@@ -2046,6 +2039,19 @@ hello 10
         </listitem>
       </varlistentry>
 
+
+      <varlistentry>
+        <term><literal>\gx [ <replaceable class="parameter">filename</replaceable> ]</literal></term>
+        <term><literal>\gx [ |<replaceable class="parameter">command</replaceable> ]</literal></term>
+        <listitem>
+        <para>
+        <literal>\gx</literal> is equivalent to <literal>\g</literal>, but
+        forces expanded output mode for this query.  See <literal>\x</literal>.
+        </para>
+        </listitem>
+      </varlistentry>
+
+
       <varlistentry>
         <term><literal>\h</literal> or <literal>\help</literal> <literal>[ <replaceable class="parameter">command</replaceable> ]</literal></term>
         <listitem>
@@ -2113,21 +2119,6 @@ hello 10
         <literal>all</literal>.
         </para>
         </note>
-        </listitem>
-      </varlistentry>
-
-
-      <varlistentry>
-        <term><literal>\ir</literal> or <literal>\include_relative</literal> <replaceable class="parameter">filename</replaceable></term>
-        <listitem>
-        <para>
-        The <literal>\ir</> command is similar to <literal>\i</>, but resolves
-        relative file names differently.  When executing in interactive mode,
-        the two commands behave identically.  However, when invoked from a
-        script, <literal>\ir</literal> interprets file names relative to the
-        directory in which the script is located, rather than the current
-        working directory.
-        </para>
         </listitem>
       </varlistentry>
 
@@ -2217,6 +2208,21 @@ SELECT
     \endif
 \endif
 </programlisting>
+        </listitem>
+      </varlistentry>
+
+
+      <varlistentry>
+        <term><literal>\ir</literal> or <literal>\include_relative</literal> <replaceable class="parameter">filename</replaceable></term>
+        <listitem>
+        <para>
+        The <literal>\ir</> command is similar to <literal>\i</>, but resolves
+        relative file names differently.  When executing in interactive mode,
+        the two commands behave identically.  However, when invoked from a
+        script, <literal>\ir</literal> interprets file names relative to the
+        directory in which the script is located, rather than the current
+        working directory.
+        </para>
         </listitem>
       </varlistentry>
 
@@ -2807,8 +2813,9 @@ lo_import 152801
         <tip>
         <para>
         There are various shortcut commands for <command>\pset</command>. See
-        <command>\a</command>, <command>\C</command>, <command>\H</command>,
-        <command>\t</command>, <command>\T</command>, and <command>\x</command>.
+        <command>\a</command>, <command>\C</command>, <command>\f</command>,
+        <command>\H</command>, <command>\t</command>, <command>\T</command>,
+        and <command>\x</command>.
         </para>
         </tip>
 

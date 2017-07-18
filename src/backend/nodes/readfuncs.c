@@ -86,7 +86,8 @@
 #define READ_CHAR_FIELD(fldname) \
 	token = pg_strtok(&length);		/* skip :fldname */ \
 	token = pg_strtok(&length);		/* get field value */ \
-	local_node->fldname = token[0]
+	/* avoid overhead of calling debackslash() for one char */ \
+	local_node->fldname = (length == 0) ? '\0' : (token[0] == '\\' ? token[1] : token[0])
 
 /* Read an enumerated-type field that was written as an integer code */
 #define READ_ENUM_FIELD(fldname, enumtype) \
@@ -446,8 +447,7 @@ _readRangeVar(void)
 {
 	READ_LOCALS(RangeVar);
 
-	local_node->catalogname = NULL;		/* not currently saved in output
-										 * format */
+	local_node->catalogname = NULL; /* not currently saved in output format */
 
 	READ_STRING_FIELD(schemaname);
 	READ_STRING_FIELD(relname);
@@ -467,8 +467,8 @@ _readTableFunc(void)
 {
 	READ_LOCALS(TableFunc);
 
-	READ_NODE_FIELD(ns_names);
 	READ_NODE_FIELD(ns_uris);
+	READ_NODE_FIELD(ns_names);
 	READ_NODE_FIELD(docexpr);
 	READ_NODE_FIELD(rowexpr);
 	READ_NODE_FIELD(colnames);
@@ -539,7 +539,7 @@ _readConst(void)
 
 	token = pg_strtok(&length); /* skip :constvalue */
 	if (local_node->constisnull)
-		token = pg_strtok(&length);		/* skip "<>" */
+		token = pg_strtok(&length); /* skip "<>" */
 	else
 		local_node->constvalue = readDatum(local_node->constbyval);
 
@@ -1203,6 +1203,20 @@ _readCurrentOfExpr(void)
 }
 
 /*
+ * _readNextValueExpr
+ */
+static NextValueExpr *
+_readNextValueExpr(void)
+{
+	READ_LOCALS(NextValueExpr);
+
+	READ_OID_FIELD(seqid);
+	READ_OID_FIELD(typeId);
+
+	READ_DONE();
+}
+
+/*
  * _readInferenceElem
  */
 static InferenceElem *
@@ -1358,6 +1372,7 @@ _readRangeTblEntry(void)
 			break;
 		case RTE_NAMEDTUPLESTORE:
 			READ_STRING_FIELD(enrname);
+			READ_FLOAT_FIELD(enrtuples);
 			READ_OID_FIELD(relid);
 			READ_NODE_FIELD(coltypes);
 			READ_NODE_FIELD(coltypmods);
@@ -2376,6 +2391,7 @@ _readPartitionBoundSpec(void)
 	READ_NODE_FIELD(listdatums);
 	READ_NODE_FIELD(lowerdatums);
 	READ_NODE_FIELD(upperdatums);
+	READ_LOCATION_FIELD(location);
 
 	READ_DONE();
 }
@@ -2390,6 +2406,7 @@ _readPartitionRangeDatum(void)
 
 	READ_BOOL_FIELD(infinite);
 	READ_NODE_FIELD(value);
+	READ_LOCATION_FIELD(location);
 
 	READ_DONE();
 }
@@ -2514,6 +2531,8 @@ parseNodeString(void)
 		return_value = _readSetToDefault();
 	else if (MATCH("CURRENTOFEXPR", 13))
 		return_value = _readCurrentOfExpr();
+	else if (MATCH("NEXTVALUEEXPR", 13))
+		return_value = _readNextValueExpr();
 	else if (MATCH("INFERENCEELEM", 13))
 		return_value = _readInferenceElem();
 	else if (MATCH("TARGETENTRY", 11))
@@ -2634,9 +2653,9 @@ parseNodeString(void)
 		return_value = _readAlternativeSubPlan();
 	else if (MATCH("EXTENSIBLENODE", 14))
 		return_value = _readExtensibleNode();
-	else if (MATCH("PARTITIONBOUND", 14))
+	else if (MATCH("PARTITIONBOUNDSPEC", 18))
 		return_value = _readPartitionBoundSpec();
-	else if (MATCH("PARTRANGEDATUM", 14))
+	else if (MATCH("PARTITIONRANGEDATUM", 19))
 		return_value = _readPartitionRangeDatum();
 	else
 	{

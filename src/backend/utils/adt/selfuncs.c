@@ -154,12 +154,13 @@
 get_relation_stats_hook_type get_relation_stats_hook = NULL;
 get_index_stats_hook_type get_index_stats_hook = NULL;
 
+static double eqsel_internal(PG_FUNCTION_ARGS, bool negate);
 static double var_eq_const(VariableStatData *vardata, Oid operator,
 			 Datum constval, bool constisnull,
-			 bool varonleft);
+			 bool varonleft, bool negate);
 static double var_eq_non_const(VariableStatData *vardata, Oid operator,
 				 Node *other,
-				 bool varonleft);
+				 bool varonleft, bool negate);
 static double ineq_histogram_selectivity(PlannerInfo *root,
 						   VariableStatData *vardata,
 						   FmgrInfo *opproc, bool isgt,
@@ -170,7 +171,7 @@ static double eqjoinsel_semi(Oid operator,
 			   VariableStatData *vardata1, VariableStatData *vardata2,
 			   RelOptInfo *inner_rel);
 static bool estimate_multivariate_ndistinct(PlannerInfo *root,
-						RelOptInfo *rel, List **varinfos, double *ndistinct);
+								RelOptInfo *rel, List **varinfos, double *ndistinct);
 static bool convert_to_scalar(Datum value, Oid valuetypid, double *scaledvalue,
 				  Datum lobound, Datum hibound, Oid boundstypid,
 				  double *scaledlobound, double *scaledhibound);
@@ -227,6 +228,15 @@ static List *add_predicate_to_quals(IndexOptInfo *index, List *indexQuals);
 Datum
 eqsel(PG_FUNCTION_ARGS)
 {
+	PG_RETURN_FLOAT8((float8) eqsel_internal(fcinfo, false));
+}
+
+/*
+ * Common code for eqsel() and neqsel()
+ */
+static double
+eqsel_internal(PG_FUNCTION_ARGS, bool negate)
+{
 	PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
 	Oid			operator = PG_GETARG_OID(1);
 	List	   *args = (List *) PG_GETARG_POINTER(2);
@@ -237,12 +247,26 @@ eqsel(PG_FUNCTION_ARGS)
 	double		selec;
 
 	/*
+	 * When asked about <>, we do the estimation using the corresponding =
+	 * operator, then convert to <> via "1.0 - eq_selectivity - nullfrac".
+	 */
+	if (negate)
+	{
+		operator = get_negator(operator);
+		if (!OidIsValid(operator))
+		{
+			/* Use default selectivity (should we raise an error instead?) */
+			return 1.0 - DEFAULT_EQ_SEL;
+		}
+	}
+
+	/*
 	 * If expression is not variable = something or something = variable, then
 	 * punt and return a default estimate.
 	 */
 	if (!get_restriction_variable(root, args, varRelid,
 								  &vardata, &other, &varonleft))
-		PG_RETURN_FLOAT8(DEFAULT_EQ_SEL);
+		return negate ? (1.0 - DEFAULT_EQ_SEL) : DEFAULT_EQ_SEL;
 
 	/*
 	 * We can do a lot better if the something is a constant.  (Note: the
@@ -253,14 +277,14 @@ eqsel(PG_FUNCTION_ARGS)
 		selec = var_eq_const(&vardata, operator,
 							 ((Const *) other)->constvalue,
 							 ((Const *) other)->constisnull,
-							 varonleft);
+							 varonleft, negate);
 	else
 		selec = var_eq_non_const(&vardata, operator, other,
-								 varonleft);
+								 varonleft, negate);
 
 	ReleaseVariableStats(vardata);
 
-	PG_RETURN_FLOAT8((float8) selec);
+	return selec;
 }
 
 /*
@@ -271,18 +295,31 @@ eqsel(PG_FUNCTION_ARGS)
 static double
 var_eq_const(VariableStatData *vardata, Oid operator,
 			 Datum constval, bool constisnull,
-			 bool varonleft)
+			 bool varonleft, bool negate)
 {
 	double		selec;
+	double		nullfrac = 0.0;
 	bool		isdefault;
 	Oid			opfuncoid;
 
 	/*
 	 * If the constant is NULL, assume operator is strict and return zero, ie,
-	 * operator will never return TRUE.
+	 * operator will never return TRUE.  (It's zero even for a negator op.)
 	 */
 	if (constisnull)
 		return 0.0;
+
+	/*
+	 * Grab the nullfrac for use below.  Note we allow use of nullfrac
+	 * regardless of security check.
+	 */
+	if (HeapTupleIsValid(vardata->statsTuple))
+	{
+		Form_pg_statistic stats;
+
+		stats = (Form_pg_statistic) GETSTRUCT(vardata->statsTuple);
+		nullfrac = stats->stanullfrac;
+	}
 
 	/*
 	 * If we matched the var to a unique index or DISTINCT clause, assume
@@ -292,18 +329,16 @@ var_eq_const(VariableStatData *vardata, Oid operator,
 	 * ignoring the information.)
 	 */
 	if (vardata->isunique && vardata->rel && vardata->rel->tuples >= 1.0)
-		return 1.0 / vardata->rel->tuples;
-
-	if (HeapTupleIsValid(vardata->statsTuple) &&
-		statistic_proc_security_check(vardata,
-									  (opfuncoid = get_opcode(operator))))
 	{
-		Form_pg_statistic stats;
+		selec = 1.0 / vardata->rel->tuples;
+	}
+	else if (HeapTupleIsValid(vardata->statsTuple) &&
+			 statistic_proc_security_check(vardata,
+										   (opfuncoid = get_opcode(operator))))
+	{
 		AttStatsSlot sslot;
 		bool		match = false;
 		int			i;
-
-		stats = (Form_pg_statistic) GETSTRUCT(vardata->statsTuple);
 
 		/*
 		 * Is the constant "=" to any of the column's most common values?
@@ -325,12 +360,12 @@ var_eq_const(VariableStatData *vardata, Oid operator,
 				/* be careful to apply operator right way 'round */
 				if (varonleft)
 					match = DatumGetBool(FunctionCall2Coll(&eqproc,
-													   DEFAULT_COLLATION_OID,
+														   DEFAULT_COLLATION_OID,
 														   sslot.values[i],
 														   constval));
 				else
 					match = DatumGetBool(FunctionCall2Coll(&eqproc,
-													   DEFAULT_COLLATION_OID,
+														   DEFAULT_COLLATION_OID,
 														   constval,
 														   sslot.values[i]));
 				if (match)
@@ -363,7 +398,7 @@ var_eq_const(VariableStatData *vardata, Oid operator,
 
 			for (i = 0; i < sslot.nnumbers; i++)
 				sumcommon += sslot.numbers[i];
-			selec = 1.0 - sumcommon - stats->stanullfrac;
+			selec = 1.0 - sumcommon - nullfrac;
 			CLAMP_PROBABILITY(selec);
 
 			/*
@@ -396,6 +431,10 @@ var_eq_const(VariableStatData *vardata, Oid operator,
 		selec = 1.0 / get_variable_numdistinct(vardata, &isdefault);
 	}
 
+	/* now adjust if we wanted <> rather than = */
+	if (negate)
+		selec = 1.0 - selec - nullfrac;
+
 	/* result should be in range, but make sure... */
 	CLAMP_PROBABILITY(selec);
 
@@ -408,10 +447,22 @@ var_eq_const(VariableStatData *vardata, Oid operator,
 static double
 var_eq_non_const(VariableStatData *vardata, Oid operator,
 				 Node *other,
-				 bool varonleft)
+				 bool varonleft, bool negate)
 {
 	double		selec;
+	double		nullfrac = 0.0;
 	bool		isdefault;
+
+	/*
+	 * Grab the nullfrac for use below.
+	 */
+	if (HeapTupleIsValid(vardata->statsTuple))
+	{
+		Form_pg_statistic stats;
+
+		stats = (Form_pg_statistic) GETSTRUCT(vardata->statsTuple);
+		nullfrac = stats->stanullfrac;
+	}
 
 	/*
 	 * If we matched the var to a unique index or DISTINCT clause, assume
@@ -421,15 +472,13 @@ var_eq_non_const(VariableStatData *vardata, Oid operator,
 	 * ignoring the information.)
 	 */
 	if (vardata->isunique && vardata->rel && vardata->rel->tuples >= 1.0)
-		return 1.0 / vardata->rel->tuples;
-
-	if (HeapTupleIsValid(vardata->statsTuple))
 	{
-		Form_pg_statistic stats;
+		selec = 1.0 / vardata->rel->tuples;
+	}
+	else if (HeapTupleIsValid(vardata->statsTuple))
+	{
 		double		ndistinct;
 		AttStatsSlot sslot;
-
-		stats = (Form_pg_statistic) GETSTRUCT(vardata->statsTuple);
 
 		/*
 		 * Search is for a value that we do not know a priori, but we will
@@ -441,7 +490,7 @@ var_eq_non_const(VariableStatData *vardata, Oid operator,
 		 * values, regardless of their frequency in the table.  Is that a good
 		 * idea?)
 		 */
-		selec = 1.0 - stats->stanullfrac;
+		selec = 1.0 - nullfrac;
 		ndistinct = get_variable_numdistinct(vardata, &isdefault);
 		if (ndistinct > 1)
 			selec /= ndistinct;
@@ -469,6 +518,10 @@ var_eq_non_const(VariableStatData *vardata, Oid operator,
 		selec = 1.0 / get_variable_numdistinct(vardata, &isdefault);
 	}
 
+	/* now adjust if we wanted <> rather than = */
+	if (negate)
+		selec = 1.0 - selec - nullfrac;
+
 	/* result should be in range, but make sure... */
 	CLAMP_PROBABILITY(selec);
 
@@ -485,33 +538,7 @@ var_eq_non_const(VariableStatData *vardata, Oid operator,
 Datum
 neqsel(PG_FUNCTION_ARGS)
 {
-	PlannerInfo *root = (PlannerInfo *) PG_GETARG_POINTER(0);
-	Oid			operator = PG_GETARG_OID(1);
-	List	   *args = (List *) PG_GETARG_POINTER(2);
-	int			varRelid = PG_GETARG_INT32(3);
-	Oid			eqop;
-	float8		result;
-
-	/*
-	 * We want 1 - eqsel() where the equality operator is the one associated
-	 * with this != operator, that is, its negator.
-	 */
-	eqop = get_negator(operator);
-	if (eqop)
-	{
-		result = DatumGetFloat8(DirectFunctionCall4(eqsel,
-													PointerGetDatum(root),
-													ObjectIdGetDatum(eqop),
-													PointerGetDatum(args),
-													Int32GetDatum(varRelid)));
-	}
-	else
-	{
-		/* Use default selectivity (should we raise an error instead?) */
-		result = DEFAULT_EQ_SEL;
-	}
-	result = 1.0 - result;
-	PG_RETURN_FLOAT8(result);
+	PG_RETURN_FLOAT8((float8) eqsel_internal(fcinfo, true));
 }
 
 /*
@@ -784,7 +811,7 @@ ineq_histogram_selectivity(PlannerInfo *root,
 			 */
 			double		histfrac;
 			int			lobound = 0;	/* first possible slot to search */
-			int			hibound = sslot.nvalues;		/* last+1 slot to search */
+			int			hibound = sslot.nvalues;	/* last+1 slot to search */
 			bool		have_end = false;
 
 			/*
@@ -821,7 +848,7 @@ ineq_histogram_selectivity(PlannerInfo *root,
 														 vardata,
 														 sslot.staop,
 														 NULL,
-													   &sslot.values[probe]);
+														 &sslot.values[probe]);
 
 				ltcmp = DatumGetBool(FunctionCall2Coll(opproc,
 													   DEFAULT_COLLATION_OID,
@@ -1114,6 +1141,7 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 	Const	   *patt;
 	Const	   *prefix = NULL;
 	Selectivity rest_selec = 0;
+	double		nullfrac = 0.0;
 	double		result;
 
 	/*
@@ -1203,6 +1231,17 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 	}
 
 	/*
+	 * Grab the nullfrac for use below.
+	 */
+	if (HeapTupleIsValid(vardata.statsTuple))
+	{
+		Form_pg_statistic stats;
+
+		stats = (Form_pg_statistic) GETSTRUCT(vardata.statsTuple);
+		nullfrac = stats->stanullfrac;
+	}
+
+	/*
 	 * Pull out any fixed prefix implied by the pattern, and estimate the
 	 * fractional selectivity of the remainder of the pattern.  Unlike many of
 	 * the other functions in this file, we use the pattern operator's actual
@@ -1229,7 +1268,7 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 				break;
 			case BYTEAOID:
 				prefixstr = DatumGetCString(DirectFunctionCall1(byteaout,
-														prefix->constvalue));
+																prefix->constvalue));
 				break;
 			default:
 				elog(ERROR, "unrecognized consttype: %u",
@@ -1252,7 +1291,7 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 		if (eqopr == InvalidOid)
 			elog(ERROR, "no = operator for opfamily %u", opfamily);
 		result = var_eq_const(&vardata, eqopr, prefix->constvalue,
-							  false, true);
+							  false, true, false);
 	}
 	else
 	{
@@ -1275,8 +1314,7 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 		Selectivity selec;
 		int			hist_size;
 		FmgrInfo	opproc;
-		double		nullfrac,
-					mcv_selec,
+		double		mcv_selec,
 					sumcommon;
 
 		/* Try to use the histogram entries to get selectivity */
@@ -1328,11 +1366,6 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 		mcv_selec = mcv_selectivity(&vardata, &opproc, constval, true,
 									&sumcommon);
 
-		if (HeapTupleIsValid(vardata.statsTuple))
-			nullfrac = ((Form_pg_statistic) GETSTRUCT(vardata.statsTuple))->stanullfrac;
-		else
-			nullfrac = 0.0;
-
 		/*
 		 * Now merge the results from the MCV and histogram calculations,
 		 * realizing that the histogram covers only the non-null values that
@@ -1340,11 +1373,15 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 		 */
 		selec *= 1.0 - nullfrac - sumcommon;
 		selec += mcv_selec;
-
-		/* result should be in range, but make sure... */
-		CLAMP_PROBABILITY(selec);
 		result = selec;
 	}
+
+	/* now adjust if we wanted not-match rather than match */
+	if (negate)
+		result = 1.0 - result - nullfrac;
+
+	/* result should be in range, but make sure... */
+	CLAMP_PROBABILITY(result);
 
 	if (prefix)
 	{
@@ -1354,7 +1391,7 @@ patternsel(PG_FUNCTION_ARGS, Pattern_Type ptype, bool negate)
 
 	ReleaseVariableStats(vardata);
 
-	return negate ? (1.0 - result) : result;
+	return result;
 }
 
 /*
@@ -1451,7 +1488,7 @@ boolvarsel(PlannerInfo *root, Node *arg, int varRelid)
 		 * compute the selectivity as if that is what we have.
 		 */
 		selec = var_eq_const(&vardata, BooleanEqualOperator,
-							 BoolGetDatum(true), false, true);
+							 BoolGetDatum(true), false, true, false);
 	}
 	else if (is_funcclause(arg))
 	{
@@ -1768,7 +1805,7 @@ scalararraysel(PlannerInfo *root,
 	/* get nominal (after relabeling) element type of rightop */
 	nominal_element_type = get_base_element_type(exprType(rightop));
 	if (!OidIsValid(nominal_element_type))
-		return (Selectivity) 0.5;		/* probably shouldn't happen */
+		return (Selectivity) 0.5;	/* probably shouldn't happen */
 	/* get nominal collation, too, for generating constants */
 	nominal_element_collation = exprCollation(rightop);
 
@@ -1896,17 +1933,17 @@ scalararraysel(PlannerInfo *root,
 				s2 = DatumGetFloat8(FunctionCall5Coll(&oprselproc,
 													  clause->inputcollid,
 													  PointerGetDatum(root),
-												  ObjectIdGetDatum(operator),
+													  ObjectIdGetDatum(operator),
 													  PointerGetDatum(args),
 													  Int16GetDatum(jointype),
-												   PointerGetDatum(sjinfo)));
+													  PointerGetDatum(sjinfo)));
 			else
 				s2 = DatumGetFloat8(FunctionCall4Coll(&oprselproc,
 													  clause->inputcollid,
 													  PointerGetDatum(root),
-												  ObjectIdGetDatum(operator),
+													  ObjectIdGetDatum(operator),
 													  PointerGetDatum(args),
-												   Int32GetDatum(varRelid)));
+													  Int32GetDatum(varRelid)));
 
 			if (useOr)
 			{
@@ -1963,17 +2000,17 @@ scalararraysel(PlannerInfo *root,
 				s2 = DatumGetFloat8(FunctionCall5Coll(&oprselproc,
 													  clause->inputcollid,
 													  PointerGetDatum(root),
-												  ObjectIdGetDatum(operator),
+													  ObjectIdGetDatum(operator),
 													  PointerGetDatum(args),
 													  Int16GetDatum(jointype),
-												   PointerGetDatum(sjinfo)));
+													  PointerGetDatum(sjinfo)));
 			else
 				s2 = DatumGetFloat8(FunctionCall4Coll(&oprselproc,
 													  clause->inputcollid,
 													  PointerGetDatum(root),
-												  ObjectIdGetDatum(operator),
+													  ObjectIdGetDatum(operator),
 													  PointerGetDatum(args),
-												   Int32GetDatum(varRelid)));
+													  Int32GetDatum(varRelid)));
 
 			if (useOr)
 			{
@@ -2258,7 +2295,7 @@ eqjoinsel_inner(Oid operator,
 		if (statistic_proc_security_check(vardata1, opfuncoid))
 			have_mcvs1 = get_attstatsslot(&sslot1, vardata1->statsTuple,
 										  STATISTIC_KIND_MCV, InvalidOid,
-								 ATTSTATSSLOT_VALUES | ATTSTATSSLOT_NUMBERS);
+										  ATTSTATSSLOT_VALUES | ATTSTATSSLOT_NUMBERS);
 	}
 
 	if (HeapTupleIsValid(vardata2->statsTuple))
@@ -2268,7 +2305,7 @@ eqjoinsel_inner(Oid operator,
 		if (statistic_proc_security_check(vardata2, opfuncoid))
 			have_mcvs2 = get_attstatsslot(&sslot2, vardata2->statsTuple,
 										  STATISTIC_KIND_MCV, InvalidOid,
-								 ATTSTATSSLOT_VALUES | ATTSTATSSLOT_NUMBERS);
+										  ATTSTATSSLOT_VALUES | ATTSTATSSLOT_NUMBERS);
 	}
 
 	if (have_mcvs1 && have_mcvs2)
@@ -2508,7 +2545,7 @@ eqjoinsel_semi(Oid operator,
 		if (statistic_proc_security_check(vardata1, opfuncoid))
 			have_mcvs1 = get_attstatsslot(&sslot1, vardata1->statsTuple,
 										  STATISTIC_KIND_MCV, InvalidOid,
-								 ATTSTATSSLOT_VALUES | ATTSTATSSLOT_NUMBERS);
+										  ATTSTATSSLOT_VALUES | ATTSTATSSLOT_NUMBERS);
 	}
 
 	if (HeapTupleIsValid(vardata2->statsTuple) &&
@@ -4168,7 +4205,7 @@ convert_string_datum(Datum value, Oid typid)
 	{
 		char	   *xfrmstr;
 		size_t		xfrmlen;
-		size_t xfrmlen2 PG_USED_FOR_ASSERTS_ONLY;
+		size_t		xfrmlen2 PG_USED_FOR_ASSERTS_ONLY;
 
 		/*
 		 * XXX: We could guess at a suitable output buffer size and only call
@@ -4183,8 +4220,8 @@ convert_string_datum(Datum value, Oid typid)
 
 		/*
 		 *
-		 * http://connect.microsoft.com/VisualStudio/feedback/ViewFeedback.aspx?
-		 * FeedbackID=99694 */
+		 * http://connect.microsoft.com/VisualStudio/feedback/ViewFeedback.aspx?FeedbackID=99694
+		 */
 		{
 			char		x[1];
 
@@ -4472,10 +4509,10 @@ get_join_variables(PlannerInfo *root, List *args, SpecialJoinInfo *sjinfo,
 
 	if (vardata1->rel &&
 		bms_is_subset(vardata1->rel->relids, sjinfo->syn_righthand))
-		*join_is_reversed = true;		/* var1 is on RHS */
+		*join_is_reversed = true;	/* var1 is on RHS */
 	else if (vardata2->rel &&
 			 bms_is_subset(vardata2->rel->relids, sjinfo->syn_lefthand))
-		*join_is_reversed = true;		/* var2 is on LHS */
+		*join_is_reversed = true;	/* var2 is on LHS */
 	else
 		*join_is_reversed = false;
 }
@@ -4574,7 +4611,7 @@ examine_variable(PlannerInfo *root, Node *node, int varRelid,
 			if (varRelid == 0 || bms_is_member(varRelid, varnos))
 			{
 				onerel = find_base_rel(root,
-					   (varRelid ? varRelid : bms_singleton_member(varnos)));
+									   (varRelid ? varRelid : bms_singleton_member(varnos)));
 				vardata->rel = onerel;
 				node = basenode;	/* strip any relabeling */
 			}
@@ -4676,7 +4713,7 @@ examine_variable(PlannerInfo *root, Node *node, int varRelid,
 						{
 							vardata->statsTuple =
 								SearchSysCache3(STATRELATTINH,
-										   ObjectIdGetDatum(index->indexoid),
+												ObjectIdGetDatum(index->indexoid),
 												Int16GetDatum(pos + 1),
 												BoolGetDatum(false));
 							vardata->freefunc = ReleaseSysCache;
@@ -4697,7 +4734,7 @@ examine_variable(PlannerInfo *root, Node *node, int varRelid,
 								 */
 								vardata->acl_ok =
 									(pg_class_aclcheck(rte->relid, GetUserId(),
-												 ACL_SELECT) == ACLCHECK_OK);
+													   ACL_SELECT) == ACLCHECK_OK);
 							}
 							else
 							{
@@ -5293,7 +5330,7 @@ get_actual_variable_range(PlannerInfo *root, VariableStatData *vardata,
 			ScanKeyEntryInitialize(&scankeys[0],
 								   SK_ISNULL | SK_SEARCHNOTNULL,
 								   1,	/* index col to scan */
-								   InvalidStrategy,		/* no strategy */
+								   InvalidStrategy, /* no strategy */
 								   InvalidOid,	/* no strategy subtype */
 								   InvalidOid,	/* no collation */
 								   InvalidOid,	/* no reg proc for this */
@@ -5507,7 +5544,7 @@ like_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
 		if (typeid == BYTEAOID)
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			errmsg("case insensitive matching not supported on type bytea")));
+					 errmsg("case insensitive matching not supported on type bytea")));
 
 		/* If case-insensitive, we need locale info */
 		if (lc_ctype_is_c(collation))
@@ -5563,7 +5600,7 @@ like_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
 
 		/* Stop if case-varying character (it's sort of a wildcard) */
 		if (case_insensitive &&
-		  pattern_char_isalpha(patt[pos], is_multibyte, locale, locale_is_c))
+			pattern_char_isalpha(patt[pos], is_multibyte, locale, locale_is_c))
 			break;
 
 		match[match_pos++] = patt[pos];
@@ -5609,7 +5646,7 @@ regex_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
 	if (typeid == BYTEAOID)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-		 errmsg("regular-expression matching not supported on type bytea")));
+				 errmsg("regular-expression matching not supported on type bytea")));
 
 	/* Use the regexp machinery to extract the prefix, if any */
 	prefix = regexp_fixed_prefix(DatumGetTextPP(patt_const->constvalue),
@@ -5687,7 +5724,7 @@ pattern_fixed_prefix(Const *patt, Pattern_Type ptype, Oid collation,
 			break;
 		default:
 			elog(ERROR, "unrecognized ptype: %d", (int) ptype);
-			result = Pattern_Prefix_None;		/* keep compiler quiet */
+			result = Pattern_Prefix_None;	/* keep compiler quiet */
 			break;
 	}
 	return result;
@@ -5788,7 +5825,7 @@ prefix_selectivity(PlannerInfo *root, VariableStatData *vardata,
 	if (cmpopr == InvalidOid)
 		elog(ERROR, "no = operator for opfamily %u", opfamily);
 	eq_sel = var_eq_const(vardata, cmpopr, prefixcon->constvalue,
-						  false, true);
+						  false, true, false);
 
 	prefixsel = Max(prefixsel, eq_sel);
 
@@ -5893,8 +5930,7 @@ regex_selectivity_sub(const char *patt, int pattlen, bool case_insensitive)
 				negclass = true;
 				pos++;
 			}
-			if (patt[pos] == ']')		/* ']' at start of class is not
-										 * special */
+			if (patt[pos] == ']')	/* ']' at start of class is not special */
 				pos++;
 			while (pos < pattlen && patt[pos] != ']')
 				pos++;
@@ -6392,7 +6428,7 @@ orderby_operands_eval_cost(PlannerInfo *root, IndexPath *path)
 		{
 			elog(ERROR, "unsupported indexorderby type: %d",
 				 (int) nodeTag(clause));
-			other_operand = NULL;		/* keep compiler quiet */
+			other_operand = NULL;	/* keep compiler quiet */
 		}
 
 		cost_qual_eval_node(&index_qual_cost, other_operand, root);
@@ -6634,7 +6670,7 @@ add_predicate_to_quals(IndexOptInfo *index, List *indexQuals)
 		Node	   *predQual = (Node *) lfirst(lc);
 		List	   *oneQual = list_make1(predQual);
 
-		if (!predicate_implied_by(oneQual, indexQuals))
+		if (!predicate_implied_by(oneQual, indexQuals, false))
 			predExtraQuals = list_concat(predExtraQuals, oneQual);
 	}
 	/* list_concat avoids modifying the passed-in indexQuals list */
@@ -7519,7 +7555,7 @@ gincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
 			Node	   *predQual = (Node *) lfirst(l);
 			List	   *oneQual = list_make1(predQual);
 
-			if (!predicate_implied_by(oneQual, indexQuals))
+			if (!predicate_implied_by(oneQual, indexQuals, false))
 				predExtraQuals = list_concat(predExtraQuals, oneQual);
 		}
 		/* list_concat avoids modifying the passed-in indexQuals list */
@@ -7790,7 +7826,7 @@ brincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
 				 */
 				if (HeapTupleIsValid(vardata.statsTuple) && !vardata.freefunc)
 					elog(ERROR,
-					  "no function provided to release variable stats with");
+						 "no function provided to release variable stats with");
 			}
 			else
 			{
@@ -7813,7 +7849,7 @@ brincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
 			attnum = qinfo->indexcol + 1;
 
 			if (get_index_stats_hook &&
-			(*get_index_stats_hook) (root, index->indexoid, attnum, &vardata))
+				(*get_index_stats_hook) (root, index->indexoid, attnum, &vardata))
 			{
 				/*
 				 * The hook took control of acquiring a stats tuple.  If it
@@ -7826,7 +7862,7 @@ brincostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
 			else
 			{
 				vardata.statsTuple = SearchSysCache3(STATRELATTINH,
-										   ObjectIdGetDatum(index->indexoid),
+													 ObjectIdGetDatum(index->indexoid),
 													 Int16GetDatum(attnum),
 													 BoolGetDatum(false));
 				vardata.freefunc = ReleaseSysCache;

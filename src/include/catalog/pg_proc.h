@@ -62,13 +62,13 @@ CATALOG(pg_proc,1255) BKI_BOOTSTRAP BKI_ROWTYPE_OID(81) BKI_SCHEMA_MACRO
 	oidvector	proargtypes;	/* parameter types (excludes OUT params) */
 
 #ifdef CATALOG_VARLEN
-	Oid			proallargtypes[1];		/* all param types (NULL if IN only) */
+	Oid			proallargtypes[1];	/* all param types (NULL if IN only) */
 	char		proargmodes[1]; /* parameter modes (NULL if IN only) */
 	text		proargnames[1]; /* parameter names (NULL if no names) */
-	pg_node_tree proargdefaults;/* list of expression trees for argument
-								 * defaults (NULL if none) */
+	pg_node_tree proargdefaults;	/* list of expression trees for argument
+									 * defaults (NULL if none) */
 	Oid			protrftypes[1]; /* types for which to apply transforms */
-	text prosrc BKI_FORCE_NOT_NULL;		/* procedure source text */
+	text		prosrc BKI_FORCE_NOT_NULL;	/* procedure source text */
 	text		probin;			/* secondary procedure info (can be NULL) */
 	text		proconfig[1];	/* procedure-local GUC settings */
 	aclitem		proacl[1];		/* access permissions */
@@ -4871,9 +4871,9 @@ DATA(insert OID = 4209 (  to_tsvector		PGNSP PGUID 12 100 0 0 0 f f f f t f s s 
 DESCR("transform jsonb to tsvector");
 DATA(insert OID = 4210 (  to_tsvector		PGNSP PGUID 12 100 0 0 0 f f f f t f s s 1 0 3614 "114" _null_ _null_ _null_ _null_ _null_ json_to_tsvector _null_ _null_ _null_ ));
 DESCR("transform json to tsvector");
-DATA(insert OID = 4211 (  to_tsvector		PGNSP PGUID 12 100 0 0 0 f f f f t f s s 2 0 3614 "3734 3802" _null_ _null_ _null_ _null_ _null_ jsonb_to_tsvector_byid _null_ _null_ _null_ ));
+DATA(insert OID = 4211 (  to_tsvector		PGNSP PGUID 12 100 0 0 0 f f f f t f i s 2 0 3614 "3734 3802" _null_ _null_ _null_ _null_ _null_ jsonb_to_tsvector_byid _null_ _null_ _null_ ));
 DESCR("transform jsonb to tsvector");
-DATA(insert OID = 4212 (  to_tsvector		PGNSP PGUID 12 100 0 0 0 f f f f t f s s 2 0 3614 "3734 114" _null_ _null_ _null_ _null_ _null_ json_to_tsvector_byid _null_ _null_ _null_ ));
+DATA(insert OID = 4212 (  to_tsvector		PGNSP PGUID 12 100 0 0 0 f f f f t f i s 2 0 3614 "3734 114" _null_ _null_ _null_ _null_ _null_ json_to_tsvector_byid _null_ _null_ _null_ ));
 DESCR("transform json to tsvector");
 
 DATA(insert OID = 3752 (  tsvector_update_trigger			PGNSP PGUID 12 1 0 0 0 f f f f f f v s 0 0 2279 "" _null_ _null_ _null_ _null_ _null_ tsvector_update_trigger_byid _null_ _null_ _null_ ));
@@ -5434,8 +5434,10 @@ DATA(insert OID = 6014 ( pg_show_replication_origin_status PGNSP PGUID 12 1 100 
 DESCR("get progress for all replication origins");
 
 /* publications */
-DATA(insert OID = 6119 ( pg_get_publication_tables	PGNSP PGUID 12 1 1000 0 0 f f t f t t s s 1 0 26 "25" "{25,26}" "{i,o}" "{pubname,relid}" _null_ _null_ pg_get_publication_tables _null_ _null_ _null_ ));
+DATA(insert OID = 6119 ( pg_get_publication_tables	PGNSP PGUID 12 1 1000 0 0 f f f f t t s s 1 0 26 "25" "{25,26}" "{i,o}" "{pubname,relid}" _null_ _null_ pg_get_publication_tables _null_ _null_ _null_ ));
 DESCR("get OIDs of tables in a publication");
+DATA(insert OID = 6121 ( pg_relation_is_publishable PGNSP PGUID 12 1	0 0 0 f f f f t f s s 1 0 16 "2205" _null_ _null_ _null_ _null_ _null_ pg_relation_is_publishable _null_ _null_ _null_ ));
+DESCR("returns whether a relation can be part of a publication");
 
 /* rls */
 DATA(insert OID = 3298 (  row_security_active	   PGNSP PGUID 12 1 0 0 0 f f f f t f s s 1 0 16 "26" _null_ _null_ _null_ _null_ _null_	row_security_active _null_ _null_ _null_ ));
@@ -5460,11 +5462,12 @@ DESCR("pg_controldata recovery state information as a function");
 DATA(insert OID = 3444 ( pg_control_init PGNSP PGUID 12 1 0 0 0 f f f f t f v s 0 0 2249 "" "{23,23,23,23,23,23,23,23,23,16,16,23}" "{o,o,o,o,o,o,o,o,o,o,o,o}" "{max_data_alignment,database_block_size,blocks_per_segment,wal_block_size,bytes_per_wal_segment,max_identifier_length,max_index_columns,max_toast_chunk_size,large_object_chunk_size,float4_pass_by_value,float8_pass_by_value,data_page_checksum_version}" _null_ _null_ pg_control_init _null_ _null_ _null_ ));
 DESCR("pg_controldata init state information as a function");
 
-DATA(insert OID = 3445 ( pg_import_system_collations PGNSP PGUID 12 100 0 0 0 f f f f t f v r 2 0 2278 "16 4089" _null_ _null_ "{if_not_exists,schema}" _null_ _null_ pg_import_system_collations _null_ _null_ _null_ ));
+/* collation management functions */
+DATA(insert OID = 3445 ( pg_import_system_collations PGNSP PGUID 12 100 0 0 0 f f f f t f v r 1 0 23 "4089" _null_ _null_ _null_ _null_ _null_ pg_import_system_collations _null_ _null_ _null_ ));
 DESCR("import collations from operating system");
 
 DATA(insert OID = 3448 ( pg_collation_actual_version PGNSP PGUID 12 100 0 0 0 f f f f t f v s 1 0 25 "26" _null_ _null_ _null_ _null_ _null_ pg_collation_actual_version _null_ _null_ _null_ ));
-DESCR("import collations from operating system");
+DESCR("get actual version of collation from operating system");
 
 /* system management/monitoring related functions */
 DATA(insert OID = 3353 (  pg_ls_logdir				 PGNSP PGUID 12 10 20 0 0 f f f f t t v s 0 0 2249 "" "{25,20,1184}" "{o,o,o}" "{name,size,modification}" _null_ _null_ pg_ls_logdir _null_ _null_ _null_ ));
@@ -5480,18 +5483,18 @@ DESCR("list of files in the WAL directory");
  * must be labeled volatile to ensure they will not get optimized away,
  * even if the actual return value is not changeable.
  */
-#define PROVOLATILE_IMMUTABLE	'i'		/* never changes for given input */
-#define PROVOLATILE_STABLE		's'		/* does not change within a scan */
-#define PROVOLATILE_VOLATILE	'v'		/* can change even within a scan */
+#define PROVOLATILE_IMMUTABLE	'i' /* never changes for given input */
+#define PROVOLATILE_STABLE		's' /* does not change within a scan */
+#define PROVOLATILE_VOLATILE	'v' /* can change even within a scan */
 
 /*
  * Symbolic values for proparallel column: these indicate whether a function
  * can be safely be run in a parallel backend, during parallelism but
  * necessarily in the master, or only in non-parallel mode.
  */
-#define PROPARALLEL_SAFE		's'		/* can run in worker or master */
-#define PROPARALLEL_RESTRICTED	'r'		/* can run in parallel master only */
-#define PROPARALLEL_UNSAFE		'u'		/* banned while in parallel mode */
+#define PROPARALLEL_SAFE		's' /* can run in worker or master */
+#define PROPARALLEL_RESTRICTED	'r' /* can run in parallel master only */
+#define PROPARALLEL_UNSAFE		'u' /* banned while in parallel mode */
 
 /*
  * Symbolic values for proargmodes column.  Note that these must agree with
@@ -5504,4 +5507,4 @@ DESCR("list of files in the WAL directory");
 #define PROARGMODE_VARIADIC 'v'
 #define PROARGMODE_TABLE	't'
 
-#endif   /* PG_PROC_H */
+#endif							/* PG_PROC_H */

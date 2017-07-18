@@ -106,7 +106,7 @@ static struct
 {
 	XLogRecPtr	Write;			/* last byte + 1 written out in the standby */
 	XLogRecPtr	Flush;			/* last byte + 1 flushed in the standby */
-}	LogstreamResult;
+}			LogstreamResult;
 
 static StringInfoData reply_message;
 static StringInfoData incoming_message;
@@ -259,8 +259,7 @@ WalReceiverMain(void)
 	walrcv->latch = &MyProc->procLatch;
 
 	/* Properly accept or ignore signals the postmaster might send us */
-	pqsignal(SIGHUP, WalRcvSigHupHandler);		/* set flag to read config
-												 * file */
+	pqsignal(SIGHUP, WalRcvSigHupHandler);	/* set flag to read config file */
 	pqsignal(SIGINT, SIG_IGN);
 	pqsignal(SIGTERM, WalRcvShutdownHandler);	/* request shutdown */
 	pqsignal(SIGQUIT, WalRcvQuickDieHandler);	/* hard crash time */
@@ -386,13 +385,13 @@ WalReceiverMain(void)
 			if (first_stream)
 				ereport(LOG,
 						(errmsg("started streaming WAL from primary at %X/%X on timeline %u",
-							(uint32) (startpoint >> 32), (uint32) startpoint,
+								(uint32) (startpoint >> 32), (uint32) startpoint,
 								startpointTLI)));
 			else
 				ereport(LOG,
-				   (errmsg("restarted WAL streaming at %X/%X on timeline %u",
-						   (uint32) (startpoint >> 32), (uint32) startpoint,
-						   startpointTLI)));
+						(errmsg("restarted WAL streaming at %X/%X on timeline %u",
+								(uint32) (startpoint >> 32), (uint32) startpoint,
+								startpointTLI)));
 			first_stream = false;
 
 			/* Initialize LogstreamResult and buffers for processing messages */
@@ -494,7 +493,7 @@ WalReceiverMain(void)
 				 */
 				Assert(wait_fd != PGINVALID_SOCKET);
 				rc = WaitLatchOrSocket(walrcv->latch,
-								   WL_POSTMASTER_DEATH | WL_SOCKET_READABLE |
+									   WL_POSTMASTER_DEATH | WL_SOCKET_READABLE |
 									   WL_TIMEOUT | WL_LATCH_SET,
 									   wait_fd,
 									   NAPTIME_PER_CYCLE,
@@ -561,7 +560,7 @@ WalReceiverMain(void)
 						if (!ping_sent)
 						{
 							timeout = TimestampTzPlusMilliseconds(last_recv_timestamp,
-												 (wal_receiver_timeout / 2));
+																  (wal_receiver_timeout / 2));
 							if (now >= timeout)
 							{
 								requestReply = true;
@@ -1003,9 +1002,9 @@ XLogWalRcvWrite(char *buf, Size nbytes, XLogRecPtr recptr)
 			if (lseek(recvFile, (off_t) startoff, SEEK_SET) < 0)
 				ereport(PANIC,
 						(errcode_for_file_access(),
-				  errmsg("could not seek in log segment %s to offset %u: %m",
-						 XLogFileNameP(recvFileTLI, recvSegNo),
-						 startoff)));
+						 errmsg("could not seek in log segment %s to offset %u: %m",
+								XLogFileNameP(recvFileTLI, recvSegNo),
+								startoff)));
 			recvOff = startoff;
 		}
 
@@ -1380,7 +1379,8 @@ pg_stat_get_wal_receiver(PG_FUNCTION_ARGS)
 	TupleDesc	tupdesc;
 	Datum	   *values;
 	bool	   *nulls;
-	WalRcvData *walrcv = WalRcv;
+	int			pid;
+	bool		ready_to_display;
 	WalRcvState state;
 	XLogRecPtr	receive_start_lsn;
 	TimeLineID	receive_start_tli;
@@ -1393,11 +1393,28 @@ pg_stat_get_wal_receiver(PG_FUNCTION_ARGS)
 	char	   *slotname;
 	char	   *conninfo;
 
+	/* Take a lock to ensure value consistency */
+	SpinLockAcquire(&WalRcv->mutex);
+	pid = (int) WalRcv->pid;
+	ready_to_display = WalRcv->ready_to_display;
+	state = WalRcv->walRcvState;
+	receive_start_lsn = WalRcv->receiveStart;
+	receive_start_tli = WalRcv->receiveStartTLI;
+	received_lsn = WalRcv->receivedUpto;
+	received_tli = WalRcv->receivedTLI;
+	last_send_time = WalRcv->lastMsgSendTime;
+	last_receipt_time = WalRcv->lastMsgReceiptTime;
+	latest_end_lsn = WalRcv->latestWalEnd;
+	latest_end_time = WalRcv->latestWalEndTime;
+	slotname = pstrdup(WalRcv->slotname);
+	conninfo = pstrdup(WalRcv->conninfo);
+	SpinLockRelease(&WalRcv->mutex);
+
 	/*
 	 * No WAL receiver (or not ready yet), just return a tuple with NULL
 	 * values
 	 */
-	if (walrcv->pid == 0 || !walrcv->ready_to_display)
+	if (pid == 0 || !ready_to_display)
 		PG_RETURN_NULL();
 
 	/* determine result type */
@@ -1407,23 +1424,8 @@ pg_stat_get_wal_receiver(PG_FUNCTION_ARGS)
 	values = palloc0(sizeof(Datum) * tupdesc->natts);
 	nulls = palloc0(sizeof(bool) * tupdesc->natts);
 
-	/* Take a lock to ensure value consistency */
-	SpinLockAcquire(&walrcv->mutex);
-	state = walrcv->walRcvState;
-	receive_start_lsn = walrcv->receiveStart;
-	receive_start_tli = walrcv->receiveStartTLI;
-	received_lsn = walrcv->receivedUpto;
-	received_tli = walrcv->receivedTLI;
-	last_send_time = walrcv->lastMsgSendTime;
-	last_receipt_time = walrcv->lastMsgReceiptTime;
-	latest_end_lsn = walrcv->latestWalEnd;
-	latest_end_time = walrcv->latestWalEndTime;
-	slotname = pstrdup(walrcv->slotname);
-	conninfo = pstrdup(walrcv->conninfo);
-	SpinLockRelease(&walrcv->mutex);
-
 	/* Fetch values */
-	values[0] = Int32GetDatum(walrcv->pid);
+	values[0] = Int32GetDatum(pid);
 
 	if (!is_member_of_role(GetUserId(), DEFAULT_ROLE_READ_ALL_STATS))
 	{
@@ -1474,6 +1476,5 @@ pg_stat_get_wal_receiver(PG_FUNCTION_ARGS)
 	}
 
 	/* Returns the record as Datum */
-	PG_RETURN_DATUM(HeapTupleGetDatum(
-								   heap_form_tuple(tupdesc, values, nulls)));
+	PG_RETURN_DATUM(HeapTupleGetDatum(heap_form_tuple(tupdesc, values, nulls)));
 }

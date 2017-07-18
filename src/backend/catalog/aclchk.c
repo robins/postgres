@@ -157,7 +157,7 @@ dumpacl(Acl *acl)
 			 DatumGetCString(DirectFunctionCall1(aclitemout,
 												 PointerGetDatum(aip + i))));
 }
-#endif   /* ACLDEBUG */
+#endif							/* ACLDEBUG */
 
 
 /*
@@ -212,8 +212,8 @@ merge_acl_with_grant(Acl *old_acl, bool is_grant,
 		 * option, while REVOKE GRANT OPTION revokes only the option.
 		 */
 		ACLITEM_SET_PRIVS_GOPTIONS(aclitem,
-					(is_grant || !grant_option) ? privileges : ACL_NO_RIGHTS,
-				   (!is_grant || grant_option) ? privileges : ACL_NO_RIGHTS);
+								   (is_grant || !grant_option) ? privileges : ACL_NO_RIGHTS,
+								   (!is_grant || grant_option) ? privileges : ACL_NO_RIGHTS);
 
 		newer_acl = aclupdate(new_acl, &aclitem, modechg, ownerId, behavior);
 
@@ -370,8 +370,8 @@ restrict_and_check_grant(bool is_grant, AclMode avail_goptions, bool all_privs,
 			else
 				ereport(WARNING,
 						(errcode(ERRCODE_WARNING_PRIVILEGE_NOT_REVOKED),
-					 errmsg("not all privileges could be revoked for \"%s\"",
-							objname)));
+						 errmsg("not all privileges could be revoked for \"%s\"",
+								objname)));
 		}
 	}
 
@@ -994,7 +994,7 @@ ExecAlterDefaultPrivilegesStmt(ParseState *pstate, AlterDefaultPrivilegesStmt *s
 			if (privnode->cols)
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_GRANT_OPERATION),
-					errmsg("default privileges cannot be set for columns")));
+						 errmsg("default privileges cannot be set for columns")));
 
 			if (privnode->priv_name == NULL)	/* parser mistake? */
 				elog(ERROR, "AccessPriv node must specify privilege");
@@ -2383,7 +2383,7 @@ ExecGrant_ForeignServer(InternalGrant *istmt)
 		this_privileges =
 			restrict_and_check_grant(istmt->is_grant, avail_goptions,
 									 istmt->all_privs, istmt->privileges,
-								   srvid, grantorId, ACL_KIND_FOREIGN_SERVER,
+									 srvid, grantorId, ACL_KIND_FOREIGN_SERVER,
 									 NameStr(pg_server_tuple->srvname),
 									 0, NULL);
 
@@ -2603,7 +2603,7 @@ ExecGrant_Language(InternalGrant *istmt)
 					 errmsg("language \"%s\" is not trusted",
 							NameStr(pg_language_tuple->lanname)),
 					 errdetail("GRANT and REVOKE are not allowed on untrusted languages, "
-				   "because only superusers can use untrusted languages.")));
+							   "because only superusers can use untrusted languages.")));
 
 		/*
 		 * Get owner ID and working copy of existing ACL. If there's no ACL,
@@ -2738,7 +2738,7 @@ ExecGrant_Largeobject(InternalGrant *istmt)
 
 		tuple = systable_getnext(scan);
 		if (!HeapTupleIsValid(tuple))
-			elog(ERROR, "cache lookup failed for large object %u", loid);
+			elog(ERROR, "could not find tuple for large object %u", loid);
 
 		form_lo_meta = (Form_pg_largeobject_metadata) GETSTRUCT(tuple);
 
@@ -3117,7 +3117,7 @@ ExecGrant_Type(InternalGrant *istmt)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_GRANT_OPERATION),
 					 errmsg("cannot set privileges of array types"),
-				errhint("Set the privileges of the element type instead.")));
+					 errhint("Set the privileges of the element type instead.")));
 
 		/* Used GRANT DOMAIN on a non-domain? */
 		if (istmt->objtype == ACL_OBJECT_DOMAIN &&
@@ -3433,8 +3433,8 @@ aclcheck_error_col(AclResult aclerr, AclObjectKind objectkind,
 		case ACLCHECK_NO_PRIV:
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-			 errmsg("permission denied for column \"%s\" of relation \"%s\"",
-					colname, objectname)));
+					 errmsg("permission denied for column \"%s\" of relation \"%s\"",
+							colname, objectname)));
 			break;
 		case ACLCHECK_NOT_OWNER:
 			/* relation msg is OK since columns don't have separate owners */
@@ -4866,8 +4866,8 @@ pg_ts_config_ownercheck(Oid cfg_oid, Oid roleid)
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
-			   errmsg("text search configuration with OID %u does not exist",
-					  cfg_oid)));
+				 errmsg("text search configuration with OID %u does not exist",
+						cfg_oid)));
 
 	ownerId = ((Form_pg_ts_config) GETSTRUCT(tuple))->cfgowner;
 
@@ -5503,7 +5503,7 @@ recordExtObjInitPriv(Oid objoid, Oid classoid)
 
 		tuple = systable_getnext(scan);
 		if (!HeapTupleIsValid(tuple))
-			elog(ERROR, "cache lookup failed for large object %u", objoid);
+			elog(ERROR, "could not find tuple for large object %u", objoid);
 
 		aclDatum = heap_getattr(tuple,
 								Anum_pg_largeobject_metadata_lomacl,
@@ -5660,7 +5660,7 @@ removeExtObjInitPriv(Oid objoid, Oid classoid)
 				if (!HeapTupleIsValid(attTuple))
 					continue;
 
-				/* when removing, remove all entires, even dropped columns */
+				/* when removing, remove all entries, even dropped columns */
 
 				recordExtensionInitPrivWorker(objoid, classoid, curr_att, NULL);
 

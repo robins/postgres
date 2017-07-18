@@ -474,9 +474,12 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 		 cluster->controldata.ctrl_ver >= LARGE_OBJECT_SIZE_PG_CONTROL_VER) ||
 		!got_date_is_int || !got_data_checksum_version)
 	{
-		pg_log(PG_REPORT,
-			   "The %s cluster lacks some required control information:\n",
-			   CLUSTER_NAME(cluster));
+		if (cluster == &old_cluster)
+			pg_log(PG_REPORT,
+				   "The source cluster lacks some required control information:\n");
+		else
+			pg_log(PG_REPORT,
+				   "The target cluster lacks some required control information:\n");
 
 		if (!got_xid)
 			pg_log(PG_REPORT, "  checkpoint next XID\n");
@@ -551,7 +554,7 @@ check_control_data(ControlData *oldctrl,
 {
 	if (oldctrl->align == 0 || oldctrl->align != newctrl->align)
 		pg_fatal("old and new pg_controldata alignments are invalid or do not match\n"
-			   "Likely one cluster is a 32-bit install, the other 64-bit\n");
+				 "Likely one cluster is a 32-bit install, the other 64-bit\n");
 
 	if (oldctrl->blocksz == 0 || oldctrl->blocksz != newctrl->blocksz)
 		pg_fatal("old and new pg_controldata block sizes are invalid or do not match\n");
@@ -620,6 +623,6 @@ disable_old_cluster(void)
 	pg_log(PG_REPORT, "\n"
 		   "If you want to start the old cluster, you will need to remove\n"
 		   "the \".old\" suffix from %s/global/pg_control.old.\n"
-		 "Because \"link\" mode was used, the old cluster cannot be safely\n"
-	"started once the new cluster has been started.\n\n", old_cluster.pgdata);
+		   "Because \"link\" mode was used, the old cluster cannot be safely\n"
+		   "started once the new cluster has been started.\n\n", old_cluster.pgdata);
 }

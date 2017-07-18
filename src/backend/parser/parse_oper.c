@@ -221,7 +221,7 @@ get_sort_group_operators(Oid argtype,
 				(errcode(ERRCODE_UNDEFINED_FUNCTION),
 				 errmsg("could not identify an ordering operator for type %s",
 						format_type_be(argtype)),
-		 errhint("Use an explicit ordering operator or modify the query.")));
+				 errhint("Use an explicit ordering operator or modify the query.")));
 	if (needEQ && !OidIsValid(eq_opr))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_FUNCTION),
@@ -319,7 +319,7 @@ static FuncDetailCode
 oper_select_candidate(int nargs,
 					  Oid *input_typeids,
 					  FuncCandidateList candidates,
-					  Oid *operOid)		/* output argument */
+					  Oid *operOid) /* output argument */
 {
 	int			ncandidates;
 
@@ -723,8 +723,8 @@ op_error(ParseState *pstate, List *op, char oprkind,
 				(errcode(ERRCODE_UNDEFINED_FUNCTION),
 				 errmsg("operator does not exist: %s",
 						op_signature_string(op, oprkind, arg1, arg2)),
-		  errhint("No operator matches the given name and argument type(s). "
-				  "You might need to add explicit type casts."),
+				 errhint("No operator matches the given name and argument type(s). "
+						 "You might need to add explicit type casts."),
 				 parser_errposition(pstate, location)));
 }
 
@@ -735,12 +735,14 @@ op_error(ParseState *pstate, List *op, char oprkind,
  * Transform operator expression ensuring type compatibility.
  * This is where some type conversion happens.
  *
- * As with coerce_type, pstate may be NULL if no special unknown-Param
- * processing is wanted.
+ * last_srf should be a copy of pstate->p_last_srf from just before we
+ * started transforming the operator's arguments; this is used for nested-SRF
+ * detection.  If the caller will throw an error anyway for a set-returning
+ * expression, it's okay to cheat and just pass pstate->p_last_srf.
  */
 Expr *
 make_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
-		int location)
+		Node *last_srf, int location)
 {
 	Oid			ltypeId,
 				rtypeId;
@@ -843,7 +845,11 @@ make_op(ParseState *pstate, List *opname, Node *ltree, Node *rtree,
 
 	/* if it returns a set, check that's OK */
 	if (result->opretset)
-		check_srf_call_placement(pstate, location);
+	{
+		check_srf_call_placement(pstate, last_srf, location);
+		/* ... and remember it for error checks at higher levels */
+		pstate->p_last_srf = (Node *) result;
+	}
 
 	ReleaseSysCache(tup);
 
@@ -888,7 +894,7 @@ make_scalar_array_op(ParseState *pstate, List *opname,
 		if (!OidIsValid(rtypeId))
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				   errmsg("op ANY/ALL (array) requires array on right side"),
+					 errmsg("op ANY/ALL (array) requires array on right side"),
 					 parser_errposition(pstate, location)));
 	}
 
@@ -930,12 +936,12 @@ make_scalar_array_op(ParseState *pstate, List *opname,
 	if (rettype != BOOLOID)
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-			 errmsg("op ANY/ALL (array) requires operator to yield boolean"),
+				 errmsg("op ANY/ALL (array) requires operator to yield boolean"),
 				 parser_errposition(pstate, location)));
 	if (get_func_retset(opform->oprcode))
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-		  errmsg("op ANY/ALL (array) requires operator not to return a set"),
+				 errmsg("op ANY/ALL (array) requires operator not to return a set"),
 				 parser_errposition(pstate, location)));
 
 	/*
@@ -1051,7 +1057,7 @@ make_oper_cache_key(ParseState *pstate, OprCacheKey *key, List *opname,
 	{
 		/* get the active search path */
 		if (fetch_search_path_array(key->search_path,
-								  MAX_CACHED_PATH_LEN) > MAX_CACHED_PATH_LEN)
+									MAX_CACHED_PATH_LEN) > MAX_CACHED_PATH_LEN)
 			return false;		/* oops, didn't fit */
 	}
 

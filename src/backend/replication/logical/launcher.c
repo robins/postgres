@@ -80,8 +80,7 @@ static void logicalrep_worker_detach(void);
 static void logicalrep_worker_cleanup(LogicalRepWorker *worker);
 
 /* Flags set by signal handlers */
-volatile sig_atomic_t got_SIGHUP = false;
-volatile sig_atomic_t got_SIGTERM = false;
+static volatile sig_atomic_t got_SIGHUP = false;
 
 static bool on_commit_launcher_wakeup = false;
 
@@ -202,16 +201,21 @@ WaitForReplicationWorkerAttach(LogicalRepWorker *worker,
 
 		/*
 		 * We need timeout because we generally don't get notified via latch
-		 * about the worker attach.
+		 * about the worker attach.  But we don't expect to have to wait long.
 		 */
 		rc = WaitLatch(MyLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-					   1000L, WAIT_EVENT_BGWORKER_STARTUP);
+					   10L, WAIT_EVENT_BGWORKER_STARTUP);
 
+		/* emergency bailout if postmaster has died */
 		if (rc & WL_POSTMASTER_DEATH)
 			proc_exit(1);
 
-		ResetLatch(MyLatch);
+		if (rc & WL_LATCH_SET)
+		{
+			ResetLatch(MyLatch);
+			CHECK_FOR_INTERRUPTS();
+		}
 	}
 
 	return;
@@ -261,8 +265,8 @@ logicalrep_worker_launch(Oid dbid, Oid subid, const char *subname, Oid userid,
 	TimestampTz now;
 
 	ereport(DEBUG1,
-	   (errmsg("starting logical replication worker for subscription \"%s\"",
-			   subname)));
+			(errmsg("starting logical replication worker for subscription \"%s\"",
+					subname)));
 
 	/* Report this after the initial starting message for consistency. */
 	if (max_replication_slots == 0)
@@ -395,7 +399,7 @@ retry:
 		ereport(WARNING,
 				(errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
 				 errmsg("out of background worker slots"),
-			   errhint("You might need to increase max_worker_processes.")));
+				 errhint("You might need to increase max_worker_processes.")));
 		return;
 	}
 
@@ -404,8 +408,8 @@ retry:
 }
 
 /*
- * Stop the logical replication worker and wait until it detaches from the
- * slot.
+ * Stop the logical replication worker for subid/relid, if any, and wait until
+ * it detaches from the slot.
  */
 void
 logicalrep_worker_stop(Oid subid, Oid relid)
@@ -431,8 +435,8 @@ logicalrep_worker_stop(Oid subid, Oid relid)
 	generation = worker->generation;
 
 	/*
-	 * If we found worker but it does not have proc set it is starting up,
-	 * wait for it to finish and then kill it.
+	 * If we found a worker but it does not have proc set then it is still
+	 * starting up; wait for it to finish starting and then kill it.
 	 */
 	while (worker->in_use && !worker->proc)
 	{
@@ -440,20 +444,22 @@ logicalrep_worker_stop(Oid subid, Oid relid)
 
 		LWLockRelease(LogicalRepWorkerLock);
 
-		CHECK_FOR_INTERRUPTS();
-
-		/* Wait for signal. */
-		rc = WaitLatch(&MyProc->procLatch,
+		/* Wait a bit --- we don't expect to have to wait long. */
+		rc = WaitLatch(MyLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-					   1000L, WAIT_EVENT_BGWORKER_STARTUP);
+					   10L, WAIT_EVENT_BGWORKER_STARTUP);
 
 		/* emergency bailout if postmaster has died */
 		if (rc & WL_POSTMASTER_DEATH)
 			proc_exit(1);
 
-		ResetLatch(&MyProc->procLatch);
+		if (rc & WL_LATCH_SET)
+		{
+			ResetLatch(MyLatch);
+			CHECK_FOR_INTERRUPTS();
+		}
 
-		/* Check worker status. */
+		/* Recheck worker status. */
 		LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
 
 		/*
@@ -474,38 +480,41 @@ logicalrep_worker_stop(Oid subid, Oid relid)
 
 	/* Now terminate the worker ... */
 	kill(worker->proc->pid, SIGTERM);
-	LWLockRelease(LogicalRepWorkerLock);
 
 	/* ... and wait for it to die. */
 	for (;;)
 	{
 		int			rc;
 
-		LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
+		/* is it gone? */
 		if (!worker->proc || worker->generation != generation)
-		{
-			LWLockRelease(LogicalRepWorkerLock);
 			break;
-		}
+
 		LWLockRelease(LogicalRepWorkerLock);
 
-		CHECK_FOR_INTERRUPTS();
-
-		/* Wait for more work. */
-		rc = WaitLatch(&MyProc->procLatch,
+		/* Wait a bit --- we don't expect to have to wait long. */
+		rc = WaitLatch(MyLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-					   1000L, WAIT_EVENT_BGWORKER_SHUTDOWN);
+					   10L, WAIT_EVENT_BGWORKER_SHUTDOWN);
 
 		/* emergency bailout if postmaster has died */
 		if (rc & WL_POSTMASTER_DEATH)
 			proc_exit(1);
 
-		ResetLatch(&MyProc->procLatch);
+		if (rc & WL_LATCH_SET)
+		{
+			ResetLatch(MyLatch);
+			CHECK_FOR_INTERRUPTS();
+		}
+
+		LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
 	}
+
+	LWLockRelease(LogicalRepWorkerLock);
 }
 
 /*
- * Wake up (using latch) the logical replication worker.
+ * Wake up (using latch) any logical replication worker for specified sub/rel.
  */
 void
 logicalrep_worker_wakeup(Oid subid, Oid relid)
@@ -513,19 +522,25 @@ logicalrep_worker_wakeup(Oid subid, Oid relid)
 	LogicalRepWorker *worker;
 
 	LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
+
 	worker = logicalrep_worker_find(subid, relid, true);
-	LWLockRelease(LogicalRepWorkerLock);
 
 	if (worker)
 		logicalrep_worker_wakeup_ptr(worker);
+
+	LWLockRelease(LogicalRepWorkerLock);
 }
 
 /*
- * Wake up (using latch) the logical replication worker.
+ * Wake up (using latch) the specified logical replication worker.
+ *
+ * Caller must hold lock, else worker->proc could change under us.
  */
 void
 logicalrep_worker_wakeup_ptr(LogicalRepWorker *worker)
 {
+	Assert(LWLockHeldByMe(LogicalRepWorkerLock));
+
 	SetLatch(&worker->proc->procLatch);
 }
 
@@ -546,8 +561,8 @@ logicalrep_worker_attach(int slot)
 		LWLockRelease(LogicalRepWorkerLock);
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-		 errmsg("logical replication worker slot %d is empty, cannot attach",
-				slot)));
+				 errmsg("logical replication worker slot %d is empty, cannot attach",
+						slot)));
 	}
 
 	if (MyLogicalRepWorker->proc)
@@ -555,8 +570,8 @@ logicalrep_worker_attach(int slot)
 		LWLockRelease(LogicalRepWorkerLock);
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-			  errmsg("logical replication worker slot %d is already used by "
-					 "another worker, cannot attach", slot)));
+				 errmsg("logical replication worker slot %d is already used by "
+						"another worker, cannot attach", slot)));
 	}
 
 	MyLogicalRepWorker->proc = MyProc;
@@ -614,26 +629,18 @@ logicalrep_launcher_onexit(int code, Datum arg)
 static void
 logicalrep_worker_onexit(int code, Datum arg)
 {
+	/* Disconnect gracefully from the remote side. */
+	if (wrconn)
+		walrcv_disconnect(wrconn);
+
 	logicalrep_worker_detach();
-}
 
-/* SIGTERM: set flag to exit at next convenient time */
-void
-logicalrep_worker_sigterm(SIGNAL_ARGS)
-{
-	int			save_errno = errno;
-
-	got_SIGTERM = true;
-
-	/* Waken anything waiting on the process latch */
-	SetLatch(MyLatch);
-
-	errno = save_errno;
+	ApplyLauncherWakeup();
 }
 
 /* SIGHUP: set flag to reload configuration at next convenient time */
-void
-logicalrep_worker_sighup(SIGNAL_ARGS)
+static void
+logicalrep_launcher_sighup(SIGNAL_ARGS)
 {
 	int			save_errno = errno;
 
@@ -792,16 +799,13 @@ ApplyLauncherMain(Datum main_arg)
 
 	before_shmem_exit(logicalrep_launcher_onexit, (Datum) 0);
 
-	/* Establish signal handlers. */
-	pqsignal(SIGHUP, logicalrep_worker_sighup);
-	pqsignal(SIGTERM, logicalrep_worker_sigterm);
-	BackgroundWorkerUnblockSignals();
-
-	/* Make it easy to identify our processes. */
-	SetConfigOption("application_name", MyBgworkerEntry->bgw_name,
-					PGC_USERSET, PGC_S_SESSION);
-
+	Assert(LogicalRepCtx->launcher_pid == 0);
 	LogicalRepCtx->launcher_pid = MyProcPid;
+
+	/* Establish signal handlers. */
+	pqsignal(SIGHUP, logicalrep_launcher_sighup);
+	pqsignal(SIGTERM, die);
+	BackgroundWorkerUnblockSignals();
 
 	/*
 	 * Establish connection to nailed catalogs (we only ever access
@@ -810,7 +814,7 @@ ApplyLauncherMain(Datum main_arg)
 	BackgroundWorkerInitializeConnection(NULL, NULL);
 
 	/* Enter main loop */
-	while (!got_SIGTERM)
+	for (;;)
 	{
 		int			rc;
 		List	   *sublist;
@@ -820,6 +824,8 @@ ApplyLauncherMain(Datum main_arg)
 		TimestampTz now;
 		long		wait_time = DEFAULT_NAPTIME_PER_CYCLE;
 
+		CHECK_FOR_INTERRUPTS();
+
 		now = GetCurrentTimestamp();
 
 		/* Limit the start retry to once a wal_retrieve_retry_interval */
@@ -828,7 +834,7 @@ ApplyLauncherMain(Datum main_arg)
 		{
 			/* Use temporary context for the database list and worker info. */
 			subctx = AllocSetContextCreate(TopMemoryContext,
-									  "Logical Replication Launcher sublist",
+										   "Logical Replication Launcher sublist",
 										   ALLOCSET_DEFAULT_MINSIZE,
 										   ALLOCSET_DEFAULT_INITSIZE,
 										   ALLOCSET_DEFAULT_MAXSIZE);
@@ -874,7 +880,7 @@ ApplyLauncherMain(Datum main_arg)
 		}
 
 		/* Wait for more work. */
-		rc = WaitLatch(&MyProc->procLatch,
+		rc = WaitLatch(MyLatch,
 					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
 					   wait_time,
 					   WAIT_EVENT_LOGICAL_LAUNCHER_MAIN);
@@ -883,22 +889,29 @@ ApplyLauncherMain(Datum main_arg)
 		if (rc & WL_POSTMASTER_DEATH)
 			proc_exit(1);
 
+		if (rc & WL_LATCH_SET)
+		{
+			ResetLatch(MyLatch);
+			CHECK_FOR_INTERRUPTS();
+		}
+
 		if (got_SIGHUP)
 		{
 			got_SIGHUP = false;
 			ProcessConfigFile(PGC_SIGHUP);
 		}
-
-		ResetLatch(&MyProc->procLatch);
 	}
 
-	LogicalRepCtx->launcher_pid = 0;
+	/* Not reachable */
+}
 
-	/* ... and if it returns, we're done */
-	ereport(DEBUG1,
-			(errmsg("logical replication launcher shutting down")));
-
-	proc_exit(0);
+/*
+ * Is current process the logical replication launcher?
+ */
+bool
+IsLogicalLauncher(void)
+{
+	return LogicalRepCtx->launcher_pid == MyProcPid;
 }
 
 /*

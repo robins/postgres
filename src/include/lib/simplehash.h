@@ -121,7 +121,7 @@ typedef struct SH_TYPE
 
 	/* user defined data, useful for callbacks */
 	void	   *private_data;
-}	SH_TYPE;
+}			SH_TYPE;
 
 typedef enum SH_STATUS
 {
@@ -134,22 +134,22 @@ typedef struct SH_ITERATOR
 	uint32		cur;			/* current element */
 	uint32		end;
 	bool		done;			/* iterator exhausted? */
-}	SH_ITERATOR;
+}			SH_ITERATOR;
 
 /* externally visible function prototypes */
-SH_SCOPE SH_TYPE *SH_CREATE(MemoryContext ctx, uint32 nelements,
+SH_SCOPE	SH_TYPE *SH_CREATE(MemoryContext ctx, uint32 nelements,
 		  void *private_data);
 SH_SCOPE void SH_DESTROY(SH_TYPE * tb);
 SH_SCOPE void SH_GROW(SH_TYPE * tb, uint32 newsize);
-SH_SCOPE SH_ELEMENT_TYPE *SH_INSERT(SH_TYPE * tb, SH_KEY_TYPE key, bool *found);
-SH_SCOPE SH_ELEMENT_TYPE *SH_LOOKUP(SH_TYPE * tb, SH_KEY_TYPE key);
+SH_SCOPE	SH_ELEMENT_TYPE *SH_INSERT(SH_TYPE * tb, SH_KEY_TYPE key, bool *found);
+SH_SCOPE	SH_ELEMENT_TYPE *SH_LOOKUP(SH_TYPE * tb, SH_KEY_TYPE key);
 SH_SCOPE bool SH_DELETE(SH_TYPE * tb, SH_KEY_TYPE key);
 SH_SCOPE void SH_START_ITERATE(SH_TYPE * tb, SH_ITERATOR * iter);
 SH_SCOPE void SH_START_ITERATE_AT(SH_TYPE * tb, SH_ITERATOR * iter, uint32 at);
-SH_SCOPE SH_ELEMENT_TYPE *SH_ITERATE(SH_TYPE * tb, SH_ITERATOR * iter);
+SH_SCOPE	SH_ELEMENT_TYPE *SH_ITERATE(SH_TYPE * tb, SH_ITERATOR * iter);
 SH_SCOPE void SH_STAT(SH_TYPE * tb);
 
-#endif   /* SH_DECLARE */
+#endif							/* SH_DECLARE */
 
 
 /* generate implementation of the hash table */
@@ -214,12 +214,12 @@ SH_COMPUTE_PARAMETERS(SH_TYPE * tb, uint32 newsize)
 	/* supporting zero sized hashes would complicate matters */
 	size = Max(newsize, 2);
 
-	/* round up size to the next power of 2, that's the bucketing works  */
+	/* round up size to the next power of 2, that's how bucketing works */
 	size = sh_pow2(size);
 	Assert(size <= SH_MAX_SIZE);
 
 	/*
-	 * Verify allocation of ->data is possible on platform, without
+	 * Verify that allocation of ->data is possible on this platform, without
 	 * overflowing Size.
 	 */
 	if ((((uint64) sizeof(SH_ELEMENT_TYPE)) * size) >= MaxAllocHugeSize)
@@ -234,8 +234,8 @@ SH_COMPUTE_PARAMETERS(SH_TYPE * tb, uint32 newsize)
 		tb->sizemask = tb->size - 1;
 
 	/*
-	 * Compute growth threshold here and after growing the table, to make
-	 * computations during insert cheaper.
+	 * Compute the next threshold at which we need to grow the hash table
+	 * again.
 	 */
 	if (tb->size == SH_MAX_SIZE)
 		tb->grow_threshold = ((double) tb->size) * SH_MAX_FILLFACTOR;
@@ -324,7 +324,7 @@ SH_FREE(SH_TYPE * type, void *pointer)
  * Memory other than for the array of elements will still be allocated from
  * the passed-in context.
  */
-SH_SCOPE SH_TYPE *
+SH_SCOPE	SH_TYPE *
 SH_CREATE(MemoryContext ctx, uint32 nelements, void *private_data)
 {
 	SH_TYPE    *tb;
@@ -470,7 +470,7 @@ SH_GROW(SH_TYPE * tb, uint32 newsize)
  * already exists, false otherwise. Returns the hash-table entry in either
  * case.
  */
-SH_SCOPE SH_ELEMENT_TYPE *
+SH_SCOPE	SH_ELEMENT_TYPE *
 SH_INSERT(SH_TYPE * tb, SH_KEY_TYPE key, bool *found)
 {
 	uint32		hash = SH_HASH_KEY(tb, key);
@@ -634,7 +634,7 @@ restart:
 /*
  * Lookup up entry in hash table.  Returns NULL if key not present.
  */
-SH_SCOPE SH_ELEMENT_TYPE *
+SH_SCOPE	SH_ELEMENT_TYPE *
 SH_LOOKUP(SH_TYPE * tb, SH_KEY_TYPE key)
 {
 	uint32		hash = SH_HASH_KEY(tb, key);
@@ -696,7 +696,7 @@ SH_DELETE(SH_TYPE * tb, SH_KEY_TYPE key)
 			 * or an element at its optimal position is encountered.
 			 *
 			 * While that sounds expensive, the average chain length is short,
-			 * and deletions would otherwise require toombstones.
+			 * and deletions would otherwise require tombstones.
 			 */
 			while (true)
 			{
@@ -788,7 +788,7 @@ SH_START_ITERATE_AT(SH_TYPE * tb, SH_ITERATOR * iter, uint32 at)
 	 * Iterate backwards, that allows the current element to be deleted, even
 	 * if there are backward shifts.
 	 */
-	iter->cur = at & tb->sizemask;		/* ensure at is within a valid range */
+	iter->cur = at & tb->sizemask;	/* ensure at is within a valid range */
 	iter->end = iter->cur;
 	iter->done = false;
 }
@@ -803,7 +803,7 @@ SH_START_ITERATE_AT(SH_TYPE * tb, SH_ITERATOR * iter, uint32 at)
  * deletions), but if so, there's neither a guarantee that all nodes are
  * visited at least once, nor a guarantee that a node is visited at most once.
  */
-SH_SCOPE SH_ELEMENT_TYPE *
+SH_SCOPE	SH_ELEMENT_TYPE *
 SH_ITERATE(SH_TYPE * tb, SH_ITERATOR * iter)
 {
 	while (!iter->done)
@@ -899,10 +899,10 @@ SH_STAT(SH_TYPE * tb)
 		 total_collisions, max_collisions, avg_collisions);
 }
 
-#endif   /* SH_DEFINE */
+#endif							/* SH_DEFINE */
 
 
-/* undefine external paramters, so next hash table can be defined */
+/* undefine external parameters, so next hash table can be defined */
 #undef SH_PREFIX
 #undef SH_KEY_TYPE
 #undef SH_KEY

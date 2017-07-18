@@ -48,7 +48,7 @@ struct BrinRevmap
 {
 	Relation	rm_irel;
 	BlockNumber rm_pagesPerRange;
-	BlockNumber rm_lastRevmapPage;		/* cached from the metapage */
+	BlockNumber rm_lastRevmapPage;	/* cached from the metapage */
 	Buffer		rm_metaBuf;
 	Buffer		rm_currBuf;
 };
@@ -179,13 +179,16 @@ brinSetHeapBlockItemptr(Buffer buf, BlockNumber pagesPerRange,
 /*
  * Fetch the BrinTuple for a given heap block.
  *
- * The buffer containing the tuple is locked, and returned in *buf. As an
- * optimization, the caller can pass a pinned buffer *buf on entry, which will
- * avoid a pin-unpin cycle when the next tuple is on the same page as a
- * previous one.
+ * The buffer containing the tuple is locked, and returned in *buf.  The
+ * returned tuple points to the shared buffer and must not be freed; if caller
+ * wants to use it after releasing the buffer lock, it must create its own
+ * palloc'ed copy.  As an optimization, the caller can pass a pinned buffer
+ * *buf on entry, which will avoid a pin-unpin cycle when the next tuple is on
+ * the same page as a previous one.
  *
  * If no tuple is found for the given heap range, returns NULL. In that case,
- * *buf might still be updated, but it's not locked.
+ * *buf might still be updated (and pin must be released by caller), but it's
+ * not locked.
  *
  * The output tuple offset within the buffer is returned in *off, and its size
  * is returned in *size.
@@ -257,7 +260,7 @@ brinGetTupleForHeapBlock(BrinRevmap *revmap, BlockNumber heapBlk,
 		if (ItemPointerIsValid(&previptr) && ItemPointerEquals(&previptr, iptr))
 			ereport(ERROR,
 					(errcode(ERRCODE_INDEX_CORRUPTED),
-			errmsg_internal("corrupted BRIN index: inconsistent range map")));
+					 errmsg_internal("corrupted BRIN index: inconsistent range map")));
 		previptr = *iptr;
 
 		blk = ItemPointerGetBlockNumber(iptr);
@@ -595,10 +598,10 @@ revmap_physical_extend(BrinRevmap *revmap)
 	if (!PageIsNew(page) && !BRIN_IS_REGULAR_PAGE(page))
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
-		  errmsg("unexpected page type 0x%04X in BRIN index \"%s\" block %u",
-				 BrinPageType(page),
-				 RelationGetRelationName(irel),
-				 BufferGetBlockNumber(buf))));
+				 errmsg("unexpected page type 0x%04X in BRIN index \"%s\" block %u",
+						BrinPageType(page),
+						RelationGetRelationName(irel),
+						BufferGetBlockNumber(buf))));
 
 	/* If the page is in use, evacuate it and restart */
 	if (brin_start_evacuating_page(irel, buf))

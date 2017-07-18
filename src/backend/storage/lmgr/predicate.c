@@ -148,7 +148,7 @@
  * predicate lock maintenance
  *		GetSerializableTransactionSnapshot(Snapshot snapshot)
  *		SetSerializableTransactionSnapshot(Snapshot snapshot,
- *										   TransactionId sourcexid)
+ *										   VirtualTransactionId *sourcevxid)
  *		RegisterPredicateLockingXid(void)
  *		PredicateLockRelation(Relation relation, Snapshot snapshot)
  *		PredicateLockPage(Relation relation, BlockNumber blkno,
@@ -337,7 +337,7 @@ typedef struct OldSerXidControlData
 	TransactionId headXid;		/* newest valid Xid in the SLRU */
 	TransactionId tailXid;		/* oldest xmin we might be interested in */
 	bool		warningIssued;	/* have we issued SLRU wrap-around warning? */
-}	OldSerXidControlData;
+}			OldSerXidControlData;
 
 typedef struct OldSerXidControlData *OldSerXidControl;
 
@@ -358,9 +358,9 @@ static SERIALIZABLEXACT *OldCommittedSxact;
  * attempt to degrade performance (mostly as false positive serialization
  * failure) gracefully in the face of memory pressurel
  */
-int			max_predicate_locks_per_xact;		/* set by guc.c */
+int			max_predicate_locks_per_xact;	/* set by guc.c */
 int			max_predicate_locks_per_relation;	/* set by guc.c */
-int			max_predicate_locks_per_page;		/* set by guc.c */
+int			max_predicate_locks_per_page;	/* set by guc.c */
 
 /*
  * This provides a list of objects in order to track transactions
@@ -434,7 +434,8 @@ static uint32 predicatelock_hash(const void *key, Size keysize);
 static void SummarizeOldestCommittedSxact(void);
 static Snapshot GetSafeSnapshot(Snapshot snapshot);
 static Snapshot GetSerializableTransactionSnapshotInt(Snapshot snapshot,
-									  TransactionId sourcexid);
+									  VirtualTransactionId *sourcevxid,
+									  int sourcepid);
 static bool PredicateLockExists(const PREDICATELOCKTARGETTAG *targettag);
 static bool GetParentPredicateLockTag(const PREDICATELOCKTARGETTAG *tag,
 						  PREDICATELOCKTARGETTAG *parent);
@@ -1473,7 +1474,7 @@ SummarizeOldestCommittedSxact(void)
 	/* Add to SLRU summary information. */
 	if (TransactionIdIsValid(sxact->topXid) && !SxactIsReadOnly(sxact))
 		OldSerXidAdd(sxact->topXid, SxactHasConflictOut(sxact)
-		   ? sxact->SeqNo.earliestOutConflictCommit : InvalidSerCommitSeqNo);
+					 ? sxact->SeqNo.earliestOutConflictCommit : InvalidSerCommitSeqNo);
 
 	/* Summarize and release the detail. */
 	ReleaseOneSerializableXact(sxact, false, true);
@@ -1510,7 +1511,7 @@ GetSafeSnapshot(Snapshot origSnapshot)
 		 * one passed to it, but we avoid assuming that here.
 		 */
 		snapshot = GetSerializableTransactionSnapshotInt(origSnapshot,
-													   InvalidTransactionId);
+														 NULL, InvalidPid);
 
 		if (MySerializableXact == InvalidSerializableXact)
 			return snapshot;	/* no concurrent r/w xacts; it's safe */
@@ -1643,7 +1644,7 @@ GetSerializableTransactionSnapshot(Snapshot snapshot)
 		return GetSafeSnapshot(snapshot);
 
 	return GetSerializableTransactionSnapshotInt(snapshot,
-												 InvalidTransactionId);
+												 NULL, InvalidPid);
 }
 
 /*
@@ -1658,7 +1659,8 @@ GetSerializableTransactionSnapshot(Snapshot snapshot)
  */
 void
 SetSerializableTransactionSnapshot(Snapshot snapshot,
-								   TransactionId sourcexid)
+								   VirtualTransactionId *sourcevxid,
+								   int sourcepid)
 {
 	Assert(IsolationIsSerializable());
 
@@ -1673,7 +1675,8 @@ SetSerializableTransactionSnapshot(Snapshot snapshot,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("a snapshot-importing transaction must not be READ ONLY DEFERRABLE")));
 
-	(void) GetSerializableTransactionSnapshotInt(snapshot, sourcexid);
+	(void) GetSerializableTransactionSnapshotInt(snapshot, sourcevxid,
+												 sourcepid);
 }
 
 /*
@@ -1687,7 +1690,8 @@ SetSerializableTransactionSnapshot(Snapshot snapshot,
  */
 static Snapshot
 GetSerializableTransactionSnapshotInt(Snapshot snapshot,
-									  TransactionId sourcexid)
+									  VirtualTransactionId *sourcevxid,
+									  int sourcepid)
 {
 	PGPROC	   *proc;
 	VirtualTransactionId vxid;
@@ -1741,17 +1745,17 @@ GetSerializableTransactionSnapshotInt(Snapshot snapshot,
 	} while (!sxact);
 
 	/* Get the snapshot, or check that it's safe to use */
-	if (!TransactionIdIsValid(sourcexid))
+	if (!sourcevxid)
 		snapshot = GetSnapshotData(snapshot);
-	else if (!ProcArrayInstallImportedXmin(snapshot->xmin, sourcexid))
+	else if (!ProcArrayInstallImportedXmin(snapshot->xmin, sourcevxid))
 	{
 		ReleasePredXact(sxact);
 		LWLockRelease(SerializableXactHashLock);
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("could not import the requested snapshot"),
-			   errdetail("The source transaction %u is not running anymore.",
-						 sourcexid)));
+				 errdetail("The source process with pid %d is not running anymore.",
+						   sourcepid)));
 	}
 
 	/*
@@ -1983,17 +1987,17 @@ GetParentPredicateLockTag(const PREDICATELOCKTARGETTAG *tag,
 		case PREDLOCKTAG_PAGE:
 			/* parent lock is relation lock */
 			SET_PREDICATELOCKTARGETTAG_RELATION(*parent,
-										 GET_PREDICATELOCKTARGETTAG_DB(*tag),
-								  GET_PREDICATELOCKTARGETTAG_RELATION(*tag));
+												GET_PREDICATELOCKTARGETTAG_DB(*tag),
+												GET_PREDICATELOCKTARGETTAG_RELATION(*tag));
 
 			return true;
 
 		case PREDLOCKTAG_TUPLE:
 			/* parent lock is page lock */
 			SET_PREDICATELOCKTARGETTAG_PAGE(*parent,
-										 GET_PREDICATELOCKTARGETTAG_DB(*tag),
-								   GET_PREDICATELOCKTARGETTAG_RELATION(*tag),
-									  GET_PREDICATELOCKTARGETTAG_PAGE(*tag));
+											GET_PREDICATELOCKTARGETTAG_DB(*tag),
+											GET_PREDICATELOCKTARGETTAG_RELATION(*tag),
+											GET_PREDICATELOCKTARGETTAG_PAGE(*tag));
 			return true;
 	}
 
@@ -2389,7 +2393,7 @@ CreatePredicateLock(const PREDICATELOCKTARGETTAG *targettag,
 	locktag.myXact = sxact;
 	lock = (PREDICATELOCK *)
 		hash_search_with_hash_value(PredicateLockHash, &locktag,
-			PredicateLockHashCodeFromTargetHashCode(&locktag, targettaghash),
+									PredicateLockHashCodeFromTargetHashCode(&locktag, targettaghash),
 									HASH_ENTER_NULL, &found);
 	if (!lock)
 		ereport(ERROR,
@@ -2770,8 +2774,8 @@ TransferPredicateLocksToNewTarget(PREDICATELOCKTARGETTAG oldtargettag,
 				hash_search_with_hash_value
 					(PredicateLockHash,
 					 &oldpredlock->tag,
-				   PredicateLockHashCodeFromTargetHashCode(&oldpredlock->tag,
-														   oldtargettaghash),
+					 PredicateLockHashCodeFromTargetHashCode(&oldpredlock->tag,
+															 oldtargettaghash),
 					 HASH_REMOVE, &found);
 				Assert(found);
 			}
@@ -2779,8 +2783,8 @@ TransferPredicateLocksToNewTarget(PREDICATELOCKTARGETTAG oldtargettag,
 			newpredlock = (PREDICATELOCK *)
 				hash_search_with_hash_value(PredicateLockHash,
 											&newpredlocktag,
-					 PredicateLockHashCodeFromTargetHashCode(&newpredlocktag,
-														   newtargettaghash),
+											PredicateLockHashCodeFromTargetHashCode(&newpredlocktag,
+																					newtargettaghash),
 											HASH_ENTER_NULL,
 											&found);
 			if (!newpredlock)
@@ -2841,7 +2845,7 @@ exit:
 		/* We shouldn't run out of memory if we're moving locks */
 		Assert(!outOfShmem);
 
-		/* Put the scrach entry back */
+		/* Put the scratch entry back */
 		RestoreScratchTarget(false);
 	}
 
@@ -2910,8 +2914,8 @@ DropAllPredicateLocksFromTable(Relation relation, bool transfer)
 		heapId = relation->rd_index->indrelid;
 	}
 	Assert(heapId != InvalidOid);
-	Assert(transfer || !isIndex);		/* index OID only makes sense with
-										 * transfer */
+	Assert(transfer || !isIndex);	/* index OID only makes sense with
+									 * transfer */
 
 	/* Retrieve first time needed, then keep. */
 	heaptargettaghash = 0;
@@ -3020,8 +3024,8 @@ DropAllPredicateLocksFromTable(Relation relation, bool transfer)
 				newpredlock = (PREDICATELOCK *)
 					hash_search_with_hash_value(PredicateLockHash,
 												&newpredlocktag,
-					 PredicateLockHashCodeFromTargetHashCode(&newpredlocktag,
-														  heaptargettaghash),
+												PredicateLockHashCodeFromTargetHashCode(&newpredlocktag,
+																						heaptargettaghash),
 												HASH_ENTER,
 												&found);
 				if (!found)
@@ -3601,7 +3605,7 @@ ClearOldPredicateLocks(void)
 			LWLockAcquire(SerializableXactHashLock, LW_SHARED);
 		}
 		else if (finishedSxact->commitSeqNo > PredXact->HavePartialClearedThrough
-		   && finishedSxact->commitSeqNo <= PredXact->CanPartialClearThrough)
+				 && finishedSxact->commitSeqNo <= PredXact->CanPartialClearThrough)
 		{
 			/*
 			 * Any active transactions that took their snapshot before this
@@ -3686,8 +3690,8 @@ ClearOldPredicateLocks(void)
 			SHMQueueDelete(&(predlock->xactLink));
 
 			hash_search_with_hash_value(PredicateLockHash, &tag,
-								PredicateLockHashCodeFromTargetHashCode(&tag,
-															  targettaghash),
+										PredicateLockHashCodeFromTargetHashCode(&tag,
+																				targettaghash),
 										HASH_REMOVE, NULL);
 			RemoveTargetIfNoLongerUsed(target, targettaghash);
 
@@ -3770,8 +3774,8 @@ ReleaseOneSerializableXact(SERIALIZABLEXACT *sxact, bool partial,
 		SHMQueueDelete(targetLink);
 
 		hash_search_with_hash_value(PredicateLockHash, &tag,
-								PredicateLockHashCodeFromTargetHashCode(&tag,
-															  targettaghash),
+									PredicateLockHashCodeFromTargetHashCode(&tag,
+																			targettaghash),
 									HASH_REMOVE, NULL);
 		if (summarize)
 		{
@@ -3780,8 +3784,8 @@ ReleaseOneSerializableXact(SERIALIZABLEXACT *sxact, bool partial,
 			/* Fold into dummy transaction list. */
 			tag.myXact = OldCommittedSxact;
 			predlock = hash_search_with_hash_value(PredicateLockHash, &tag,
-								PredicateLockHashCodeFromTargetHashCode(&tag,
-															  targettaghash),
+												   PredicateLockHashCodeFromTargetHashCode(&tag,
+																						   targettaghash),
 												   HASH_ENTER_NULL, &found);
 			if (!predlock)
 				ereport(ERROR,
@@ -4032,7 +4036,7 @@ CheckForSerializableConflictOut(bool visible, Relation relation,
 						(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
 						 errmsg("could not serialize access due to read/write dependencies among transactions"),
 						 errdetail_internal("Reason code: Canceled on conflict out to old pivot %u.", xid),
-					  errhint("The transaction might succeed if retried.")));
+						 errhint("The transaction might succeed if retried.")));
 
 			if (SxactHasSummaryConflictIn(MySerializableXact)
 				|| !SHMQueueEmpty(&MySerializableXact->inConflicts))
@@ -4040,7 +4044,7 @@ CheckForSerializableConflictOut(bool visible, Relation relation,
 						(errcode(ERRCODE_T_R_SERIALIZATION_FAILURE),
 						 errmsg("could not serialize access due to read/write dependencies among transactions"),
 						 errdetail_internal("Reason code: Canceled on identification as a pivot, with conflict out to old committed transaction %u.", xid),
-					  errhint("The transaction might succeed if retried.")));
+						 errhint("The transaction might succeed if retried.")));
 
 			MySerializableXact->flags |= SXACT_FLAG_SUMMARY_CONFLICT_OUT;
 		}
@@ -4340,8 +4344,8 @@ CheckForSerializableConflictIn(Relation relation, HeapTuple tuple,
 		SET_PREDICATELOCKTARGETTAG_TUPLE(targettag,
 										 relation->rd_node.dbNode,
 										 relation->rd_id,
-								 ItemPointerGetBlockNumber(&(tuple->t_self)),
-							   ItemPointerGetOffsetNumber(&(tuple->t_self)));
+										 ItemPointerGetBlockNumber(&(tuple->t_self)),
+										 ItemPointerGetOffsetNumber(&(tuple->t_self)));
 		CheckTargetForConflictsIn(&targettag);
 	}
 
@@ -4456,7 +4460,7 @@ CheckTableForSerializableConflictIn(Relation relation)
 							 offsetof(PREDICATELOCK, targetLink));
 
 			if (predlock->tag.myXact != MySerializableXact
-			  && !RWConflictExists(predlock->tag.myXact, MySerializableXact))
+				&& !RWConflictExists(predlock->tag.myXact, MySerializableXact))
 			{
 				FlagRWConflict(predlock->tag.myXact, MySerializableXact);
 			}
@@ -4537,7 +4541,7 @@ OnConflict_CheckForSerializationFailure(const SERIALIZABLEXACT *reader,
 	 *------------------------------------------------------------------------
 	 */
 	if (SxactIsCommitted(writer)
-	  && (SxactHasConflictOut(writer) || SxactHasSummaryConflictOut(writer)))
+		&& (SxactHasConflictOut(writer) || SxactHasSummaryConflictOut(writer)))
 		failure = true;
 
 	/*------------------------------------------------------------------------
@@ -4581,7 +4585,7 @@ OnConflict_CheckForSerializationFailure(const SERIALIZABLEXACT *reader,
 				&& (!SxactIsCommitted(writer)
 					|| t2->prepareSeqNo <= writer->commitSeqNo)
 				&& (!SxactIsReadOnly(reader)
-			  || t2->prepareSeqNo <= reader->SeqNo.lastCommitBeforeSnapshot))
+					|| t2->prepareSeqNo <= reader->SeqNo.lastCommitBeforeSnapshot))
 			{
 				failure = true;
 				break;
@@ -4626,7 +4630,7 @@ OnConflict_CheckForSerializationFailure(const SERIALIZABLEXACT *reader,
 				&& (!SxactIsCommitted(t0)
 					|| t0->commitSeqNo >= writer->prepareSeqNo)
 				&& (!SxactIsReadOnly(t0)
-			  || t0->SeqNo.lastCommitBeforeSnapshot >= writer->prepareSeqNo))
+					|| t0->SeqNo.lastCommitBeforeSnapshot >= writer->prepareSeqNo))
 			{
 				failure = true;
 				break;

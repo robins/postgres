@@ -163,6 +163,11 @@ CREATE PUBLICATION <replaceable class="parameter">name</replaceable>
   </para>
 
   <para>
+   <command>COPY ... FROM</command> commands are published
+   as <command>INSERT</command> operations.
+  </para>
+
+  <para>
    <command>TRUNCATE</command> and <acronym>DDL</acronym> operations
    are not published.
   </para>
@@ -191,8 +196,7 @@ CREATE PUBLICATION alltables FOR ALL TABLES;
 <programlisting>
 CREATE PUBLICATION insert_only FOR TABLE mydata
     WITH (publish = 'insert');
-</programlisting>
-  </para>
+</programlisting></para>
  </refsect1>
 
  <refsect1>
