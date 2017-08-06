@@ -218,15 +218,15 @@ PGAC_ARG_BOOL(enable, profiling, no,
 #
 PGAC_ARG_BOOL(enable, coverage, no,
               [build with coverage testing instrumentation],
-[AC_CHECK_PROGS(GCOV, gcov)
+[PGAC_PATH_PROGS(GCOV, gcov)
 if test -z "$GCOV"; then
   AC_MSG_ERROR([gcov not found])
 fi
-AC_CHECK_PROGS(LCOV, lcov)
+PGAC_PATH_PROGS(LCOV, lcov)
 if test -z "$LCOV"; then
   AC_MSG_ERROR([lcov not found])
 fi
-AC_CHECK_PROGS(GENHTML, genhtml)
+PGAC_PATH_PROGS(GENHTML, genhtml)
 if test -z "$GENHTML"; then
   AC_MSG_ERROR([genhtml not found])
 fi])
@@ -237,7 +237,7 @@ AC_SUBST(enable_coverage)
 #
 PGAC_ARG_BOOL(enable, dtrace, no,
               [build with DTrace support],
-[AC_CHECK_PROGS(DTRACE, dtrace)
+[PGAC_PATH_PROGS(DTRACE, dtrace)
 if test -z "$DTRACE"; then
   AC_MSG_ERROR([dtrace not found])
 fi
@@ -816,7 +816,7 @@ PGAC_ARG_BOOL(with, libxml, no, [build with XML support],
               [AC_DEFINE([USE_LIBXML], 1, [Define to 1 to build with XML support. (--with-libxml)])])
 
 if test "$with_libxml" = yes ; then
-  AC_CHECK_PROGS(XML2_CONFIG, xml2-config)
+  PGAC_PATH_PROGS(XML2_CONFIG, xml2-config)
   if test -n "$XML2_CONFIG"; then
     for pgac_option in `$XML2_CONFIG --cflags`; do
       case $pgac_option in
@@ -912,7 +912,7 @@ case $INSTALL in
 esac
 AC_SUBST(install_bin)
 
-AC_PATH_PROG(TAR, tar)
+PGAC_PATH_PROGS(TAR, tar)
 AC_PROG_LN_S
 AC_PROG_AWK
 AC_PROG_MKDIR_P
@@ -938,6 +938,7 @@ You might have to rebuild your Perl installation.  Refer to the
 documentation for details.  Use --without-perl to disable building
 PL/Perl.])
   fi
+  PGAC_CHECK_PERL_EMBED_CCFLAGS
   PGAC_CHECK_PERL_EMBED_LDFLAGS
 fi
 
@@ -947,7 +948,7 @@ if test "$with_python" = yes; then
 fi
 
 if test "$cross_compiling" = yes && test -z "$with_system_tzdata"; then
-  AC_PATH_PROG(ZIC, zic)
+  PGAC_PATH_PROGS(ZIC, zic)
   if test -z "$ZIC"; then
     AC_MSG_ERROR([
 When cross-compiling, either use the option --with-system-tzdata to use
@@ -1654,13 +1655,17 @@ AC_CHECK_FUNCS([strtoll strtoq], [break])
 AC_CHECK_FUNCS([strtoull strtouq], [break])
 
 if test "$with_icu" = yes; then
-  # ICU functions are macros, so we need to do this the long way.
+  ac_save_CPPFLAGS=$CPPFLAGS
+  CPPFLAGS="$ICU_CFLAGS $CPPFLAGS"
 
-  # ucol_strcollUTF8() appeared in ICU 50.
+  # Verify we have ICU's header files
+  AC_CHECK_HEADER(unicode/ucol.h, [],
+        [AC_MSG_ERROR([header file <unicode/ucol.h> is required for ICU])])
+
+  # ucol_strcollUTF8() appeared in ICU 50, so check if we have it.
+  # ICU functions are macros, so we need to do this the long way.
   AC_CACHE_CHECK([for ucol_strcollUTF8], [pgac_cv_func_ucol_strcollUTF8],
-[ac_save_CPPFLAGS=$CPPFLAGS
-CPPFLAGS="$ICU_CFLAGS $CPPFLAGS"
-ac_save_LIBS=$LIBS
+[ac_save_LIBS=$LIBS
 LIBS="$ICU_LIBS $LIBS"
 AC_LINK_IFELSE([AC_LANG_PROGRAM(
 [#include <unicode/ucol.h>
@@ -1668,11 +1673,12 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM(
 [ucol_strcollUTF8(NULL, NULL, 0, NULL, 0, NULL);])],
 [pgac_cv_func_ucol_strcollUTF8=yes],
 [pgac_cv_func_ucol_strcollUTF8=no])
-CPPFLAGS=$ac_save_CPPFLAGS
 LIBS=$ac_save_LIBS])
   if test "$pgac_cv_func_ucol_strcollUTF8" = yes ; then
     AC_DEFINE([HAVE_UCOL_STRCOLLUTF8], 1, [Define to 1 if you have the `ucol_strcollUTF8' function.])
   fi
+
+  CPPFLAGS=$ac_save_CPPFLAGS
 fi
 
 # Lastly, restore full LIBS list and check for readline/libedit symbols
@@ -2118,17 +2124,17 @@ fi
 #
 PGAC_PROG_NSGMLS
 PGAC_CHECK_DOCBOOK(4.2)
-AC_CHECK_PROGS(DBTOEPUB, dbtoepub)
-AC_CHECK_PROGS(XMLLINT, xmllint)
-AC_CHECK_PROGS(XSLTPROC, xsltproc)
-AC_CHECK_PROGS(OSX, [osx sgml2xml sx])
-AC_CHECK_PROGS(FOP, fop)
+PGAC_PATH_PROGS(DBTOEPUB, dbtoepub)
+PGAC_PATH_PROGS(XMLLINT, xmllint)
+PGAC_PATH_PROGS(XSLTPROC, xsltproc)
+PGAC_PATH_PROGS(OSX, [osx sgml2xml sx])
+PGAC_PATH_PROGS(FOP, fop)
 
 #
 # Check for test tools
 #
 if test "$enable_tap_tests" = yes; then
-  AC_CHECK_PROGS(PROVE, prove)
+  PGAC_PATH_PROGS(PROVE, prove)
   if test -z "$PROVE"; then
     AC_MSG_ERROR([prove not found])
   fi
