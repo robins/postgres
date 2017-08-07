@@ -189,6 +189,11 @@ my %pgdump_runs = (
 		dump_cmd => [
 			'pg_dumpall', '--no-sync',
 			"--file=$tempdir/pg_dumpall_dbprivs.sql", ], },
+        pg_dumpall_no_comments => {
+                dump_cmd => [
+                        'pg_dumpall',                   '--no-sync',
+                        "--file=$tempdir/pg_dumpall_dbprivs.sql",
+                        '--no-comments', ], },
 	no_blobs => {
 		dump_cmd => [
 			'pg_dump',                      '--no-sync',
@@ -336,6 +341,7 @@ my %tests = (
 			no_owner                => 1,
 			only_dump_test_schema   => 1,
 			pg_dumpall_dbprivs      => 1,
+			pg_dumpall_no_comments  => 1,
 			schema_only             => 1,
 			section_post_data       => 1,
 			test_schema_plus_blobs  => 1,
@@ -376,6 +382,7 @@ my %tests = (
 			no_comments              => 1,
 			no_owner                 => 1,
 			pg_dumpall_dbprivs       => 1,
+			pg_dumpall_no_comments   => 1,
 			schema_only              => 1,
 			section_post_data        => 1,
 			with_oids                => 1, },
