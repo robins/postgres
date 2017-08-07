@@ -189,11 +189,11 @@ my %pgdump_runs = (
 		dump_cmd => [
 			'pg_dumpall', '--no-sync',
 			"--file=$tempdir/pg_dumpall_dbprivs.sql", ], },
-        pg_dumpall_no_comments => {
-                dump_cmd => [
-                        'pg_dumpall',                   '--no-sync',
-                        "--file=$tempdir/pg_dumpall_dbprivs.sql",
-                        '--no-comments', ], },
+	pg_dumpall_no_comments => {
+		dump_cmd => [
+			'pg_dumpall',                   '--no-sync',
+			"--file=$tempdir/pg_dumpall_dbprivs.sql",
+			'--no-comments', ], },
 	no_blobs => {
 		dump_cmd => [
 			'pg_dump',                      '--no-sync',
@@ -427,6 +427,7 @@ my %tests = (
 			no_comments              => 1,
 			no_owner                 => 1,
 			pg_dumpall_dbprivs       => 1,
+			pg_dumpall_no_comments   => 1,
 			schema_only              => 1,
 			section_post_data        => 1,
 			with_oids                => 1, },
@@ -1468,7 +1469,8 @@ my %tests = (
 		regexp =>
 qr/^ALTER (?!EVENT TRIGGER|LARGE OBJECT|PUBLICATION|SUBSCRIPTION)(.*) OWNER TO .*;/m,
 		like   => {       # use more-specific options above
-			no_comments              => 1, },
+			no_comments              => 1,
+			pg_dumpall_no_comments   => 1, },
 		unlike => {
 			column_inserts           => 1,
 			data_only                => 1,
@@ -1483,7 +1485,8 @@ qr/^ALTER (?!EVENT TRIGGER|LARGE OBJECT|PUBLICATION|SUBSCRIPTION)(.*) OWNER TO .
 		all_runs => 0,                                        # catch-all
 		regexp   => qr/^ALTER TABLE .* (?!OWNER TO)(.*);/m,
 		like   => {       # use more-specific options above
-			no_comments              => 1, },
+			no_comments              => 1,
+			pg_dumpall_no_comments   => 1, },
 		unlike => {
 			column_inserts           => 1,
 			pg_dumpall_globals       => 1,
@@ -2241,6 +2244,7 @@ qr/^COMMENT ON TEXT SEARCH TEMPLATE alt_ts_temp1 IS 'comment on text search temp
 			no_comments              => 1,
 			pg_dumpall_globals       => 1,
 			pg_dumpall_globals_clean => 1,
+			pg_dumpall_no_comments   => 1,
 			section_data             => 1, }, },
 
 	'COPY test_table' => {
@@ -2508,7 +2512,8 @@ qr/^COMMENT ON TEXT SEARCH TEMPLATE alt_ts_temp1 IS 'comment on text search temp
 		all_runs => 0,             # catch-all
 		regexp   => qr/^COPY /m,
 		like     => {              # use more-specific options above
-			no_comments              => 1, },
+			no_comments              => 1,
+			pg_dumpall_no_comments   => 1, },
 		unlike   => {
 			binary_upgrade           => 1,
 			column_inserts           => 1,
@@ -2627,6 +2632,7 @@ qr/^\QINSERT INTO test_table_identity (col1, col2) OVERRIDING SYSTEM VALUE VALUE
 			no_owner                 => 1,
 			only_dump_test_schema    => 1,
 			only_dump_test_table     => 1,
+			pg_dumpall_no_comments   => 1,
 			role                     => 1,
 			schema_only              => 1,
 			section_pre_data         => 1,
@@ -5328,7 +5334,8 @@ qr/CREATE TRANSFORM FOR integer LANGUAGE sql \(FROM SQL WITH FUNCTION pg_catalog
 		all_runs => 0,               # catch-all
 		regexp   => qr/^CREATE /m,
 		like     => {                # use more-specific options above
-			no_comments    => 1, },
+			no_comments    => 1, 
+			pg_dumpall_no_comments   => 1, },
 		unlike   => {
 			column_inserts => 1,
 			data_only      => 1,
@@ -5563,6 +5570,7 @@ qr/CREATE TRANSFORM FOR integer LANGUAGE sql \(FROM SQL WITH FUNCTION pg_catalog
 			only_dump_test_table     => 1,
 			pg_dumpall_dbprivs       => 1,
 			pg_dumpall_globals       => 1,
+			pg_dumpall_no_comments   => 1,
 			role                     => 1,
 			schema_only              => 1,
 			section_data             => 1,
@@ -6246,7 +6254,8 @@ qr/^GRANT SELECT ON TABLE measurement_y2006m2 TO regress_dump_test_role;/m,
 		all_runs => 0,              # catch-all
 		regexp   => qr/^GRANT /m,
 		like     => {               # use more-specific options above
-			no_comments              => 1, },
+			no_comments              => 1, 
+			pg_dumpall_no_comments   => 1, },
 		unlike   => {
 			no_privs                 => 1,
 			pg_dumpall_globals_clean => 1,
@@ -6553,7 +6562,8 @@ qr/^GRANT SELECT ON TABLE measurement_y2006m2 TO regress_dump_test_role;/m,
 		all_runs => 0,               # catch-all
 		regexp   => qr/^REVOKE /m,
 		like     => {     # use more-specific options above
-			no_comments        => 1, },
+			no_comments        => 1, 
+			pg_dumpall_no_comments   => 1, },
 		unlike   => {
 			column_inserts     => 1,
 			data_only          => 1,
