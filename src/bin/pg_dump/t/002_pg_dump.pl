@@ -192,7 +192,7 @@ my %pgdump_runs = (
 	pg_dumpall_no_comments => {
 		dump_cmd => [
 			'pg_dumpall',                   '--no-sync',
-			"--file=$tempdir/pg_dumpall_dbprivs.sql",
+			"--file=$tempdir/pg_dumpall_no_comments.sql",
 			'--no-comments', ], },
 	no_blobs => {
 		dump_cmd => [
@@ -454,7 +454,8 @@ my %tests = (
 		like => {
 			pg_dumpall_dbprivs       => 1,
 			pg_dumpall_globals       => 1,
-			pg_dumpall_globals_clean => 1, },
+			pg_dumpall_globals_clean => 1,
+			pg_dumpall_no_comments   => 1, },
 		unlike => {
 			binary_upgrade           => 1,
 			clean                    => 1,
@@ -472,7 +473,6 @@ my %tests = (
 			no_owner                 => 1,
 			only_dump_test_schema    => 1,
 			only_dump_test_table     => 1,
-			pg_dumpall_no_comments   => 1,
 			role                     => 1,
 			schema_only              => 1,
 			section_pre_data         => 1,
@@ -2628,7 +2628,8 @@ qr/^\QINSERT INTO test_table_identity (col1, col2) OVERRIDING SYSTEM VALUE VALUE
 		like         => {
 			pg_dumpall_dbprivs       => 1,
 			pg_dumpall_globals       => 1,
-			pg_dumpall_globals_clean => 1, },
+			pg_dumpall_globals_clean => 1,
+			pg_dumpall_no_comments   => 1, },
 		unlike => {
 			binary_upgrade           => 1,
 			clean                    => 1,
@@ -2646,7 +2647,6 @@ qr/^\QINSERT INTO test_table_identity (col1, col2) OVERRIDING SYSTEM VALUE VALUE
 			no_owner                 => 1,
 			only_dump_test_schema    => 1,
 			only_dump_test_table     => 1,
-			pg_dumpall_no_comments   => 1,
 			role                     => 1,
 			schema_only              => 1,
 			section_pre_data         => 1,
@@ -2795,7 +2795,9 @@ qr/CREATE CAST \(timestamp with time zone AS interval\) WITH FUNCTION pg_catalog
 		regexp       => qr/^
 			\QCREATE DATABASE dump_test WITH TEMPLATE = template0 \E
 			.*;/xm,
-		like   => { pg_dumpall_dbprivs => 1, },
+		like   => {
+			pg_dumpall_dbprivs       => 1,
+			pg_dumpall_no_comments   => 1, },
 		unlike => {
 			binary_upgrade           => 1,
 			clean                    => 1,
@@ -2815,7 +2817,6 @@ qr/CREATE CAST \(timestamp with time zone AS interval\) WITH FUNCTION pg_catalog
 			only_dump_test_table     => 1,
 			pg_dumpall_globals       => 1,
 			pg_dumpall_globals_clean => 1,
-			pg_dumpall_no_comments   => 1,
 			role                     => 1,
 			schema_only              => 1,
 			section_pre_data         => 1,
@@ -6615,7 +6616,7 @@ qr/^GRANT SELECT ON TABLE measurement_y2006m2 TO regress_dump_test_role;/m,
 		all_runs => 0,               # catch-all
 		regexp   => qr/^REVOKE /m,
 		like     => {     # use more-specific options above
-			no_comments        => 1, 
+			no_comments              => 1,
 			pg_dumpall_no_comments   => 1, },
 		unlike   => {
 			column_inserts     => 1,
