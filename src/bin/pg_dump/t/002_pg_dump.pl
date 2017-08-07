@@ -199,11 +199,11 @@ my %pgdump_runs = (
 			'pg_dump',                      '--no-sync',
 			"--file=$tempdir/no_blobs.sql", '-B',
 			'postgres', ], },
-        no_comments => {
-                dump_cmd => [
-                        'pg_dump',                      '--no-sync',
-                        "--file=$tempdir/no_comments.sql",
-                        '--no-comments',                'postgres', ], },
+	no_comments => {
+		dump_cmd => [
+			'pg_dump',                      '--no-sync',
+			"--file=$tempdir/no_comments.sql",
+			'--no-comments',                'postgres', ], },
 	no_privs => {
 		dump_cmd => [
 			'pg_dump',                      '--no-sync',
