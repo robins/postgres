@@ -5383,7 +5383,7 @@ qr/CREATE TRANSFORM FOR integer LANGUAGE sql \(FROM SQL WITH FUNCTION pg_catalog
 		all_runs => 0,               # catch-all
 		regexp   => qr/^CREATE /m,
 		like     => {                # use more-specific options above
-			no_comments    => 1, 
+			no_comments    => 1,
 			pg_dumpall_no_comments   => 1, },
 		unlike   => {
 			column_inserts => 1,
@@ -6304,7 +6304,7 @@ qr/^GRANT SELECT ON TABLE measurement_y2006m2 TO regress_dump_test_role;/m,
 		all_runs => 0,              # catch-all
 		regexp   => qr/^GRANT /m,
 		like     => {               # use more-specific options above
-			no_comments              => 1, 
+			no_comments              => 1,
 			pg_dumpall_no_comments   => 1, },
 		unlike   => {
 			no_privs                 => 1,
