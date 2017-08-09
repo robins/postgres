@@ -11,7 +11,7 @@ ALTER DATABASE | Supported
 ALTER DEFAULT PRIVILEGES | Supported
 ALTER GROUP | Supported
 ALTER SCHEMA | Supported
-ALTER TABLE | **Partial Support**
+ALTER TABLE | **Partial-Support**
 ALTER TABLE ADD COLUMN ENCODING | Unsupported
 ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
 ALTER TABLE SET FILE FORMAT format | Unsupported
@@ -21,18 +21,19 @@ ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 
 ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
 ALTER TABLE APPEND | Unsupported
 ALTER USER | Supported
-ANALYZE | **Partial Support**
+ANALYZE | **Partial-Support**
 ANALYZE VERBOSE | Unsupported
 ANALYSE PREDICATE COLUMNS | Unsupported
 ANALYZE ALL COLUMNS | Unsupported
-ANALYZE COMPRESSION | Pending Review
-BEGIN | Pending Review
-CANCEL | Pending Review
-CLOSE | Pending Review
-COMMENT | Pending Review
-COMMIT | Pending Review
+ANALYZE COMPRESSION | Unsupported
+BEGIN | Supported
+CANCEL | Unsupported
+CLOSE | Unsupported
+COMMENT | Supported
+COMMIT | Supported
 COPY | Pending Review
-CREATE DATABASE | Pending Review
+CREATE DATABASE | **Partial-Support**
+CREATE DATABASE CONNECTION LIMIT UNLIMITED | Unsupported
 CREATE EXTERNAL SCHEMA | Pending Review
 CREATE EXTERNAL TABLE | Pending Review
 CREATE FUNCTION | Pending Review
