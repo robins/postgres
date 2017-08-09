@@ -2254,10 +2254,36 @@ psql_completion(const char *text, int start, int end)
 
 	/* CREATE DATABASE */
 	else if (Matches3("CREATE", "DATABASE", MatchAny))
-		COMPLETE_WITH_LIST9("OWNER", "TEMPLATE", "ENCODING", "TABLESPACE",
+		COMPLETE_WITH_LIST10("WITH", "OWNER", "TEMPLATE", "ENCODING", "TABLESPACE",
 							"IS_TEMPLATE",
 							"ALLOW_CONNECTIONS", "CONNECTION LIMIT",
 							"LC_COLLATE", "LC_CTYPE");
+
+        /* CREATE DATABASE WITH */
+        else if (Matches4("CREATE", "DATABASE", MatchAny, "WITH"))
+                COMPLETE_WITH_LIST9("OWNER", "TEMPLATE", "ENCODING", "TABLESPACE",
+                                                        "IS_TEMPLATE",
+                                                        "ALLOW_CONNECTIONS", "CONNECTION LIMIT",
+                                                        "LC_COLLATE", "LC_CTYPE");
+
+        /* CREATE DATABASE WITH OWNER */
+        else if (Matches5("CREATE", "DATABASE", MatchAny, "WITH", "OWNER"))
+                COMPLETE_WITH_LIST8("TEMPLATE", "ENCODING", "TABLESPACE",
+                                                        "IS_TEMPLATE",
+                                                        "ALLOW_CONNECTIONS", "CONNECTION LIMIT",
+                                                        "LC_COLLATE", "LC_CTYPE");
+
+        /* CREATE DATABASE OWNER */
+        else if (Matches4("CREATE", "DATABASE", MatchAny, "OWNER"))
+                COMPLETE_WITH_LIST8("TEMPLATE", "ENCODING", "TABLESPACE",
+                                                        "IS_TEMPLATE",
+                                                        "ALLOW_CONNECTIONS", "CONNECTION LIMIT",
+                                                        "LC_COLLATE", "LC_CTYPE");
+
+
+	/* CONNECTION LIMIT -- is allowed inside CREATE DATABASE, so use TailMatches */
+	else if (TailMatches2("CONNECTION", "LIMIT"))
+		COMPLETE_WITH_CONST("UNLIMITED");
 
 	else if (Matches4("CREATE", "DATABASE", MatchAny, "TEMPLATE"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_template_databases);
