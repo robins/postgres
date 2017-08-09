@@ -1,17 +1,17 @@
-Redshift Support
+psql Auto-Complete support for Amazon Redshift
 
 NOTE: This branch is maintained as a personal effort and is not sponsored / supported by my Employer or any other third-party. This is not officially supported / endorsed by Amazon in any way.
 
-This document lists the current status of Redshift Support. Unmarked items are probably Pending Review and not necessarily Unsupported.
+This document lists the current state of psql Auto-Complete support for Redshift commands.
 
-SQL Commands | Support
+SQL Commands | Redshift Support
 :----------- |:-------:
 ABORT | Supported
 ALTER DATABASE | Supported
 ALTER DEFAULT PRIVILEGES | Supported
 ALTER GROUP | Supported
 ALTER SCHEMA | Supported
-ALTER TABLE | Partial Support
+ALTER TABLE | **Partial Support**
 ALTER TABLE ADD COLUMN ENCODING | Unsupported
 ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
 ALTER TABLE SET FILE FORMAT format | Unsupported
@@ -20,8 +20,11 @@ ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 
 ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
 ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
 ALTER TABLE APPEND | Unsupported
-ALTER USER | 
-ANALYZE | Pending Review
+ALTER USER | Supported
+ANALYZE | **Partial Support**
+ANALYZE VERBOSE | Unsupported
+ANALYSE PREDICATE COLUMNS | Unsupported
+ANALYZE ALL COLUMNS | Unsupported
 ANALYZE COMPRESSION | Pending Review
 BEGIN | Pending Review
 CANCEL | Pending Review
