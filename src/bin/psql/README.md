@@ -4,11 +4,11 @@ NOTE: This branch is maintained as a personal effort and is not sponsored / supp
 
 
 Support Legend | Description
--------------- | -----------
+:-------------:| -----------
 Native | All combinations supported by Native psql
 Unsupported | Not supported (yet)
 Partial | Only some combinations supported
-**Yes** | Feature supported (partly) by this branch
+**Yes** | Supported by this branch (not Native)
 
 
 
