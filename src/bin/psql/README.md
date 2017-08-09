@@ -20,21 +20,21 @@ ALTER DEFAULT PRIVILEGES | Native
 ALTER GROUP | Native
 ALTER SCHEMA | Native
 ALTER TABLE | Partial
-ALTER TABLE ADD COLUMN ENCODING | Unsupported
-ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
-ALTER TABLE SET FILE FORMAT format | Unsupported
-ALTER TABLE SET TABLE PROPERTIES ( 'numRows'='row_count' ) | Unsupported
-ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 's3://bucket/folder' | Unsupported
-ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
-ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
-ALTER TABLE APPEND | Unsupported
+* ALTER TABLE ADD COLUMN ENCODING | Unsupported
+* ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
+* ALTER TABLE SET FILE FORMAT format | Unsupported
+* ALTER TABLE SET TABLE PROPERTIES ( 'numRows'='row_count' ) | Unsupported
+* ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 's3://bucket/folder' | Unsupported
+* ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
+* ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
+* ALTER TABLE APPEND | Unsupported
 ALTER USER | Supported
-ALTER USER [NO]CREATEUSER | **Yes**
+* ALTER USER [NO]CREATEUSER | **Yes**
 ANALYZE | Partial
-ANALYZE VERBOSE | Unsupported
-ANALYSE PREDICATE COLUMNS | Unsupported
-ANALYZE ALL COLUMNS | Unsupported
-ANALYZE COMPRESSION | Unsupported
+* ANALYZE VERBOSE | Unsupported
+* ANALYSE PREDICATE COLUMNS | Unsupported
+* ANALYZE ALL COLUMNS | Unsupported
+* ANALYZE COMPRESSION | Unsupported
 BEGIN | Native
 CANCEL | Unsupported
 CLOSE | Unsupported
@@ -42,94 +42,94 @@ COMMENT | Native
 COMMIT | Native
 COPY | Unsupported
 CREATE DATABASE | Partial
-CREATE DATABASE CONNECTION LIMIT UNLIMITED | Unsupported
+* CREATE DATABASE CONNECTION LIMIT UNLIMITED | Unsupported
 CREATE EXTERNAL SCHEMA | Unsupported
 CREATE EXTERNAL TABLE | Unsupported
 CREATE FUNCTION | Partial
-CREATE OR REPLACE FUNCTION | Unsupported
+* CREATE OR REPLACE FUNCTION | Unsupported
 CREATE GROUP | Native
 CREATE LIBRARY | Unsupported
 CREATE SCHEMA | Partial
-CREATE SCHEMA AUTHORIZATION | Unsupported
-CREATE SCHEMA IF NOT EXISTS | Unsupported
+* CREATE SCHEMA AUTHORIZATION | Unsupported
+* CREATE SCHEMA IF NOT EXISTS | Unsupported
 CREATE TABLE | Partial
-CREATE LOCAL TABLE | Unsupported
-CREATE TABLE IF | Unsupported
-CREATE TABLE BACKUP | Unsupported
-CREATE TABLE DISTSTYLE | Unsupported
-CREATE TABLE DISTKEY | Unsupported
-CREATE TABLE SORTKEY | Unsupported
-CREATE TABLE <similarly many Variants> | Unsupported
+* CREATE LOCAL TABLE | Unsupported
+* CREATE TABLE IF | Unsupported
+* CREATE TABLE BACKUP | Unsupported
+* CREATE TABLE DISTSTYLE | Unsupported
+* CREATE TABLE DISTKEY | Unsupported
+* CREATE TABLE SORTKEY | Unsupported
+* CREATE TABLE <similarly many Variants> | Unsupported
 CREATE TABLE AS | Unsupported
 CREATE USER | Partial
-CREATE USER [NO]CREATEUSER | Unsupported
+* CREATE USER [NO]CREATEUSER | Unsupported
 CREATE VIEW | Partial
-CREATE OR REPLACE VIEW | Unsupported
+* CREATE OR REPLACE VIEW | Unsupported
 DEALLOCATE | Partial
-DEALLOCATE PREPARE | Unsupported
+* DEALLOCATE PREPARE | Unsupported
 DECLARE | Native
 DELETE | Partial
-DELETE FROM USING WHERE | Unsupported
+* DELETE FROM USING WHERE | Unsupported
 DROP DATABASE | Native
 DROP FUNCTION | Native
 DROP GROUP | Native
 DROP LIBRARY | Unsupported
 DROP SCHEMA | Partial
-DROP SCHEMA IF EXISTS | Unsupported
+* DROP SCHEMA IF EXISTS | Unsupported
 DROP TABLE | Partial
-DROP TABLE | Unsupported
+* DROP TABLE | Unsupported
 DROP USER | Partial
-DROP USER IF EXISTS | Unsupported
+* DROP USER IF EXISTS | Unsupported
 DROP VIEW | Partial
-DROP VIEW IF EXISTS | Unsupported
+* DROP VIEW IF EXISTS | Unsupported
 END | Native
 EXECUTE | Native
 EXPLAIN | Native
 FETCH | Partial
-FETCH NEXT | Unsupported
-FETCH ALL | Unsupported
+* FETCH NEXT | Unsupported
+* FETCH ALL | Unsupported
 GRANT | Partial
-GRANT ALL PRIVILEGES | Unsupported
-GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
-GRANT ALL ON TABLE TO GROUP | Unsupported
-GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
-GRANT CREATE ALL | Unsupported
-GRANT CREATE ON | Unsupported
+* GRANT ALL PRIVILEGES | Unsupported
+* GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
+* GRANT ALL ON TABLE TO GROUP | Unsupported
+* GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
+* GRANT CREATE ALL | Unsupported
+* GRANT CREATE ON | Unsupported
 GRANT <similarly many variants> | Unsupported
 INSERT | Partial
-INSERT INTO DEFAULT VALUES | Unsupported
+* INSERT INTO DEFAULT VALUES | Unsupported
 LOCK | Native
 PREPARE | Partial
-PREPARE AS | Unsupported
+* PREPARE AS | Unsupported
 RESET | Partial
-RESET ALL | Unsupported
+* RESET ALL | Unsupported
 REVOKE | Partial
-REVOKE GRANT | Unsupported
-REVOKE SELECT ALL PRIVILEGES | Unsupported
-REVOKE <similarly many variants> | Unsupported
+* REVOKE GRANT | Unsupported
+* REVOKE SELECT ALL PRIVILEGES | Unsupported
+* REVOKE <similarly many variants> | Unsupported
 ROLLBACK | Native
 SELECT | Partial
-SELECT TOP | Unsupported
-SELECT ALL | Unsupported
-SELECT DISTINCT | Unsupported
-SELECT <similarly many Variants> | Unsupported
+* SELECT TOP | Unsupported
+* SELECT ALL | Unsupported
+* SELECT DISTINCT | Unsupported
+* SELECT <similarly many Variants> | Unsupported
 SELECT INTO | Unsupported
 SET | Partial
-SET ALL | Unsupported
-SET SEED TO | Unsupported
-SET SESSION AUTHORIZATION | Unsupported
-SET SESSION CHARACTERISTICS | Native
+* SET ALL | Unsupported
+* SET SEED TO | Unsupported
+* SET SESSION AUTHORIZATION | Unsupported
+* SET SESSION CHARACTERISTICS | Native
 SHOW | Partial
-SHOW ALL | Unsupported
+* SHOW ALL | Unsupported
 START TRANSACTION | Native
 TRUNCATE | Partial
-TRUNCATE TABLE | Unsupported
+* TRUNCATE TABLE | Unsupported
 UNLOAD | Unsupported
 UPDATE | Unsupported
-UPDATE SET FROM | Unsupported
-UPDATE SET WHERE | Unsupported
+* UPDATE SET FROM | Unsupported
+* UPDATE SET WHERE | Unsupported
 VACUUM | Partial
-VACUUM SORT | Unsupported
-VACUUM DELETE | Unsupported
-VACUUM REINDEX | Unsupported
-VACUUM TO | Unsupported
+* VACUUM SORT | Unsupported
+* VACUUM DELETE | Unsupported
+* VACUUM REINDEX | Unsupported
+* VACUUM TO | Unsupported
