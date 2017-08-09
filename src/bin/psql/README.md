@@ -9,7 +9,7 @@ Native | All combinations supported by Native psql
 Unsupported | Not supported (yet)
 Partial | Only some combinations supported
 **Yes** | Supported by this branch (not Native)
-
+Supported | All combinations (now) supported by this branch
 
 
 SQL Commands | Redshift Support
@@ -28,7 +28,7 @@ ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 
 ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
 ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
 ALTER TABLE APPEND | Unsupported
-ALTER USER | **Yes**
+ALTER USER | Supported
 ALTER USER [NO]CREATEUSER | **Yes**
 ANALYZE | Partial
 ANALYZE VERBOSE | Unsupported
