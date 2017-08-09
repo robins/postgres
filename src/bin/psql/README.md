@@ -20,7 +20,8 @@ ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 
 ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
 ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
 ALTER TABLE APPEND | Unsupported
-ALTER USER | Supported
+ALTER USER | **Partial-Support**
+ALTER USER [NO]CREATEUSER | Unsupported
 ANALYZE | **Partial-Support**
 ANALYZE VERBOSE | Unsupported
 ANALYSE PREDICATE COLUMNS | Unsupported
@@ -34,26 +35,36 @@ COMMIT | Supported
 COPY | Pending Review
 CREATE DATABASE | **Partial-Support**
 CREATE DATABASE CONNECTION LIMIT UNLIMITED | Unsupported
-CREATE EXTERNAL SCHEMA | Pending Review
-CREATE EXTERNAL TABLE | Pending Review
-CREATE FUNCTION | Pending Review
-CREATE GROUP | Pending Review
-CREATE LIBRARY | Pending Review
-CREATE SCHEMA | Pending Review
+CREATE EXTERNAL SCHEMA | Unsupported
+CREATE EXTERNAL TABLE | Unsupported
+CREATE FUNCTION | **Partial-Support**
+CREATE OR REPLACE FUNCTION | Unsupported
+CREATE GROUP | Supported
+CREATE LIBRARY | Unsupported
+CREATE SCHEMA | **Partial-Support**
+CREATE SCHEMA AUTHORIZATION | Unsupported
+CREATE SCHEMA IF NOT EXISTS | Unsupported
 CREATE TABLE | Pending Review
 CREATE TABLE AS | Pending Review
-CREATE USER | Pending Review
-CREATE VIEW | Pending Review
-DEALLOCATE | Pending Review
-DECLARE | Pending Review
-DELETE | Pending Review
-DROP DATABASE | Pending Review
-DROP FUNCTION | Pending Review
-DROP GROUP | Pending Review
-DROP LIBRARY | Pending Review
-DROP SCHEMA | Pending Review
-DROP TABLE | Pending Review
-DROP USER | Pending Review
+CREATE USER | **Partial-Support**
+CREATE USER [NO]CREATEUSER | Unsupported
+CREATE VIEW | **Partial-Support**
+CREATE OR REPLACE VIEW | Unsupported
+DEALLOCATE | **Partial-Support**
+DEALLOCATE PREPARE | Unsupported
+DECLARE | Supported
+DELETE | **Partial-Support**
+DELETE FROM USING WHERE | Unsupported
+DROP DATABASE | Supported
+DROP FUNCTION | Supported
+DROP GROUP | Supported
+DROP LIBRARY | Unsupported
+DROP SCHEMA | **Partial-Support**
+DROP SCHEMA IF EXISTS | Unsupported
+DROP TABLE | **Partial-Support**
+DROP TABLE | Unsupported
+DROP USER | **Partial-Support**
+DROP USER IF EXISTS | Unsupported
 DROP VIEW | Pending Review
 END | Pending Review
 EXECUTE | Pending Review
