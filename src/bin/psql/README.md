@@ -20,8 +20,7 @@ ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 
 ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
 ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
 ALTER TABLE APPEND | Unsupported
-ALTER USER | **Partial-Support**
-ALTER USER [NO]CREATEUSER | Unsupported
+ALTER USER | Supported
 ANALYZE | **Partial-Support**
 ANALYZE VERBOSE | Unsupported
 ANALYSE PREDICATE COLUMNS | Unsupported
