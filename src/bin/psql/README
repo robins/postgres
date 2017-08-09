@@ -1,19 +1,17 @@
-Redshift Support - Status Report
+Redshift Support
 
-This document lists the current status of Redshift Support 
+NOTE: This branch is maintained as a personal effort and is not sponsored / supported by my Employer or any other third-party. This is not officially supported / endorsed by Amazon in any way.
 
-Legend
-Pending Review
-Supported
-Partially Supported
-Not Supported
+This document lists the current status of Redshift Support. Unmarked items are probably Pending Review and not necessarily Unsupported.
 
 SQL Commands
-ABORT
-ALTER DATABASE
-ALTER DEFAULT PRIVILEGES
-ALTER GROUP
-ALTER SCHEMA
+============
+
+ABORT - Supported
+ALTER DATABASE - Supported
+ALTER DEFAULT PRIVILEGES - Supported
+ALTER GROUP - Supported
+ALTER SCHEMA - Supported
 ALTER TABLE
 ALTER TABLE APPEND
 ALTER USER
