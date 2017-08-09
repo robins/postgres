@@ -67,7 +67,7 @@ DROP USER | **Partial-Support**
 DROP USER IF EXISTS | Unsupported
 DROP VIEW | **Partial-Support**
 DROP VIEW IF EXISTS | Unsupported
-END | Pending Review
+END | Supported
 EXECUTE | Pending Review
 EXPLAIN | Pending Review
 FETCH | Pending Review
