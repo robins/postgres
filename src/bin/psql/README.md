@@ -4,25 +4,23 @@ NOTE: This branch is maintained as a personal effort and is not sponsored / supp
 
 This document lists the current status of Redshift Support. Unmarked items are probably Pending Review and not necessarily Unsupported.
 
-SQL Commands
-============
-
-ABORT - Supported
-ALTER DATABASE - Supported
-ALTER DEFAULT PRIVILEGES - Supported
-ALTER GROUP - Supported
-ALTER SCHEMA - Supported
-ALTER TABLE - Supported except
-- ALTER TABLE ADD COLUMN ENCODING - Unsupported
-- ALTER TABLE SET LOCATION 's3://bucket/folder' - Unsupported
-- ALTER TABLE SET FILE FORMAT format - Unsupported
-- ALTER TABLE SET TABLE PROPERTIES ( 'numRows'='row_count' ) - Unsupported
-- ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 's3://bucket/folder' - Unsupported
-- ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' - Unsupported
-- ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) - Unsupported
-
-ALTER TABLE APPEND - Unsupported
-ALTER USER - 
+SQL Commands | Support
+:----------- |:-------:
+ABORT | Supported
+ALTER DATABASE | Supported
+ALTER DEFAULT PRIVILEGES | Supported
+ALTER GROUP | Supported
+ALTER SCHEMA | Supported
+ALTER TABLE | Partial Support
+- ALTER TABLE ADD COLUMN ENCODING | Unsupported
+- ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
+- ALTER TABLE SET FILE FORMAT format | Unsupported
+- ALTER TABLE SET TABLE PROPERTIES ( 'numRows'='row_count' ) | Unsupported
+- ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 's3://bucket/folder' | Unsupported
+- ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
+- ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
+ALTER TABLE APPEND | Unsupported
+ALTER USER | 
 ANALYZE
 ANALYZE COMPRESSION
 BEGIN
