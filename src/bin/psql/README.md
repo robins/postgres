@@ -12,8 +12,23 @@ Partial | Only some combinations supported
 Supported | All combinations (now) supported by this branch
 
 
-SQL Commands | Redshift Support
-:----------- |:-------:
+
+Parameters | Supported State
+:-------------:| -----------
+analyze_threshold_percent | Unsupported
+datestyle | Native
+enable_user_activity_logging | Unsupported
+extra_float_digits | Native
+query_group | Unsupported
+require_ssl | Unsupported
+search_path | Native
+statement_timeout | Native
+wlm_json_configuration | Unsupported
+
+
+
+SQL Commands | Supported State
+:----------- |:--------------:
 ABORT | Native
 ALTER DATABASE | Native
 ALTER DEFAULT PRIVILEGES | Native
@@ -133,3 +148,6 @@ VACUUM SORT | Unsupported
 VACUUM DELETE | Unsupported
 VACUUM REINDEX | Unsupported
 VACUUM TO | Unsupported
+
+
+
