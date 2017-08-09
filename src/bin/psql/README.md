@@ -65,7 +65,8 @@ DROP TABLE | **Partial-Support**
 DROP TABLE | Unsupported
 DROP USER | **Partial-Support**
 DROP USER IF EXISTS | Unsupported
-DROP VIEW | Pending Review
+DROP VIEW | **Partial-Support**
+DROP VIEW IF EXISTS | Unsupported
 END | Pending Review
 EXECUTE | Pending Review
 EXPLAIN | Pending Review
