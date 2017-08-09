@@ -12,66 +12,65 @@ ALTER DEFAULT PRIVILEGES | Supported
 ALTER GROUP | Supported
 ALTER SCHEMA | Supported
 ALTER TABLE | Partial Support
-- ALTER TABLE ADD COLUMN ENCODING | Unsupported
-- ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
-- ALTER TABLE SET FILE FORMAT format | Unsupported
-- ALTER TABLE SET TABLE PROPERTIES ( 'numRows'='row_count' ) | Unsupported
-- ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 's3://bucket/folder' | Unsupported
-- ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
-- ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
+ALTER TABLE ADD COLUMN ENCODING | Unsupported
+ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
+ALTER TABLE SET FILE FORMAT format | Unsupported
+ALTER TABLE SET TABLE PROPERTIES ( 'numRows'='row_count' ) | Unsupported
+ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 's3://bucket/folder' | Unsupported
+ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
+ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
 ALTER TABLE APPEND | Unsupported
 ALTER USER | 
-ANALYZE
-ANALYZE COMPRESSION
-BEGIN
-CANCEL
-CLOSE
-COMMENT
-COMMIT
-COPY
-CREATE DATABASE
-CREATE EXTERNAL SCHEMA
-CREATE EXTERNAL TABLE
-CREATE FUNCTION
-CREATE GROUP
-CREATE LIBRARY
-CREATE SCHEMA
-CREATE TABLE
-CREATE TABLE AS
-CREATE USER
-CREATE VIEW
-DEALLOCATE
-DECLARE
-DELETE
-DROP DATABASE
-DROP FUNCTION
-DROP GROUP
-DROP LIBRARY
-DROP SCHEMA
-DROP TABLE
-DROP USER
-DROP VIEW
-END
-EXECUTE
-EXPLAIN
-FETCH
-GRANT
-INSERT
-LOCK
-PREPARE
-RESET
-REVOKE
-ROLLBACK
-SELECT
-SELECT INTO
-SET
-SET SESSION AUTHORIZATION
-SET SESSION CHARACTERISTICS
-SHOW
-START TRANSACTION
-TRUNCATE
-UNLOAD
-UPDATE
-VACUUM
-
+ANALYZE | Pending Review
+ANALYZE COMPRESSION | Pending Review
+BEGIN | Pending Review
+CANCEL | Pending Review
+CLOSE | Pending Review
+COMMENT | Pending Review
+COMMIT | Pending Review
+COPY | Pending Review
+CREATE DATABASE | Pending Review
+CREATE EXTERNAL SCHEMA | Pending Review
+CREATE EXTERNAL TABLE | Pending Review
+CREATE FUNCTION | Pending Review
+CREATE GROUP | Pending Review
+CREATE LIBRARY | Pending Review
+CREATE SCHEMA | Pending Review
+CREATE TABLE | Pending Review
+CREATE TABLE AS | Pending Review
+CREATE USER | Pending Review
+CREATE VIEW | Pending Review
+DEALLOCATE | Pending Review
+DECLARE | Pending Review
+DELETE | Pending Review
+DROP DATABASE | Pending Review
+DROP FUNCTION | Pending Review
+DROP GROUP | Pending Review
+DROP LIBRARY | Pending Review
+DROP SCHEMA | Pending Review
+DROP TABLE | Pending Review
+DROP USER | Pending Review
+DROP VIEW | Pending Review
+END | Pending Review
+EXECUTE | Pending Review
+EXPLAIN | Pending Review
+FETCH | Pending Review
+GRANT | Pending Review
+INSERT | Pending Review
+LOCK | Pending Review
+PREPARE | Pending Review
+RESET | Pending Review
+REVOKE | Pending Review
+ROLLBACK | Pending Review
+SELECT | Pending Review
+SELECT INTO | Pending Review
+SET | Pending Review
+SET SESSION AUTHORIZATION | Pending Review
+SET SESSION CHARACTERISTICS | Pending Review
+SHOW | Pending Review
+START TRANSACTION | Pending Review
+TRUNCATE | Pending Review
+UNLOAD | Pending Review
+UPDATE | Pending Review
+VACUUM | Pending Review
 
