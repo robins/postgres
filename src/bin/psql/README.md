@@ -14,7 +14,7 @@ Supported | All combinations (now) supported by this branch
 
 
 Parameters | Supported State
-:-------------:| -----------
+:---------:|:--------------:
 analyze_threshold_percent | Unsupported
 datestyle | Native
 enable_user_activity_logging | Unsupported
@@ -56,8 +56,11 @@ CLOSE | Unsupported
 COMMENT | Native
 COMMIT | Native
 COPY | Unsupported
-CREATE DATABASE | Partial
-CREATE DATABASE CONNECTION LIMIT UNLIMITED | Unsupported
+CREATE DATABASE | Supported
+CREATE DATABASE CONNECTION LIMIT UNLIMITED | **Yes**
+CREATE DATABASE WITH | **Yes**
+CREATE DATABASE WITH OWNER | **Yes**
+CREATE DATABASE OWNER | **Yes**
 CREATE EXTERNAL SCHEMA | Unsupported
 CREATE EXTERNAL TABLE | Unsupported
 CREATE FUNCTION | Partial
