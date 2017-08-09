@@ -32,7 +32,7 @@ CANCEL | Unsupported
 CLOSE | Unsupported
 COMMENT | Supported
 COMMIT | Supported
-COPY | Pending Review
+COPY | Unsupported
 CREATE DATABASE | **Partial-Support**
 CREATE DATABASE CONNECTION LIMIT UNLIMITED | Unsupported
 CREATE EXTERNAL SCHEMA | Unsupported
@@ -44,7 +44,14 @@ CREATE LIBRARY | Unsupported
 CREATE SCHEMA | **Partial-Support**
 CREATE SCHEMA AUTHORIZATION | Unsupported
 CREATE SCHEMA IF NOT EXISTS | Unsupported
-CREATE TABLE | Pending Review
+CREATE TABLE | **Partial-Support**
+CREATE LOCAL TABLE | Unsupported
+CREATE TABLE IF | Unsupported
+CREATE TABLE BACKUP | Unsupported
+CREATE TABLE DISTSTYLE | Unsupported
+CREATE TABLE DISTKEY | Unsupported
+CREATE TABLE SORTKEY | Unsupported
+CREATE TABLE <similarly many Variants> | Unsupported
 CREATE TABLE AS | Pending Review
 CREATE USER | **Partial-Support**
 CREATE USER [NO]CREATEUSER | Unsupported
@@ -68,25 +75,46 @@ DROP USER IF EXISTS | Unsupported
 DROP VIEW | **Partial-Support**
 DROP VIEW IF EXISTS | Unsupported
 END | Supported
-EXECUTE | Pending Review
-EXPLAIN | Pending Review
-FETCH | Pending Review
-GRANT | Pending Review
+EXECUTE | Supported
+EXPLAIN | Supported
+FETCH | **Partial-Support**
+FETCH NEXT | Unsupported
+FETCH ALL | Unsupported
+GRANT | **Partial-Support**
+GRANT ALL PRIVILEGES | Unsupported
+GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
+GRANT ALL ON TABLE TO GROUP | Unsupported
+GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
+GRANT CREATE ALL | Unsupported
+GRANT CREATE ON | Unsupported
+GRANT <similarly many variants> | Unsupported
 INSERT | Pending Review
-LOCK | Pending Review
-PREPARE | Pending Review
-RESET | Pending Review
-REVOKE | Pending Review
-ROLLBACK | Pending Review
+LOCK | Supported
+PREPARE | **Partial-Support**
+PREPARE AS | Unsupported
+RESET | **Partial-Support**
+RESET ALL | Unsupported
+REVOKE | **Partial-Support**
+REVOKE GRANT | Unsupported
+REVOKE SELECT ALL PRIVILEGES | Unsupported
+REVOKE <similarly many variants> | Unsupported
+ROLLBACK | Supported
 SELECT | Pending Review
-SELECT INTO | Pending Review
-SET | Pending Review
-SET SESSION AUTHORIZATION | Pending Review
-SET SESSION CHARACTERISTICS | Pending Review
-SHOW | Pending Review
-START TRANSACTION | Pending Review
-TRUNCATE | Pending Review
+SELECT INTO | Unsupported
+SET | **Partial-Support**
+SET ALL | Unsupported
+SET SEED TO | Unsupported
+SET SESSION AUTHORIZATION | Unsupported
+SET SESSION CHARACTERISTICS | Supported
+SHOW | **Partial-Support**
+SHOW ALL | Unsupported
+START TRANSACTION | Supported
+TRUNCATE | **Partial-Support**
+TRUNCATE TABLE | Unsupported
 UNLOAD | Pending Review
 UPDATE | Pending Review
-VACUUM | Pending Review
-
+VACUUM | **Partial-Support**
+VACUUM SORT | Unsupported
+VACUUM DELETE | Unsupported
+VACUUM REINDEX | Unsupported
+VACUUM TO | Unsupported
