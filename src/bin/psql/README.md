@@ -1,8 +1,14 @@
-psql Auto-Complete support for Amazon Redshift
+This document shows the current state of psql's auto-complete support for Amazon Redshift
 
 NOTE: This branch is maintained as a personal effort and is not sponsored / supported by my Employer or any other third-party. This is not officially supported / endorsed by Amazon in any way.
 
-This document lists the current state of psql Auto-Complete support for Redshift commands.
+Support Legend | Description
+-------------- | -----------
+Supported | All possible combinations are supported by psql's auto-complete feature
+Unsupported | SQL Command not supported
+Partial-Support | Only some possible combinations are supported by psql's auto-complete feature
+
+
 
 SQL Commands | Redshift Support
 :----------- |:-------:
