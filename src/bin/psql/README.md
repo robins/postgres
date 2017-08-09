@@ -52,7 +52,7 @@ CREATE TABLE DISTSTYLE | Unsupported
 CREATE TABLE DISTKEY | Unsupported
 CREATE TABLE SORTKEY | Unsupported
 CREATE TABLE <similarly many Variants> | Unsupported
-CREATE TABLE AS | Pending Review
+CREATE TABLE AS | Unsupported
 CREATE USER | **Partial-Support**
 CREATE USER [NO]CREATEUSER | Unsupported
 CREATE VIEW | **Partial-Support**
@@ -88,7 +88,8 @@ GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
 GRANT CREATE ALL | Unsupported
 GRANT CREATE ON | Unsupported
 GRANT <similarly many variants> | Unsupported
-INSERT | Pending Review
+INSERT | **Partial-Support**
+INSERT INTO DEFAULT VALUES | Unsupported
 LOCK | Supported
 PREPARE | **Partial-Support**
 PREPARE AS | Unsupported
@@ -99,7 +100,11 @@ REVOKE GRANT | Unsupported
 REVOKE SELECT ALL PRIVILEGES | Unsupported
 REVOKE <similarly many variants> | Unsupported
 ROLLBACK | Supported
-SELECT | Pending Review
+SELECT | **Partial-Support**
+SELECT TOP | Unsupported
+SELECT ALL | Unsupported
+SELECT DISTINCT | Unsupported
+SELECT <similarly many Variants> | Unsupported
 SELECT INTO | Unsupported
 SET | **Partial-Support**
 SET ALL | Unsupported
@@ -111,8 +116,10 @@ SHOW ALL | Unsupported
 START TRANSACTION | Supported
 TRUNCATE | **Partial-Support**
 TRUNCATE TABLE | Unsupported
-UNLOAD | Pending Review
-UPDATE | Pending Review
+UNLOAD | Unsupported
+UPDATE | Unsupported
+UPDATE SET FROM | Unsupported
+UPDATE SET WHERE | Unsupported
 VACUUM | **Partial-Support**
 VACUUM SORT | Unsupported
 VACUUM DELETE | Unsupported
