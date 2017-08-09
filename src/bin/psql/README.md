@@ -2,11 +2,13 @@ This document shows the current state of psql's auto-complete support for Amazon
 
 NOTE: This branch is maintained as a personal effort and is not sponsored / supported by my Employer or any other third-party. This is not officially supported / endorsed by Amazon in any way.
 
+
 Support Legend | Description
 -------------- | -----------
 Supported | All possible combinations are supported by psql's auto-complete feature
 Unsupported | SQL Command not supported
 Partial-Support | Only some possible combinations are supported by psql's auto-complete feature
+
 
 
 
@@ -27,7 +29,7 @@ ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 
 ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
 ALTER TABLE APPEND | Unsupported
 ALTER USER | Yes
-ALTER USER [NO]CREATEROLE | Yes
+ALTER USER [NO]CREATEUSER | Yes
 ANALYZE | **Partial-Support**
 ANALYZE VERBOSE | Unsupported
 ANALYSE PREDICATE COLUMNS | Unsupported
