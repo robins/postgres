@@ -423,6 +423,21 @@ static const SchemaQuery Query_for_list_of_indexes = {
 	NULL
 };
 
+static const SchemaQuery Query_for_list_of_libraries = {
+        /* catname */
+        "pg_catalog.pg_class c",
+        /* selcondition */
+        "c.relkind IN (" CppAsString2(RELKIND_INDEX) ")",
+        /* viscondition */
+        "pg_catalog.pg_table_is_visible(c.oid)",
+        /* namespace */
+        "c.relnamespace",
+        /* result */
+        "pg_catalog.quote_ident(c.relname)",
+        /* qualresult */
+        NULL
+};
+
 static const SchemaQuery Query_for_list_of_sequences = {
 	/* catname */
 	"pg_catalog.pg_class c",
@@ -1026,10 +1041,13 @@ static const pgsql_thing_t words_after_create[] = {
 	{"INDEX", NULL, &Query_for_list_of_indexes},
 	{"LANGUAGE", Query_for_list_of_languages},
 	{"LARGE OBJECT", NULL, NULL, THING_NO_CREATE | THING_NO_DROP},
+	{"LIBRARY", NULL, NULL, THING_NO_ALTER},
 	{"MATERIALIZED VIEW", NULL, &Query_for_list_of_matviews},
 	{"OPERATOR", NULL, NULL},	/* Querying for this is probably not such a
 								 * good idea. */
 	{"OR REPLACE FUNCTION", NULL, &Query_for_list_of_functions},
+	{"OR REPLACE LIBRARY", NULL, &Query_for_list_of_libraries},
+	{"OR REPLACE VIEW", NULL, &Query_for_list_of_views},
 	{"OWNED", NULL, NULL, THING_NO_CREATE | THING_NO_ALTER},	/* for DROP OWNED BY ... */
 	{"PARSER", Query_for_list_of_ts_parsers, NULL, THING_NO_SHOW},
 	{"POLICY", NULL, NULL},
@@ -2683,6 +2701,8 @@ psql_completion(const char *text, int start, int end)
 
 /* DEALLOCATE */
 	else if (Matches1("DEALLOCATE"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_prepared_statements, "UNION SELECT 'PREPARE'");
+	else if (Matches1("DEALLOCATE", "PREPARE"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_prepared_statements);
 
 /* DECLARE */
@@ -2702,6 +2722,8 @@ psql_completion(const char *text, int start, int end)
 	/* Complete DELETE FROM <table> */
 	else if (TailMatches3("DELETE", "FROM", MatchAny))
 		COMPLETE_WITH_LIST2("USING", "WHERE");
+	else if (TailMatches4("DELETE", "FROM", MatchAny, "USING"))
+		COMPLETE_WITH_LIST("WHERE");
 	/* XXX: implement tab completion for DELETE ... USING */
 
 /* DISCARD */
