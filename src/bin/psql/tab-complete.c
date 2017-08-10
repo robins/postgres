@@ -1029,6 +1029,7 @@ static const pgsql_thing_t words_after_create[] = {
 	{"MATERIALIZED VIEW", NULL, &Query_for_list_of_matviews},
 	{"OPERATOR", NULL, NULL},	/* Querying for this is probably not such a
 								 * good idea. */
+	{"OR REPLACE FUNCTION", NULL, &Query_for_list_of_functions},
 	{"OWNED", NULL, NULL, THING_NO_CREATE | THING_NO_ALTER},	/* for DROP OWNED BY ... */
 	{"PARSER", Query_for_list_of_ts_parsers, NULL, THING_NO_SHOW},
 	{"POLICY", NULL, NULL},
@@ -2241,7 +2242,7 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST5("HEADER", "QUOTE", "ESCAPE", "FORCE QUOTE",
 							"FORCE NOT NULL");
 
-	/* CREATE ACCESS METHOD */
+/* CREATE ACCESS METHOD */
 	/* Complete "CREATE ACCESS METHOD <name>" */
 	else if (Matches4("CREATE", "ACCESS", "METHOD", MatchAny))
 		COMPLETE_WITH_CONST("TYPE");
@@ -2252,7 +2253,7 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches6("CREATE", "ACCESS", "METHOD", MatchAny, "TYPE", MatchAny))
 		COMPLETE_WITH_CONST("HANDLER");
 
-	/* CREATE DATABASE */
+/* CREATE DATABASE */
 	else if (Matches3("CREATE", "DATABASE", MatchAny))
 		COMPLETE_WITH_LIST10("WITH", "OWNER", "TEMPLATE", "ENCODING", "TABLESPACE",
 							"IS_TEMPLATE",
@@ -2288,7 +2289,7 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches4("CREATE", "DATABASE", MatchAny, "TEMPLATE"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_template_databases);
 
-	/* CREATE EXTENSION */
+/* CREATE EXTENSION */
 	/* Complete with available extensions rather than installed ones. */
 	else if (Matches2("CREATE", "EXTENSION"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_available_extensions);
@@ -2302,7 +2303,7 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_QUERY(Query_for_list_of_available_extension_versions);
 	}
 
-	/* CREATE FOREIGN */
+/* CREATE FOREIGN */
 	else if (Matches2("CREATE", "FOREIGN"))
 		COMPLETE_WITH_LIST2("DATA WRAPPER", "TABLE");
 
@@ -2363,7 +2364,7 @@ psql_completion(const char *text, int start, int end)
 			 !TailMatches4("FOR", MatchAny, MatchAny, MatchAny))
 		COMPLETE_WITH_CONST("(");
 
-	/* CREATE POLICY */
+/* CREATE POLICY */
 	/* Complete "CREATE POLICY <name> ON" */
 	else if (Matches3("CREATE", "POLICY", MatchAny))
 		COMPLETE_WITH_CONST("ON");
