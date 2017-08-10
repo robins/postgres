@@ -427,7 +427,7 @@ static const SchemaQuery Query_for_list_of_libraries = {
         /* catname */
         "pg_catalog.pg_class c",
         /* selcondition */
-        "c.relkind IN (" CppAsString2(RELKIND_INDEX) ")",
+        "c.relkind IN (" CppAsString2(RELKIND_LIBRARY) ")",
         /* viscondition */
         "pg_catalog.pg_table_is_visible(c.oid)",
         /* namespace */
@@ -2382,6 +2382,24 @@ psql_completion(const char *text, int start, int end)
 			 !TailMatches4("FOR", MatchAny, MatchAny, MatchAny))
 		COMPLETE_WITH_CONST("(");
 
+/* CREATE LIBRARY */
+	else if (Matches2("CREATE", "LIBRARY"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_libraries, NULL);
+	else if (Matches4("CREATE", "OR", "REPLACE", "LIBRARY"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_libraries, NULL);
+	else if (Matches5("CREATE", "OR", "REPLACE", "LIBRARY", MatchAny))
+		COMPLETE_WITH_CONST("LANGUAGE plpythonu FROM");
+	else if (Matches1("CREATE") && TailMatches5("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny))
+		COMPLETE_WITH_CONST("AUTHORIZATION");
+	else if (Matches1("CREATE") && TailMatches6("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION"))
+		COMPLETE_WITH_CONST("REGION");
+	else if (Matches1("CREATE") && TailMatches6("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION", "REGION"))
+		COMPLETE_WITH_CONST("AS");
+	else if (Matches1("CREATE") && TailMatches6("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION", "REGION"))
+		COMPLETE_WITH_CONST("AS");
+
+	// XXX See if you can add Regions here!?
+
 /* CREATE POLICY */
 	/* Complete "CREATE POLICY <name> ON" */
 	else if (Matches3("CREATE", "POLICY", MatchAny))
@@ -2766,6 +2784,10 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
 	else if (Matches4("DROP", "INDEX", "CONCURRENTLY", MatchAny))
 		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
+
+	/* DROP LIBRARY */
+	else if (Matches2("DROP", "LIBRARY"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_libraries, NULL);
 
 	/* DROP MATERIALIZED VIEW */
 	else if (Matches2("DROP", "MATERIALIZED"))
