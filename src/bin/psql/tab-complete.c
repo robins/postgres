@@ -2475,6 +2475,15 @@ psql_completion(const char *text, int start, int end)
 	else if (TailMatches4("AS", "ON", "SELECT|UPDATE|INSERT|DELETE", "TO"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
 
+/* CREATE SCHEMA */
+	else if (Matches2("CREATE", "SCHEMA"))
+		COMPLETE_WITH_LIST2("AUTHORIZATION", "IF NOT EXISTS");
+	else if (Matches3("CREATE", "SCHEMA", MatchAny))
+		COMPLETE_WITH_CONST("AUTHORIZATION");
+	else if (Matches4("CREATE", "SCHEMA", "IF NOT EXISTS", MatchAny))
+		COMPLETE_WITH_CONST("AUTHORIZATION");
+
+
 /* CREATE SEQUENCE --- is allowed inside CREATE SCHEMA, so use TailMatches */
 	else if (TailMatches3("CREATE", "SEQUENCE", MatchAny) ||
 			 TailMatches4("CREATE", "TEMP|TEMPORARY", "SEQUENCE", MatchAny))
@@ -2615,9 +2624,9 @@ psql_completion(const char *text, int start, int end)
 			 !TailMatches2("USER", "MAPPING"))
 	{
 		static const char *const list_CREATEROLE[] =
-		{"ADMIN", "BYPASSRLS", "CONNECTION LIMIT", "CREATEDB", "CREATEROLE",
+		{"ADMIN", "BYPASSRLS", "CONNECTION LIMIT", "CREATEDB", "CREATEROLE", "CREATEUSER",
 			"ENCRYPTED PASSWORD", "IN", "INHERIT", "LOGIN", "NOBYPASSRLS",
-			"NOCREATEDB", "NOCREATEROLE", "NOINHERIT",
+			"NOCREATEDB", "NOCREATEROLE", "NOCREATEUSER", "NOINHERIT",
 			"NOLOGIN", "NOREPLICATION", "NOSUPERUSER", "PASSWORD",
 			"REPLICATION", "ROLE", "SUPERUSER", "SYSID",
 		"VALID UNTIL", "WITH", NULL};
