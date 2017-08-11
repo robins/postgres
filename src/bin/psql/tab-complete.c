@@ -685,6 +685,22 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "   AND (pg_catalog.quote_ident(nspname)='%s' "\
 "        OR '\"' || nspname || '\"' ='%s') "
 
+#define Query_for_list_of_aws_regions \
+"SELECT 'ap-northeast-1' UNION ALL "\
+"SELECT 'ap-northeast-2' UNION ALL "\
+"SELECT 'ap-south-1' UNION ALL "\
+"SELECT 'ap-southeast-1' UNION ALL "\
+"SELECT 'ap-southeast-2' UNION ALL "\
+"SELECT 'ca-central-1' UNION ALL "\
+"SELECT 'eu-central-1' UNION ALL "\
+"SELECT 'eu-west-1' UNION ALL "\
+"SELECT 'eu-west-2' UNION ALL "\
+"SELECT 'sa-east-1' UNION ALL "\
+"SELECT 'us-east-1' UNION ALL "\
+"SELECT 'us-east-2' UNION ALL "\
+"SELECT 'us-west-1' UNION ALL "\
+"SELECT 'us-west-2' "
+
 #define Query_for_list_of_enum_values \
 "SELECT pg_catalog.quote_literal(enumlabel) "\
 "  FROM pg_catalog.pg_enum e, pg_catalog.pg_type t "\
@@ -2260,7 +2276,23 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST5("HEADER", "QUOTE", "ESCAPE", "FORCE QUOTE",
 							"FORCE NOT NULL");
 
-/* CREATE ACCESS METHOD */
+/*
+		TailMatches2("ACCESS_KEY_ID", MatchAny) ||
+		TailMatches4("IAM_ROLE", MatchAny, "SECRET_ACCESS_KEY", MatchAny) ||
+		TailMatches6("IAM_ROLE", MatchAny, "SECRET_ACCESS_KEY", MatchAny, "SESSION_TOKEN", MatchAny) ||
+		TailMatches6("IAM_ROLE", MatchAny, "SECRET_ACCESS_KEY", MatchAny, "token", MatchAny) ||
+		TailMatches8("IAM_ROLE", MatchAny, "SECRET_ACCESS_KEY", MatchAny, "token", MatchAny, "MASTER_SYMMETRIC_KEY", MatchAny) ||
+		TailMatches2("CREDENTIALS", MatchAny) ||
+		TailMatches3("WITH", "CREDENTIALS", MatchAny) ||
+		TailMatches4("WITH", "CREDENTIALS", "AS", MatchAny) ||
+
+*/
+	/* COPY FROM REGION */
+	else if (HeadMatches2("COPY", MatchAny) && TailMatches1("REGION"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
+
+
+	/* CREATE ACCESS METHOD */
 	/* Complete "CREATE ACCESS METHOD <name>" */
 	else if (Matches4("CREATE", "ACCESS", "METHOD", MatchAny))
 		COMPLETE_WITH_CONST("TYPE");
