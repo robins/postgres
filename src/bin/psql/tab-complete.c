@@ -424,18 +424,18 @@ static const SchemaQuery Query_for_list_of_indexes = {
 };
 
 static const SchemaQuery Query_for_list_of_libraries = {
-        /* catname */
-        "pg_catalog.pg_class c",
-        /* selcondition */
-        "c.relkind IN (" CppAsString2(RELKIND_LIBRARY) ")",
-        /* viscondition */
-        "pg_catalog.pg_table_is_visible(c.oid)",
-        /* namespace */
-        "c.relnamespace",
-        /* result */
-        "pg_catalog.quote_ident(c.relname)",
-        /* qualresult */
-        NULL
+	/* catname */
+	"pg_catalog.pg_library l",
+	/* selcondition */
+	NULL,
+	/* viscondition */
+	NULL,
+	/* namespace */
+	"c.relnamespace",
+	/* result */
+	"pg_catalog.quote_ident(l.name)",
+	/* qualresult */
+	NULL
 };
 
 static const SchemaQuery Query_for_list_of_sequences = {
