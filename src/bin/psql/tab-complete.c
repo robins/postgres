@@ -423,21 +423,6 @@ static const SchemaQuery Query_for_list_of_indexes = {
 	NULL
 };
 
-static const SchemaQuery Query_for_list_of_libraries = {
-	/* catname */
-	"pg_catalog.pg_library l",
-	/* selcondition */
-	NULL,
-	/* viscondition */
-	NULL,
-	/* namespace */
-	"c.relnamespace",
-	/* result */
-	"pg_catalog.quote_ident(l.name)",
-	/* qualresult */
-	NULL
-};
-
 static const SchemaQuery Query_for_list_of_sequences = {
 	/* catname */
 	"pg_catalog.pg_class c",
@@ -908,6 +893,11 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "   FROM pg_catalog.pg_am "\
 "  WHERE substring(pg_catalog.quote_ident(amname),1,%d)='%s'"
 
+#define Query_for_list_of_libraries \
+" SELECT pg_catalog.quote_ident(name) "\
+"   FROM pg_catalog.pg_library "\
+"  WHERE substring(pg_catalog.quote_ident(name),1,%d)='%s'"
+
 #define Query_for_list_of_publications \
 " SELECT pg_catalog.quote_ident(pubname) "\
 "   FROM pg_catalog.pg_publication "\
@@ -1062,7 +1052,7 @@ static const pgsql_thing_t words_after_create[] = {
 	{"OPERATOR", NULL, NULL},	/* Querying for this is probably not such a
 								 * good idea. */
 	{"OR REPLACE FUNCTION", NULL, &Query_for_list_of_functions},
-	{"OR REPLACE LIBRARY", NULL, &Query_for_list_of_libraries},
+	{"OR REPLACE LIBRARY", Query_for_list_of_libraries},
 	{"OR REPLACE VIEW", NULL, &Query_for_list_of_views},
 	{"OWNED", NULL, NULL, THING_NO_CREATE | THING_NO_ALTER},	/* for DROP OWNED BY ... */
 	{"PARSER", Query_for_list_of_ts_parsers, NULL, THING_NO_SHOW},
@@ -2416,19 +2406,19 @@ psql_completion(const char *text, int start, int end)
 
 /* CREATE LIBRARY */
 	else if (Matches2("CREATE", "LIBRARY"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_libraries, NULL);
+		COMPLETE_WITH_QUERY(Query_for_list_of_libraries);
 	else if (Matches4("CREATE", "OR", "REPLACE", "LIBRARY"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_libraries, NULL);
+		COMPLETE_WITH_QUERY(Query_for_list_of_libraries);
 	else if (Matches5("CREATE", "OR", "REPLACE", "LIBRARY", MatchAny))
 		COMPLETE_WITH_CONST("LANGUAGE plpythonu FROM");
 	else if (Matches1("CREATE") && TailMatches5("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny))
 		COMPLETE_WITH_CONST("AUTHORIZATION");
 	else if (Matches1("CREATE") && TailMatches6("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION"))
 		COMPLETE_WITH_CONST("REGION");
-	else if (Matches1("CREATE") && TailMatches6("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION", "REGION"))
-		COMPLETE_WITH_CONST("AS");
-	else if (Matches1("CREATE") && TailMatches6("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION", "REGION"))
-		COMPLETE_WITH_CONST("AS");
+	else if (Matches1("CREATE") && TailMatches7("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION", "REGION"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
+	else if (Matches1("CREATE") && TailMatches8("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION", "REGION", "AS"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
 
 	// XXX See if you can add Regions here!?
 
@@ -2751,8 +2741,9 @@ psql_completion(const char *text, int start, int end)
 
 /* DEALLOCATE */
 	else if (Matches1("DEALLOCATE"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_prepared_statements, "UNION SELECT 'PREPARE'");
-	else if (Matches1("DEALLOCATE", "PREPARE"))
+//	COMPLETE_WITH_QUERY2(Query_for_list_of_prepared_statements, "UNION SELECT 'PREPARE'");
+		COMPLETE_WITH_QUERY(Query_for_list_of_prepared_statements);
+	else if (Matches2("DEALLOCATE", "PREPARE"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_prepared_statements);
 
 /* DECLARE */
@@ -2773,7 +2764,7 @@ psql_completion(const char *text, int start, int end)
 	else if (TailMatches3("DELETE", "FROM", MatchAny))
 		COMPLETE_WITH_LIST2("USING", "WHERE");
 	else if (TailMatches4("DELETE", "FROM", MatchAny, "USING"))
-		COMPLETE_WITH_LIST("WHERE");
+		COMPLETE_WITH_CONST("WHERE");
 	/* XXX: implement tab completion for DELETE ... USING */
 
 /* DISCARD */
@@ -2819,7 +2810,7 @@ psql_completion(const char *text, int start, int end)
 
 	/* DROP LIBRARY */
 	else if (Matches2("DROP", "LIBRARY"))
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_libraries, NULL);
+		COMPLETE_WITH_QUERY(Query_for_list_of_libraries);
 
 	/* DROP MATERIALIZED VIEW */
 	else if (Matches2("DROP", "MATERIALIZED"))
