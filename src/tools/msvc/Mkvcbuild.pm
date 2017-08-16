@@ -520,16 +520,17 @@ sub mkvcbuild
 
 		# Add defines from Perl's ccflags; see PGAC_CHECK_PERL_EMBED_CCFLAGS
 		my @perl_embed_ccflags;
-		foreach my $f (split(" ",$Config{ccflags}))
+		foreach my $f (split(" ", $Config{ccflags}))
 		{
-			if ($f =~ /^-D[^_]/)
+			if (   $f =~ /^-D[^_]/
+				|| $f =~ /^-D_USE_32BIT_TIME_T/)
 			{
 				$f =~ s/\-D//;
 				push(@perl_embed_ccflags, $f);
 			}
 		}
 
-		# XXX this probably is redundant now?
+		# Also, a hack to prevent duplicate definitions of uid_t/gid_t
 		push(@perl_embed_ccflags, 'PLPERL_HAVE_UID_GID');
 
 		foreach my $f (@perl_embed_ccflags)

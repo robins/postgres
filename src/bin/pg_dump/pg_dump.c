@@ -269,6 +269,7 @@ static void appendReloptionsArrayAH(PQExpBuffer buffer, const char *reloptions,
 						const char *prefix, Archive *fout);
 static char *get_synchronized_snapshot(Archive *fout);
 static void setupDumpWorker(Archive *AHX);
+static TableInfo *getRootTableInfo(TableInfo *tbinfo);
 
 
 int
@@ -345,6 +346,7 @@ main(int argc, char **argv)
 		{"lock-wait-timeout", required_argument, NULL, 2},
 		{"no-tablespaces", no_argument, &dopt.outputNoTablespaces, 1},
 		{"quote-all-identifiers", no_argument, &quote_all_identifiers, 1},
+		{"load-via-partition-root", no_argument, &dopt.load_via_partition_root, 1},
 		{"role", required_argument, NULL, 3},
 		{"section", required_argument, NULL, 5},
 		{"serializable-deferrable", no_argument, &dopt.serializable_deferrable, 1},
@@ -676,8 +678,8 @@ main(int argc, char **argv)
 		dopt.no_security_labels = 1;
 
 	/*
-	 * On hot standby slaves, never try to dump unlogged table data, since it
-	 * will just throw an error.
+	 * On hot standbys, never try to dump unlogged table data, since it will
+	 * just throw an error.
 	 */
 	if (fout->isStandby)
 		dopt.no_unlogged_table_data = true;
@@ -959,6 +961,7 @@ help(const char *progname)
 	printf(_("  --no-tablespaces             do not dump tablespace assignments\n"));
 	printf(_("  --no-unlogged-table-data     do not dump unlogged table data\n"));
 	printf(_("  --quote-all-identifiers      quote all identifiers, even if not key words\n"));
+	printf(_("  --load-via-partition-root    load partitions via the root table\n"));
 	printf(_("  --section=SECTION            dump named section (pre-data, data, or post-data)\n"));
 	printf(_("  --serializable-deferrable    wait until the dump can run without anomalies\n"));
 	printf(_("  --snapshot=SNAPSHOT          use given snapshot for the dump\n"));
@@ -1902,8 +1905,32 @@ dumpTableData_insert(Archive *fout, void *dcontext)
 			if (insertStmt == NULL)
 			{
 				insertStmt = createPQExpBuffer();
+
+				/*
+				 * When load-via-partition-root is set, get the root table
+				 * name for the partition table, so that we can reload data
+				 * through the root table.
+				 */
+				if (dopt->load_via_partition_root && tbinfo->ispartition)
+				{
+					TableInfo  *parentTbinfo;
+
+					parentTbinfo = getRootTableInfo(tbinfo);
+
+					/*
+					 * When we loading data through the root, we will qualify
+					 * the table name. This is needed because earlier
+					 * search_path will be set for the partition table.
+					 */
+					classname = (char *) fmtQualifiedId(fout->remoteVersion,
+														parentTbinfo->dobj.namespace->dobj.name,
+														parentTbinfo->dobj.name);
+				}
+				else
+					classname = fmtId(tbinfo->dobj.name);
+
 				appendPQExpBuffer(insertStmt, "INSERT INTO %s ",
-								  fmtId(classname));
+								  classname);
 
 				/* corner case for zero-column table */
 				if (nfields == 0)
@@ -2025,6 +2052,27 @@ dumpTableData_insert(Archive *fout, void *dcontext)
 	return 1;
 }
 
+/*
+ * getRootTableInfo:
+ *     get the root TableInfo for the given partition table.
+ */
+static TableInfo *
+getRootTableInfo(TableInfo *tbinfo)
+{
+	TableInfo  *parentTbinfo;
+
+	Assert(tbinfo->ispartition);
+	Assert(tbinfo->numParents == 1);
+
+	parentTbinfo = tbinfo->parents[0];
+	while (parentTbinfo->ispartition)
+	{
+		Assert(parentTbinfo->numParents == 1);
+		parentTbinfo = parentTbinfo->parents[0];
+	}
+
+	return parentTbinfo;
+}
 
 /*
  * dumpTableData -
@@ -2041,14 +2089,38 @@ dumpTableData(Archive *fout, TableDataInfo *tdinfo)
 	PQExpBuffer clistBuf = createPQExpBuffer();
 	DataDumperPtr dumpFn;
 	char	   *copyStmt;
+	const char *copyFrom;
 
 	if (!dopt->dump_inserts)
 	{
 		/* Dump/restore using COPY */
 		dumpFn = dumpTableData_copy;
+
+		/*
+		 * When load-via-partition-root is set, get the root table name for
+		 * the partition table, so that we can reload data through the root
+		 * table.
+		 */
+		if (dopt->load_via_partition_root && tbinfo->ispartition)
+		{
+			TableInfo  *parentTbinfo;
+
+			parentTbinfo = getRootTableInfo(tbinfo);
+
+			/*
+			 * When we load data through the root, we will qualify the table
+			 * name, because search_path is set for the partition.
+			 */
+			copyFrom = fmtQualifiedId(fout->remoteVersion,
+									  parentTbinfo->dobj.namespace->dobj.name,
+									  parentTbinfo->dobj.name);
+		}
+		else
+			copyFrom = fmtId(tbinfo->dobj.name);
+
 		/* must use 2 steps here 'cause fmtId is nonreentrant */
 		appendPQExpBuffer(copyBuf, "COPY %s ",
-						  fmtId(tbinfo->dobj.name));
+						  copyFrom);
 		appendPQExpBuffer(copyBuf, "%s %sFROM stdin;\n",
 						  fmtCopyColumnList(tbinfo, clistBuf),
 						  (tdinfo->oids && tbinfo->hasoids) ? "WITH OIDS " : "");
@@ -4141,8 +4213,8 @@ getNamespaces(Archive *fout, int *numNamespaces)
 		 */
 		if (dopt->outputClean)
 			appendPQExpBuffer(query, " AND pip.objoid <> "
-									 "coalesce((select oid from pg_namespace "
-									 "where nspname = 'public'),0)");
+							  "coalesce((select oid from pg_namespace "
+							  "where nspname = 'public'),0)");
 
 		appendPQExpBuffer(query, ") ");
 
@@ -15352,7 +15424,7 @@ dumpTableSchema(Archive *fout, TableInfo *tbinfo)
 
 			if (tbinfo->ispartition && !dopt->binary_upgrade)
 			{
-				appendPQExpBufferStr(q, "\n");
+				appendPQExpBufferChar(q, '\n');
 				appendPQExpBufferStr(q, tbinfo->partbound);
 			}
 
@@ -17055,8 +17127,7 @@ dumpRule(Archive *fout, RuleInfo *rinfo)
 
 		appendPQExpBuffer(delcmd, "CREATE OR REPLACE VIEW %s.",
 						  fmtId(tbinfo->dobj.namespace->dobj.name));
-		appendPQExpBuffer(delcmd, "%s",
-						  fmtId(tbinfo->dobj.name));
+		appendPQExpBufferStr(delcmd, fmtId(tbinfo->dobj.name));
 		result = createDummyViewAsClause(fout, tbinfo);
 		appendPQExpBuffer(delcmd, " AS\n%s;\n", result->data);
 		destroyPQExpBuffer(result);

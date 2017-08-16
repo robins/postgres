@@ -75,8 +75,8 @@ LogicalRepCtxStruct *LogicalRepCtx;
 
 typedef struct LogicalRepWorkerId
 {
-	Oid	subid;
-	Oid relid;
+	Oid			subid;
+	Oid			relid;
 } LogicalRepWorkerId;
 
 static List *on_commit_stop_workers = NIL;
@@ -552,7 +552,7 @@ void
 logicalrep_worker_stop_at_commit(Oid subid, Oid relid)
 {
 	LogicalRepWorkerId *wid;
-	MemoryContext		oldctx;
+	MemoryContext oldctx;
 
 	/* Make sure we store the info in context that survives until commit. */
 	oldctx = MemoryContextSwitchTo(TopTransactionContext);
@@ -824,11 +824,12 @@ AtEOXact_ApplyLauncher(bool isCommit)
 {
 	if (isCommit)
 	{
-		ListCell *lc;
+		ListCell   *lc;
 
-		foreach (lc, on_commit_stop_workers)
+		foreach(lc, on_commit_stop_workers)
 		{
 			LogicalRepWorkerId *wid = lfirst(lc);
+
 			logicalrep_worker_stop(wid->subid, wid->relid);
 		}
 
@@ -928,11 +929,14 @@ ApplyLauncherMain(Datum main_arg)
 				Subscription *sub = (Subscription *) lfirst(lc);
 				LogicalRepWorker *w;
 
+				if (!sub->enabled)
+					continue;
+
 				LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
 				w = logicalrep_worker_find(sub->oid, InvalidOid, false);
 				LWLockRelease(LogicalRepWorkerLock);
 
-				if (sub->enabled && w == NULL)
+				if (w == NULL)
 				{
 					last_start_time = now;
 					wait_time = wal_retrieve_retry_interval;

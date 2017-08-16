@@ -583,7 +583,7 @@ RelationBuildPartitionDesc(Relation rel)
  * representation of partition bounds.
  */
 bool
-partition_bounds_equal(PartitionKey key,
+partition_bounds_equal(int partnatts, int16 *parttyplen, bool *parttypbyval,
 					   PartitionBoundInfo b1, PartitionBoundInfo b2)
 {
 	int			i;
@@ -601,7 +601,7 @@ partition_bounds_equal(PartitionKey key,
 	{
 		int			j;
 
-		for (j = 0; j < key->partnatts; j++)
+		for (j = 0; j < partnatts; j++)
 		{
 			/* For range partitions, the bounds might not be finite. */
 			if (b1->kind != NULL)
@@ -627,8 +627,7 @@ partition_bounds_equal(PartitionKey key,
 			 * context.  datumIsEqual() should be simple enough to be safe.
 			 */
 			if (!datumIsEqual(b1->datums[i][j], b2->datums[i][j],
-							  key->parttypbyval[j],
-							  key->parttyplen[j]))
+							  parttypbyval[j], parttyplen[j]))
 				return false;
 		}
 
@@ -637,7 +636,7 @@ partition_bounds_equal(PartitionKey key,
 	}
 
 	/* There are ndatums+1 indexes in case of range partitions */
-	if (key->strategy == PARTITION_STRATEGY_RANGE &&
+	if (b1->strategy == PARTITION_STRATEGY_RANGE &&
 		b1->indexes[i] != b2->indexes[i])
 		return false;
 
@@ -722,10 +721,16 @@ check_new_partition_bound(char *relname, Relation parent,
 				 */
 				if (partition_rbound_cmp(key, lower->datums, lower->kind, true,
 										 upper) >= 0)
+				{
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-							 errmsg("cannot create range partition with empty range"),
+							 errmsg("empty range bound specified for partition \"%s\"",
+									relname),
+							 errdetail("Specified lower bound %s is greater than or equal to upper bound %s.",
+									   get_range_partbound_string(spec->lowerdatums),
+									   get_range_partbound_string(spec->upperdatums)),
 							 parser_errposition(pstate, spec->location)));
+				}
 
 				if (partdesc->nparts > 0)
 				{
