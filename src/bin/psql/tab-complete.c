@@ -2686,10 +2686,10 @@ psql_completion(const char *text, int start, int end)
 						Matches4("CREATE", "LOCAL", "TEMP|TEMPORARY", "TABLE"))
 		COMPLETE_WITH_CONST("IF NOT EXISTS");
 
-	else if (TailMatches3("CREATE", "TABLE", MatchAny))
+	else if (Matches3("CREATE", "TABLE", MatchAny))
 		COMPLETE_WITH_CONST("(");
 
-	else if (HeadMatches7("CREATE", "TABLE", MatchAny, MatchAny, MatchAny, MatchAny, MatchAny) /*||
+	else if (HeadMatches2("CREATE", "TABLE") /*||
 		HeadMatches3("CREATE", "TEMP|TEMPORARY", "TABLE") ||
 		HeadMatches4("CREATE", "LOCAL", "TEMP|TEMPORARY", "TABLE")*/)
 	{
@@ -2702,7 +2702,7 @@ psql_completion(const char *text, int start, int end)
 			COMPLETE_WITH_LIST3("EVEN", "KEY", "ALL");
 		else if (TailMatches2("DISTSTYLE", "EVEN|KEY|ALL"))
 			COMPLETE_WITH_LIST3("COMPOUND", "INTERLEAVED", "SORTKEY (");
-		else if (TailMatches4("DISTKEY", "(", MatchAny, ")"))
+		else if (TailMatches2("DISTKEY", MatchAny))
 			COMPLETE_WITH_LIST3("COMPOUND", "INTERLEAVED", "SORTKEY (");
 		else if (TailMatches1("COMPOUND|INTERLEAVED"))
 			COMPLETE_WITH_CONST("SORTKEY (");
