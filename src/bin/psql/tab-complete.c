@@ -1062,6 +1062,7 @@ static const pgsql_thing_t words_after_create[] = {
 	{"LANGUAGE", Query_for_list_of_languages},
 	{"LARGE OBJECT", NULL, NULL, THING_NO_CREATE | THING_NO_DROP},
 	{"LIBRARY", NULL, NULL, THING_NO_ALTER},
+	{"LOCAL", NULL, NULL, THING_NO_DROP | THING_NO_ALTER}, /* CREATE LOCAL TABLE */
 	{"MATERIALIZED VIEW", NULL, &Query_for_list_of_matviews},
 	{"OPERATOR", NULL, NULL},	/* Querying for this is probably not such a
 								 * good idea. */
@@ -1478,7 +1479,30 @@ psql_completion(const char *text, int start, int end)
 		word_matches(p6, previous_words[previous_words_count - 6]) && \
 		word_matches(p7, previous_words[previous_words_count - 7]))
 
-	/* Known command-starting keywords. */
+#define HeadMatches8(p1, p2, p3, p4, p5, p6, p7, p8) \
+(previous_words_count >= 8 && \
+	word_matches(p1, previous_words[previous_words_count - 1]) && \
+	word_matches(p2, previous_words[previous_words_count - 2]) && \
+	word_matches(p3, previous_words[previous_words_count - 3]) && \
+	word_matches(p4, previous_words[previous_words_count - 4]) && \
+	word_matches(p5, previous_words[previous_words_count - 5]) && \
+	word_matches(p6, previous_words[previous_words_count - 6]) && \
+	word_matches(p7, previous_words[previous_words_count - 7]) && \
+	word_matches(p8, previous_words[previous_words_count - 8]))
+
+#define HeadMatches9(p1, p2, p3, p4, p5, p6, p7, p8, p9) \
+(previous_words_count >= 9 && \
+	word_matches(p1, previous_words[previous_words_count - 1]) && \
+	word_matches(p2, previous_words[previous_words_count - 2]) && \
+	word_matches(p3, previous_words[previous_words_count - 3]) && \
+	word_matches(p4, previous_words[previous_words_count - 4]) && \
+	word_matches(p5, previous_words[previous_words_count - 5]) && \
+	word_matches(p6, previous_words[previous_words_count - 6]) && \
+	word_matches(p7, previous_words[previous_words_count - 7]) && \
+	word_matches(p8, previous_words[previous_words_count - 8]) && \
+	word_matches(p9, previous_words[previous_words_count - 9]))
+
+						/* Known command-starting keywords. */
 	static const char *const sql_commands[] = {
 		"ABORT", "ALTER", "ANALYZE", "BEGIN", "CHECKPOINT", "CLOSE", "CLUSTER",
 		"COMMENT", "COMMIT", "COPY", "CREATE", "DEALLOCATE", "DECLARE",
@@ -2646,13 +2670,46 @@ psql_completion(const char *text, int start, int end)
 			 TailMatches1("FROM"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
 
-/* CREATE TABLE --- is allowed inside CREATE SCHEMA, so use TailMatches */
 	/* Complete "CREATE TEMP/TEMPORARY" with the possible temp objects */
-	else if (TailMatches2("CREATE", "TEMP|TEMPORARY"))
-		COMPLETE_WITH_LIST3("SEQUENCE", "TABLE", "VIEW");
+	else if (HeadMatches2("CREATE", "TEMP|TEMPORARY"))
+	COMPLETE_WITH_LIST3("SEQUENCE", "TABLE", "VIEW");
+
 	/* Complete "CREATE UNLOGGED" with TABLE or MATVIEW */
 	else if (TailMatches2("CREATE", "UNLOGGED"))
 		COMPLETE_WITH_LIST2("TABLE", "MATERIALIZED VIEW");
+
+	/* CREATE TABLE is allowed inside CREATE SCHEMA in Native Postgres so although
+		we ought to use TailMatches, using HeadMatches since this allows supporting
+		far more options */
+	else if (Matches2("CREATE", "TABLE") ||
+						Matches3("CREATE", "TEMP|TEMPORARY", "TABLE") ||
+						Matches4("CREATE", "LOCAL", "TEMP|TEMPORARY", "TABLE"))
+		COMPLETE_WITH_CONST("IF NOT EXISTS");
+
+	else if (TailMatches3("CREATE", "TABLE", MatchAny))
+		COMPLETE_WITH_CONST("(");
+
+	else if (HeadMatches7("CREATE", "TABLE", MatchAny, MatchAny, MatchAny, MatchAny, MatchAny) /*||
+		HeadMatches3("CREATE", "TEMP|TEMPORARY", "TABLE") ||
+		HeadMatches4("CREATE", "LOCAL", "TEMP|TEMPORARY", "TABLE")*/)
+	{
+		//if (TailMatches3(MatchAnyExcept("("), MatchAny, ")"))
+		if (TailMatches1("BACKUP"))
+			COMPLETE_WITH_LIST2("YES", "NO");
+		else if (TailMatches2("BACKUP", "YES|NO"))
+			COMPLETE_WITH_LIST5("DISTSTYLE", "DISTKEY (", "COMPOUND", "INTERLEAVED", "SORTKEY (");
+		else if (TailMatches1("DISTSTYLE"))
+			COMPLETE_WITH_LIST3("EVEN", "KEY", "ALL");
+		else if (TailMatches2("DISTSTYLE", "EVEN|KEY|ALL"))
+			COMPLETE_WITH_LIST3("COMPOUND", "INTERLEAVED", "SORTKEY (");
+		else if (TailMatches4("DISTKEY", "(", MatchAny, ")"))
+			COMPLETE_WITH_LIST3("COMPOUND", "INTERLEAVED", "SORTKEY (");
+		else if (TailMatches1("COMPOUND|INTERLEAVED"))
+			COMPLETE_WITH_CONST("SORTKEY (");
+		else
+			COMPLETE_WITH_LIST6("BACKUP", "DISTSTYLE", "DISTKEY (", "COMPOUND", "INTERLEAVED", "SORTKEY (");
+	}
+
 	/* Complete PARTITION BY with RANGE ( or LIST ( or ... */
 	else if (TailMatches2("PARTITION", "BY"))
 		COMPLETE_WITH_LIST2("RANGE (", "LIST (");
