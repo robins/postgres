@@ -1440,17 +1440,17 @@ psql_completion(const char *text, int start, int end)
 
 #define HeadMatches3(p1, p2, p3) \
 	(previous_words_count >= 3 && \
-	word_matches(p1, previous_words[previous_words_count - 1]) && \
-	word_matches(p2, previous_words[previous_words_count - 2]) && \
-	word_matches(p3, previous_words[previous_words_count - 3]))
- 
+	 word_matches(p1, previous_words[previous_words_count - 1]) && \
+	 word_matches(p2, previous_words[previous_words_count - 2]) && \
+	 word_matches(p3, previous_words[previous_words_count - 3]))
+
 #define HeadMatches4(p1, p2, p3, p4) \
 	(previous_words_count >= 4 && \
 		word_matches(p1, previous_words[previous_words_count - 1]) && \
 		word_matches(p2, previous_words[previous_words_count - 2]) && \
 		word_matches(p3, previous_words[previous_words_count - 3]) && \
 		word_matches(p4, previous_words[previous_words_count - 4]))
-	
+
 #define HeadMatches5(p1, p2, p3, p4, p5) \
 	(previous_words_count >= 5 && \
 		word_matches(p1, previous_words[previous_words_count - 1]) && \
@@ -1477,7 +1477,7 @@ psql_completion(const char *text, int start, int end)
 		word_matches(p5, previous_words[previous_words_count - 5]) && \
 		word_matches(p6, previous_words[previous_words_count - 6]) && \
 		word_matches(p7, previous_words[previous_words_count - 7]))
-			
+
 	/* Known command-starting keywords. */
 	static const char *const sql_commands[] = {
 		"ABORT", "ALTER", "ANALYZE", "BEGIN", "CHECKPOINT", "CLOSE", "CLUSTER",
@@ -1967,7 +1967,7 @@ psql_completion(const char *text, int start, int end)
 		else if (HeadMatches5("ALTER", "TABLE", MatchAny, "ADD", MatchAny) &&
 				(!TailMatches1("COLUMN")))
 			COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
-		
+
 	/* ALTER TABLE xxx ENABLE */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "ENABLE"))
 		COMPLETE_WITH_LIST5("ALWAYS", "REPLICA", "ROW LEVEL SECURITY", "RULE",
@@ -2372,34 +2372,33 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches6("CREATE", "ACCESS", "METHOD", MatchAny, "TYPE", MatchAny))
 		COMPLETE_WITH_CONST("HANDLER");
 
-/* CREATE DATABASE */
+	/* CREATE DATABASE */
 	else if (Matches3("CREATE", "DATABASE", MatchAny))
 		COMPLETE_WITH_LIST10("WITH", "OWNER", "TEMPLATE", "ENCODING", "TABLESPACE",
 							"IS_TEMPLATE",
 							"ALLOW_CONNECTIONS", "CONNECTION LIMIT",
 							"LC_COLLATE", "LC_CTYPE");
 
-        /* CREATE DATABASE WITH */
-        else if (Matches4("CREATE", "DATABASE", MatchAny, "WITH"))
-                COMPLETE_WITH_LIST9("OWNER", "TEMPLATE", "ENCODING", "TABLESPACE",
-                                                        "IS_TEMPLATE",
-                                                        "ALLOW_CONNECTIONS", "CONNECTION LIMIT",
-                                                        "LC_COLLATE", "LC_CTYPE");
+	/* CREATE DATABASE WITH */
+	else if (Matches4("CREATE", "DATABASE", MatchAny, "WITH"))
+		COMPLETE_WITH_LIST9("OWNER", "TEMPLATE", "ENCODING", "TABLESPACE",
+							"IS_TEMPLATE",
+							"ALLOW_CONNECTIONS", "CONNECTION LIMIT",
+							"LC_COLLATE", "LC_CTYPE");
 
-        /* CREATE DATABASE WITH OWNER */
-        else if (Matches5("CREATE", "DATABASE", MatchAny, "WITH", "OWNER"))
-                COMPLETE_WITH_LIST8("TEMPLATE", "ENCODING", "TABLESPACE",
-                                                        "IS_TEMPLATE",
-                                                        "ALLOW_CONNECTIONS", "CONNECTION LIMIT",
-                                                        "LC_COLLATE", "LC_CTYPE");
+	/* CREATE DATABASE WITH OWNER */
+	else if (Matches5("CREATE", "DATABASE", MatchAny, "WITH", "OWNER"))
+		COMPLETE_WITH_LIST8("TEMPLATE", "ENCODING", "TABLESPACE",
+							"IS_TEMPLATE",
+							"ALLOW_CONNECTIONS", "CONNECTION LIMIT",
+							"LC_COLLATE", "LC_CTYPE");
 
-        /* CREATE DATABASE OWNER */
-        else if (Matches4("CREATE", "DATABASE", MatchAny, "OWNER"))
-                COMPLETE_WITH_LIST8("TEMPLATE", "ENCODING", "TABLESPACE",
-                                                        "IS_TEMPLATE",
-                                                        "ALLOW_CONNECTIONS", "CONNECTION LIMIT",
-                                                        "LC_COLLATE", "LC_CTYPE");
-
+	/* CREATE DATABASE OWNER */
+	else if (Matches4("CREATE", "DATABASE", MatchAny, "OWNER"))
+		COMPLETE_WITH_LIST8("TEMPLATE", "ENCODING", "TABLESPACE",
+							"IS_TEMPLATE",
+							"ALLOW_CONNECTIONS", "CONNECTION LIMIT",
+							"LC_COLLATE", "LC_CTYPE");
 
 	/* CONNECTION LIMIT -- is allowed inside CREATE DATABASE, so use TailMatches */
 	else if (TailMatches2("CONNECTION", "LIMIT"))
@@ -2408,7 +2407,7 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches4("CREATE", "DATABASE", MatchAny, "TEMPLATE"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_template_databases);
 
-/* CREATE EXTENSION */
+	/* CREATE EXTENSION */
 	/* Complete with available extensions rather than installed ones. */
 	else if (Matches2("CREATE", "EXTENSION"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_available_extensions);
@@ -2422,7 +2421,7 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_QUERY(Query_for_list_of_available_extension_versions);
 	}
 
-/* CREATE FOREIGN */
+	/* CREATE FOREIGN */
 	else if (Matches2("CREATE", "FOREIGN"))
 		COMPLETE_WITH_LIST2("DATA WRAPPER", "TABLE");
 
@@ -2501,7 +2500,7 @@ psql_completion(const char *text, int start, int end)
 
 	// XXX See if you can add Regions here!?
 
-/* CREATE POLICY */
+	/* CREATE POLICY */
 	/* Complete "CREATE POLICY <name> ON" */
 	else if (Matches3("CREATE", "POLICY", MatchAny))
 		COMPLETE_WITH_CONST("ON");

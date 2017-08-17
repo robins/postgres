@@ -37,7 +37,8 @@ ALTER DEFAULT PRIVILEGES | Native
 ALTER GROUP | Native
 ALTER SCHEMA | Native
 ALTER TABLE | Partial
-ALTER TABLE ADD COLUMN ENCODING | Unsupported
+ALTER TABLE ADD COLUMN | **Yes**
+ALTER TABLE ADD ENCODING <Column-Compressions>| **Yes**
 ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
 ALTER TABLE SET FILE FORMAT format | Unsupported
 ALTER TABLE SET TABLE PROPERTIES ( 'numRows'='row_count' ) | Unsupported
