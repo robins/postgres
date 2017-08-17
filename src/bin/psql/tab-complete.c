@@ -1444,32 +1444,39 @@ psql_completion(const char *text, int start, int end)
 	word_matches(p2, previous_words[previous_words_count - 2]) && \
 	word_matches(p3, previous_words[previous_words_count - 3]))
  
-#define HeadMatches5(p1, p2, p3, p4, p5) \
-(previous_words_count >= 5 && \
-	word_matches(p1, previous_words[previous_words_count - 1]) && \
-	word_matches(p2, previous_words[previous_words_count - 2]) && \
-	word_matches(p3, previous_words[previous_words_count - 3]) && \
-	word_matches(p4, previous_words[previous_words_count - 4]) && \
-	word_matches(p5, previous_words[previous_words_count - 5]))
+#define HeadMatches4(p1, p2, p3, p4) \
+	(previous_words_count >= 4 && \
+		word_matches(p1, previous_words[previous_words_count - 1]) && \
+		word_matches(p2, previous_words[previous_words_count - 2]) && \
+		word_matches(p3, previous_words[previous_words_count - 3]) && \
+		word_matches(p4, previous_words[previous_words_count - 4]))
 	
+#define HeadMatches5(p1, p2, p3, p4, p5) \
+	(previous_words_count >= 5 && \
+		word_matches(p1, previous_words[previous_words_count - 1]) && \
+		word_matches(p2, previous_words[previous_words_count - 2]) && \
+		word_matches(p3, previous_words[previous_words_count - 3]) && \
+		word_matches(p4, previous_words[previous_words_count - 4]) && \
+		word_matches(p5, previous_words[previous_words_count - 5]))
+
 #define HeadMatches6(p1, p2, p3, p4, p5, p6) \
-(previous_words_count >= 6 && \
-	word_matches(p1, previous_words[previous_words_count - 1]) && \
-	word_matches(p2, previous_words[previous_words_count - 2]) && \
-	word_matches(p3, previous_words[previous_words_count - 3]) && \
-	word_matches(p4, previous_words[previous_words_count - 4]) && \
-	word_matches(p5, previous_words[previous_words_count - 5]) && \
-	word_matches(p6, previous_words[previous_words_count - 6]))
+	(previous_words_count >= 6 && \
+		word_matches(p1, previous_words[previous_words_count - 1]) && \
+		word_matches(p2, previous_words[previous_words_count - 2]) && \
+		word_matches(p3, previous_words[previous_words_count - 3]) && \
+		word_matches(p4, previous_words[previous_words_count - 4]) && \
+		word_matches(p5, previous_words[previous_words_count - 5]) && \
+		word_matches(p6, previous_words[previous_words_count - 6]))
 
 #define HeadMatches7(p1, p2, p3, p4, p5, p6, p7) \
-(previous_words_count >= 7 && \
-	word_matches(p1, previous_words[previous_words_count - 1]) && \
-	word_matches(p2, previous_words[previous_words_count - 2]) && \
-	word_matches(p3, previous_words[previous_words_count - 3]) && \
-	word_matches(p4, previous_words[previous_words_count - 4]) && \
-	word_matches(p5, previous_words[previous_words_count - 5]) && \
-	word_matches(p6, previous_words[previous_words_count - 6]) && \
-	word_matches(p7, previous_words[previous_words_count - 7]))
+	(previous_words_count >= 7 && \
+		word_matches(p1, previous_words[previous_words_count - 1]) && \
+		word_matches(p2, previous_words[previous_words_count - 2]) && \
+		word_matches(p3, previous_words[previous_words_count - 3]) && \
+		word_matches(p4, previous_words[previous_words_count - 4]) && \
+		word_matches(p5, previous_words[previous_words_count - 5]) && \
+		word_matches(p6, previous_words[previous_words_count - 6]) && \
+		word_matches(p7, previous_words[previous_words_count - 7]))
 			
 	/* Known command-starting keywords. */
 	static const char *const sql_commands[] = {
@@ -1931,31 +1938,35 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST(list_ALTER2);
 	}
 
-	else if (Matches4("ALTER", "TABLE", MatchAny, "ADD"))
+	/* ALTER TABLE xxx ADD */
+	 else if (Matches4("ALTER", "TABLE", MatchAny, "ADD"))
 		COMPLETE_WITH_CONST("COLUMN");
 
-		else if (
-				(HeadMatches6("ALTER", "TABLE", MatchAny, "ADD", MatchAny, MatchAny))
-		)
+		else if (HeadMatches6("ALTER", "TABLE", MatchAny, "ADD", MatchAny, MatchAny))
 		{
-//			if (HeadMatches7("ALTER", "TABLE", MatchAny, "ADD", "COLUMN", MatchAny, MatchAny))
+			if (TailMatches2("COLUMN", MatchAny))
+				COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
+			else
+			{
 				if (TailMatches2("DEFAULT", MatchAny))
 					COMPLETE_WITH_LIST3("ENCODE", "NOT NULL", "NULL");
 				else if (TailMatches1("ENCODE"))
 					COMPLETE_WITH_QUERY(Query_for_list_of_column_compressions);
 				else if (TailMatches2("ENCODE", MatchAny))
 					COMPLETE_WITH_LIST3("DEFAULT", "NOT NULL", "NULL");
-				else if (TailMatches1("NULL") || TailMatches2("NOT", "NULL"))
+				else if (TailMatches1("NULL"))
 					COMPLETE_WITH_LIST2("ENCODE", "DEFAULT");
+				else if (TailMatches1("NOT"))
+					COMPLETE_WITH_CONST("NULL");
 				else
-					COMPLETE_WITH_LIST4("DEFAULT", "ENCODE", "NOT NULL", "NULL");
+					if (!TailMatches1("DEFAULT"))
+						COMPLETE_WITH_LIST4("DEFAULT", "ENCODE", "NOT NULL", "NULL");
+			}
 		}
 
-		else if (
-			(HeadMatches5("ALTER", "TABLE", MatchAny, "ADD", MatchAny)) ||
-			(HeadMatches6("ALTER", "TABLE", MatchAny, "ADD", "COLUMN", MatchAny)))
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
-
+		else if (HeadMatches5("ALTER", "TABLE", MatchAny, "ADD", MatchAny) &&
+				(!TailMatches1("COLUMN")))
+			COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
 		
 	/* ALTER TABLE xxx ENABLE */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "ENABLE"))
