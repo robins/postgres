@@ -8,10 +8,10 @@ NOTE: This branch is maintained as a personal effort and is not sponsored / supp
 Support Legend | Description
 :-------------:| -----------
 Native | All combinations supported by Native psql
-Unsupported | Not supported (yet)
+Unsupported | Not (yet)supported
 Partial | Only some combinations supported
-**Yes** | Supported by this branch (not Native)
-Supported | All combinations (now) supported by this branch
+**Yes** | Supported by (only) this branch (not Native)
+Complete | All combinations supported
 
 
 
@@ -46,7 +46,7 @@ ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 
 ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
 ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
 ALTER TABLE APPEND | Unsupported
-ALTER USER | Supported
+ALTER USER | Complete
 ALTER USER [NO]CREATEUSER | **Yes**
 ANALYZE | Partial
 ANALYZE VERBOSE | Unsupported
@@ -60,19 +60,19 @@ COMMENT | Native
 COMMIT | Native
 COPY | Unsupported
 COPY .. REGION <aws-regions> | **Yes**
-CREATE DATABASE | Supported
+CREATE DATABASE | Complete
 CREATE DATABASE CONNECTION LIMIT UNLIMITED | **Yes**
 CREATE DATABASE WITH | **Yes**
 CREATE DATABASE WITH OWNER | **Yes**
 CREATE DATABASE OWNER | **Yes**
 CREATE EXTERNAL SCHEMA | Unsupported
 CREATE EXTERNAL TABLE | Unsupported
-CREATE FUNCTION | Supported
+CREATE FUNCTION | Complete
 CREATE OR REPLACE FUNCTION | **Yes**
 CREATE GROUP | Native
 CREATE LIBRARY | **Yes**
 CREATE OR REPLACE LIBRARY | **Yes**
-CREATE SCHEMA | Supported
+CREATE SCHEMA | Complete
 CREATE SCHEMA AUTHORIZATION | **Yes**
 CREATE SCHEMA IF NOT EXISTS | **Yes**
 CREATE TABLE | Partial
@@ -86,7 +86,7 @@ CREATE TABLE COMPOUND SORTKEY | **Yes**
 CREATE TABLE SORTKEY | **Yes**
 CREATE TABLE <similarly many Variants> | Unsupported
 CREATE TABLE AS | Unsupported
-CREATE USER | Supported
+CREATE USER | Complete
 CREATE USER [NO]CREATEUSER | **Yes**
 CREATE VIEW | Partial
 CREATE OR REPLACE VIEW | **Yes**
@@ -100,13 +100,13 @@ DROP FUNCTION | Native
 DROP GROUP | Native
 DROP LIBRARY | **Yes**
 DROP SCHEMA | Partial
-DROP SCHEMA IF EXISTS | Unsupported
-DROP TABLE | Partial
-DROP TABLE | Unsupported
+DROP SCHEMA IF EXISTS | **Yes**
+DROP TABLE | Complete
+DROP TABLE IF EXISTS | **Yes**
 DROP USER | Partial
-DROP USER IF EXISTS | Unsupported
+DROP USER IF EXISTS | **Yes**
 DROP VIEW | Partial
-DROP VIEW IF EXISTS | Unsupported
+DROP VIEW IF EXISTS | **Yes**
 END | Native
 EXECUTE | Native
 EXPLAIN | Native

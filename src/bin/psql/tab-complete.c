@@ -601,6 +601,21 @@ static const SchemaQuery Query_for_list_of_views = {
 	NULL
 };
 
+static const SchemaQuery Query_for_list_of_users = {
+	/* catname */
+	"pg_catalog.pg_user c",
+	/* selcondition */
+	"c.relkind IN (" CppAsString2(RELKIND_VIEW) ")",
+	/* viscondition */
+	NULL,
+	/* namespace */
+	"c.relnamespace",
+	/* result */
+	"pg_catalog.quote_ident(c.relname)",
+	/* qualresult */
+	NULL
+};
+
 static const SchemaQuery Query_for_list_of_matviews = {
 	/* catname */
 	"pg_catalog.pg_class c",
@@ -2959,6 +2974,13 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches3("DROP", "OWNED", "BY"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_roles);
 
+	/* DROP SCHEMA */
+	else if (Matches2("DROP", "SCHEMA"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_schemas
+			" UNION ALL SELECT 'IF EXISTS'");
+	else if ((HeadMatches3("DROP", "SCHEMA", MatchAny)) && TailMatches1(MatchAnyExcept("EXISTS")))
+		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
+
 	/* DROP TEXT SEARCH */
 	else if (Matches3("DROP", "TEXT", "SEARCH"))
 		COMPLETE_WITH_LIST4("CONFIGURATION", "DICTIONARY", "PARSER", "TEMPLATE");
@@ -3009,6 +3031,36 @@ psql_completion(const char *text, int start, int end)
 	}
 	else if (Matches5("DROP", "RULE", MatchAny, "ON", MatchAny))
 		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
+
+	/* DROP TABLE */
+	else if (Matches2("DROP", "TABLE"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables,
+			" UNION ALL SELECT 'IF EXISTS'");
+	else if ((Matches3("DROP", "TABLE", MatchAny)))
+		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
+	else if (Matches4("DROP", "TABLE", MatchAny, MatchAny) 
+					&& TailMatches1(MatchAnyExcept("CASCADE|RESTRICT")))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
+	else if ((HeadMatches5("DROP", "TABLE", MatchAny, MatchAny, MatchAny)) 
+					&& TailMatches1(MatchAnyExcept("EXISTS|CASCADE|RESTRICT")))
+		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
+
+	/* DROP USER */
+	else if (Matches2("DROP", "USER"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_users,
+			" UNION ALL SELECT 'IF EXISTS'");
+	else if (HeadMatches3("DROP", "USER", MatchAny))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_users, NULL);
+			
+	/* DROP VIEW */
+	else if (Matches2("DROP", "VIEW"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_views,
+			" UNION ALL SELECT 'IF EXISTS'");
+	else if (HeadMatches3("DROP", "VIEW", MatchAny))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_views, NULL);
+	else if ((HeadMatches3("DROP", "VIEW", MatchAny)) && TailMatches1(MatchAnyExcept("EXISTS")))
+		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
+
 
 /* EXECUTE */
 	else if (Matches1("EXECUTE"))
