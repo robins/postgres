@@ -43,6 +43,7 @@
 #include "access/xact.h"
 #include "catalog/namespace.h"
 #include "catalog/partition.h"
+#include "catalog/pg_inherits_fn.h"
 #include "catalog/pg_publication.h"
 #include "commands/matview.h"
 #include "commands/trigger.h"
@@ -1364,16 +1365,18 @@ InitResultRelInfo(ResultRelInfo *resultRelInfo,
  *
  * Get a ResultRelInfo for a trigger target relation.  Most of the time,
  * triggers are fired on one of the result relations of the query, and so
- * we can just return a member of the es_result_relations array.  (Note: in
- * self-join situations there might be multiple members with the same OID;
- * if so it doesn't matter which one we pick.)  However, it is sometimes
- * necessary to fire triggers on other relations; this happens mainly when an
- * RI update trigger queues additional triggers on other relations, which will
- * be processed in the context of the outer query.  For efficiency's sake,
- * we want to have a ResultRelInfo for those triggers too; that can avoid
- * repeated re-opening of the relation.  (It also provides a way for EXPLAIN
- * ANALYZE to report the runtimes of such triggers.)  So we make additional
- * ResultRelInfo's as needed, and save them in es_trig_target_relations.
+ * we can just return a member of the es_result_relations array, the
+ * es_root_result_relations array (if any), or the es_leaf_result_relations
+ * list (if any).  (Note: in self-join situations there might be multiple
+ * members with the same OID; if so it doesn't matter which one we pick.)
+ * However, it is sometimes necessary to fire triggers on other relations;
+ * this happens mainly when an RI update trigger queues additional triggers
+ * on other relations, which will be processed in the context of the outer
+ * query.  For efficiency's sake, we want to have a ResultRelInfo for those
+ * triggers too; that can avoid repeated re-opening of the relation.  (It
+ * also provides a way for EXPLAIN ANALYZE to report the runtimes of such
+ * triggers.)  So we make additional ResultRelInfo's as needed, and save them
+ * in es_trig_target_relations.
  */
 ResultRelInfo *
 ExecGetTriggerResultRel(EState *estate, Oid relid)
@@ -1393,6 +1396,23 @@ ExecGetTriggerResultRel(EState *estate, Oid relid)
 			return rInfo;
 		rInfo++;
 		nr--;
+	}
+	/* Second, search through the root result relations, if any */
+	rInfo = estate->es_root_result_relations;
+	nr = estate->es_num_root_result_relations;
+	while (nr > 0)
+	{
+		if (RelationGetRelid(rInfo->ri_RelationDesc) == relid)
+			return rInfo;
+		rInfo++;
+		nr--;
+	}
+	/* Third, search through the leaf result relations, if any */
+	foreach(l, estate->es_leaf_result_relations)
+	{
+		rInfo = (ResultRelInfo *) lfirst(l);
+		if (RelationGetRelid(rInfo->ri_RelationDesc) == relid)
+			return rInfo;
 	}
 	/* Nope, but maybe we already made an extra ResultRelInfo for it */
 	foreach(l, estate->es_trig_target_relations)
@@ -1930,8 +1950,9 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
 
 		for (attrChk = 1; attrChk <= natts; attrChk++)
 		{
-			if (tupdesc->attrs[attrChk - 1]->attnotnull &&
-				slot_attisnull(slot, attrChk))
+			Form_pg_attribute att = TupleDescAttr(tupdesc, attrChk - 1);
+
+			if (att->attnotnull && slot_attisnull(slot, attrChk))
 			{
 				char	   *val_desc;
 				Relation	orig_rel = rel;
@@ -1974,7 +1995,7 @@ ExecConstraints(ResultRelInfo *resultRelInfo,
 				ereport(ERROR,
 						(errcode(ERRCODE_NOT_NULL_VIOLATION),
 						 errmsg("null value in column \"%s\" violates not-null constraint",
-								NameStr(orig_tupdesc->attrs[attrChk - 1]->attname)),
+								NameStr(att->attname)),
 						 val_desc ? errdetail("Failing row contains %s.", val_desc) : 0,
 						 errtablecol(orig_rel, attrChk)));
 			}
@@ -2241,9 +2262,10 @@ ExecBuildSlotValueDescription(Oid reloid,
 		bool		column_perm = false;
 		char	   *val;
 		int			vallen;
+		Form_pg_attribute att = TupleDescAttr(tupdesc, i);
 
 		/* ignore dropped columns */
-		if (tupdesc->attrs[i]->attisdropped)
+		if (att->attisdropped)
 			continue;
 
 		if (!table_perm)
@@ -2254,9 +2276,9 @@ ExecBuildSlotValueDescription(Oid reloid,
 			 * for the column.  If not, omit this column from the error
 			 * message.
 			 */
-			aclresult = pg_attribute_aclcheck(reloid, tupdesc->attrs[i]->attnum,
+			aclresult = pg_attribute_aclcheck(reloid, att->attnum,
 											  GetUserId(), ACL_SELECT);
-			if (bms_is_member(tupdesc->attrs[i]->attnum - FirstLowInvalidHeapAttributeNumber,
+			if (bms_is_member(att->attnum - FirstLowInvalidHeapAttributeNumber,
 							  modifiedCols) || aclresult == ACLCHECK_OK)
 			{
 				column_perm = any_perm = true;
@@ -2266,7 +2288,7 @@ ExecBuildSlotValueDescription(Oid reloid,
 				else
 					write_comma_collist = true;
 
-				appendStringInfoString(&collist, NameStr(tupdesc->attrs[i]->attname));
+				appendStringInfoString(&collist, NameStr(att->attname));
 			}
 		}
 
@@ -2279,7 +2301,7 @@ ExecBuildSlotValueDescription(Oid reloid,
 				Oid			foutoid;
 				bool		typisvarlena;
 
-				getTypeOutputInfo(tupdesc->attrs[i]->atttypid,
+				getTypeOutputInfo(att->atttypid,
 								  &foutoid, &typisvarlena);
 				val = OidOutputFunctionCall(foutoid, slot->tts_values[i]);
 			}
@@ -3237,6 +3259,7 @@ EvalPlanQualEnd(EPQState *epqstate)
 void
 ExecSetupPartitionTupleRouting(Relation rel,
 							   Index resultRTindex,
+							   EState *estate,
 							   PartitionDispatch **pd,
 							   ResultRelInfo **partitions,
 							   TupleConversionMap ***tup_conv_maps,
@@ -3249,9 +3272,12 @@ ExecSetupPartitionTupleRouting(Relation rel,
 	int			i;
 	ResultRelInfo *leaf_part_rri;
 
-	/* Get the tuple-routing information and lock partitions */
-	*pd = RelationGetPartitionDispatchInfo(rel, RowExclusiveLock, num_parted,
-										   &leaf_parts);
+	/*
+	 * Get the information about the partition tree after locking all the
+	 * partitions.
+	 */
+	(void) find_all_inheritors(RelationGetRelid(rel), RowExclusiveLock, NULL);
+	*pd = RelationGetPartitionDispatchInfo(rel, num_parted, &leaf_parts);
 	*num_partitions = list_length(leaf_parts);
 	*partitions = (ResultRelInfo *) palloc(*num_partitions *
 										   sizeof(ResultRelInfo));
@@ -3297,7 +3323,10 @@ ExecSetupPartitionTupleRouting(Relation rel,
 						  partrel,
 						  resultRTindex,
 						  rel,
-						  0);
+						  estate->es_instrument);
+
+		estate->es_leaf_result_relations =
+			lappend(estate->es_leaf_result_relations, leaf_part_rri);
 
 		/*
 		 * Open partition indices (remember we do not support ON CONFLICT in
