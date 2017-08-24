@@ -99,13 +99,13 @@ DROP DATABASE | Native
 DROP FUNCTION | Native
 DROP GROUP | Native
 DROP LIBRARY | **Yes**
-DROP SCHEMA | Partial
+DROP SCHEMA | Complete
 DROP SCHEMA IF EXISTS | **Yes**
 DROP TABLE | Complete
 DROP TABLE IF EXISTS | **Yes**
-DROP USER | Partial
+DROP USER | Complete
 DROP USER IF EXISTS | **Yes**
-DROP VIEW | Partial
+DROP VIEW | Complete
 DROP VIEW IF EXISTS | **Yes**
 END | Native
 EXECUTE | Native

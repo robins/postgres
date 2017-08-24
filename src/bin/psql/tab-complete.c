@@ -2977,8 +2977,14 @@ psql_completion(const char *text, int start, int end)
 	/* DROP SCHEMA */
 	else if (Matches2("DROP", "SCHEMA"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_schemas
-			" UNION ALL SELECT 'IF EXISTS'");
-	else if ((HeadMatches3("DROP", "SCHEMA", MatchAny)) && TailMatches1(MatchAnyExcept("EXISTS")))
+															" UNION ALL SELECT 'IF EXISTS'");
+	else if ((Matches3("DROP", "SCHEMA", MatchAny)))
+		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
+	else if (Matches4("DROP", "SCHEMA", MatchAny, MatchAny) 
+					&& TailMatches1(MatchAnyExcept("CASCADE|RESTRICT")))
+		COMPLETE_WITH_QUERY(Query_for_list_of_schemas);
+	else if ((HeadMatches5("DROP", "SCHEMA", MatchAny, MatchAny, MatchAny)) 
+					&& TailMatches1(MatchAnyExcept("EXISTS|CASCADE|RESTRICT")))
 		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
 
 	/* DROP TEXT SEARCH */
@@ -3035,7 +3041,7 @@ psql_completion(const char *text, int start, int end)
 	/* DROP TABLE */
 	else if (Matches2("DROP", "TABLE"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables,
-			" UNION ALL SELECT 'IF EXISTS'");
+															" UNION ALL SELECT 'IF EXISTS'");
 	else if ((Matches3("DROP", "TABLE", MatchAny)))
 		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
 	else if (Matches4("DROP", "TABLE", MatchAny, MatchAny) 
@@ -3046,19 +3052,21 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
 
 	/* DROP USER */
-	else if (Matches2("DROP", "USER"))
+	else if (HeadMatches2("DROP", "USER"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_users,
-			" UNION ALL SELECT 'IF EXISTS'");
-	else if (HeadMatches3("DROP", "USER", MatchAny))
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_users, NULL);
-			
+														" UNION ALL SELECT 'IF EXISTS'");
+	
 	/* DROP VIEW */
 	else if (Matches2("DROP", "VIEW"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_views,
-			" UNION ALL SELECT 'IF EXISTS'");
-	else if (HeadMatches3("DROP", "VIEW", MatchAny))
+															" UNION ALL SELECT 'IF EXISTS'");
+	else if ((Matches3("DROP", "VIEW", MatchAny)))
+		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
+	else if (Matches4("DROP", "VIEW", MatchAny, MatchAny) 
+					&& TailMatches1(MatchAnyExcept("CASCADE|RESTRICT")))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_views, NULL);
-	else if ((HeadMatches3("DROP", "VIEW", MatchAny)) && TailMatches1(MatchAnyExcept("EXISTS")))
+	else if ((HeadMatches5("DROP", "VIEW", MatchAny, MatchAny, MatchAny)) 
+					&& TailMatches1(MatchAnyExcept("EXISTS|CASCADE|RESTRICT")))
 		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
 
 
