@@ -110,9 +110,9 @@ DROP VIEW IF EXISTS | **Yes**
 END | Native
 EXECUTE | Native
 EXPLAIN | Native
-FETCH | Partial
-FETCH NEXT | Unsupported
-FETCH ALL | Unsupported
+FETCH | Complete
+FETCH NEXT | **Yes**
+FETCH ALL | **Yes**
 GRANT | Partial
 GRANT ALL PRIVILEGES | Unsupported
 GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported

@@ -700,6 +700,9 @@ static const SchemaQuery Query_for_list_of_statistics = {
 " SELECT 'TEXT32K' UNION ALL "\
 " SELECT 'ZST' "
 
+#define Query_for_list_of_cursors \
+" SELECT trim(name) FROM stv_active_cursors"
+
 #define Query_for_list_of_enum_values \
 "SELECT pg_catalog.quote_literal(enumlabel) "\
 "  FROM pg_catalog.pg_enum e, pg_catalog.pg_type t "\
@@ -3081,21 +3084,18 @@ psql_completion(const char *text, int start, int end)
 			 Matches3("EXPLAIN", "ANALYZE", "VERBOSE"))
 		COMPLETE_WITH_LIST5("SELECT", "INSERT", "DELETE", "UPDATE", "DECLARE");
 
-/* FETCH && MOVE */
-	/* Complete FETCH with one of FORWARD, BACKWARD, RELATIVE */
-	else if (Matches1("FETCH|MOVE"))
-		COMPLETE_WITH_LIST4("ABSOLUTE", "BACKWARD", "FORWARD", "RELATIVE");
-	/* Complete FETCH <sth> with one of ALL, NEXT, PRIOR */
-	else if (Matches2("FETCH|MOVE", MatchAny))
-		COMPLETE_WITH_LIST3("ALL", "NEXT", "PRIOR");
-
-	/*
-	 * Complete FETCH <sth1> <sth2> with "FROM" or "IN". These are equivalent,
-	 * but we may as well tab-complete both: perhaps some users prefer one
-	 * variant or the other.
-	 */
-	else if (Matches3("FETCH|MOVE", MatchAny, MatchAny))
-		COMPLETE_WITH_LIST2("FROM", "IN");
+/* FETCH */
+	/* Experiment with removing Postgres compliant and keeping only Redshift */
+	else if (Matches1("FETCH"))
+		COMPLETE_WITH_LIST4("ALL", "FORWARD", "FROM", "NEXT");
+	else if (Matches2("FETCH", "FORWARD"))
+		COMPLETE_WITH_LIST2("ALL", "FROM");
+	else if (Matches2("FETCH", "NEXT|ALL"))
+		COMPLETE_WITH_CONST("FROM");
+	else if (Matches3("FETCH", "FORWARD", MatchAnyExcept("FROM")))
+		COMPLETE_WITH_CONST("FROM");
+	else if (HeadMatches1("FETCH") && TailMatches1("FROM"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_cursors);
 
 /* FOREIGN DATA WRAPPER */
 	/* applies in ALTER/DROP FDW and in CREATE SERVER */
@@ -3382,6 +3382,8 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_ATTR(prev3_wd, "");
 
 /* PREPARE xx AS */
+	else if (Matches2("PREPARE", MatchAny))
+		COMPLETE_WITH_CONST("AS");
 	else if (Matches3("PREPARE", MatchAny, "AS"))
 		COMPLETE_WITH_LIST4("SELECT", "UPDATE", "INSERT", "DELETE FROM");
 
@@ -3517,7 +3519,11 @@ psql_completion(const char *text, int start, int end)
 	/* Complete RESET SESSION with AUTHORIZATION */
 	else if (Matches2("RESET", "SESSION"))
 		COMPLETE_WITH_CONST("AUTHORIZATION");
-	/* Complete SET <var> with "TO" */
+	/* RESET parameter / ALL */
+	else if (Matches1("RESET"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_show_vars
+												" UNION 'ALL'");
+/* Complete SET <var> with "TO" */
 	else if (Matches2("SET", MatchAny))
 		COMPLETE_WITH_CONST("TO");
 	/* Complete ALTER DATABASE|FUNCTION|ROLE|USER ... SET <name> */
