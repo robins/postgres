@@ -601,21 +601,6 @@ static const SchemaQuery Query_for_list_of_views = {
 	NULL
 };
 
-static const SchemaQuery Query_for_list_of_users = {
-	/* catname */
-	"pg_catalog.pg_user c",
-	/* selcondition */
-	"c.relkind IN (" CppAsString2(RELKIND_VIEW) ")",
-	/* viscondition */
-	NULL,
-	/* namespace */
-	"c.relnamespace",
-	/* result */
-	"pg_catalog.quote_ident(c.relname)",
-	/* qualresult */
-	NULL
-};
-
 static const SchemaQuery Query_for_list_of_matviews = {
 	/* catname */
 	"pg_catalog.pg_class c",
@@ -794,6 +779,11 @@ static const SchemaQuery Query_for_list_of_statistics = {
 " SELECT pg_catalog.quote_ident(rolname) "\
 "   FROM pg_catalog.pg_roles "\
 "  WHERE substring(pg_catalog.quote_ident(rolname),1,%d)='%s'"
+
+#define Query_for_list_of_users \
+" SELECT pg_catalog.quote_ident(usename) "\
+"   FROM pg_catalog.pg_user "\
+"  WHERE substring(pg_catalog.quote_ident(usename),1,%d)='%s'"
 
 #define Query_for_list_of_grant_roles \
 " SELECT pg_catalog.quote_ident(rolname) "\
@@ -3053,9 +3043,11 @@ psql_completion(const char *text, int start, int end)
 
 	/* DROP USER */
 	else if (HeadMatches2("DROP", "USER"))
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_users,
-														" UNION ALL SELECT 'IF EXISTS'");
-	
+		COMPLETE_WITH_QUERY(Query_for_list_of_users
+											" UNION ALL SELECT 'IF EXISTS'");
+	else if (HeadMatches4("DROP", "USER", "IF", "EXISTS"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_users);
+
 	/* DROP VIEW */
 	else if (Matches2("DROP", "VIEW"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_views,
