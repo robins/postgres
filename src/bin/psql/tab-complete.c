@@ -775,7 +775,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "SELECT name FROM "\
 " (SELECT pg_catalog.lower(name) AS name FROM pg_catalog.pg_settings "\
 "  UNION ALL SELECT 'session authorization' "\
-"  UNION ALL SELECT 'all') ss "\
+"  UNION ALL SELECT 'ALL') ss "\
 " WHERE substring(name,1,%d)='%s'"
 
 #define Query_for_list_of_roles \
@@ -3145,7 +3145,8 @@ psql_completion(const char *text, int start, int end)
 								" UNION SELECT 'TEMPORARY'"
 								" UNION SELECT 'EXECUTE'"
 								" UNION SELECT 'USAGE'"
-								" UNION SELECT 'ALL'");
+								" UNION SELECT 'ALL'"
+								" UNION SELECT 'GRANT OPTION FOR'");
 	}
 
 	/*
@@ -3461,7 +3462,41 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_CONST("IS");
 
 /* SELECT */
-	/* naah . . . */
+	else if (Matches1("SELECT"))
+		COMPLETE_WITH_LIST4("TOP", "ALL", "DISTINCT", "*");
+	else if (Matches2("SELECT", "*"))
+		COMPLETE_WITH_LIST7("FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET");
+	else if (Matches2("SELECT", MatchAny))
+		COMPLETE_WITH_LIST7("FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET");
+/* SELECT FROM */
+	else if (HeadMatches1("SELECT") && TailMatches1("FROM"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
+	else if (HeadMatches1("SELECT") && TailMatches2("FROM", MatchAny))
+		COMPLETE_WITH_LIST7("WHERE", "GROUP BY", "HAVING", "UNION", "ORDER BY", "LIMIT", "OFFSET");
+	/* SELECT WHERE */
+	else if (HeadMatches1("SELECT") && TailMatches3("FROM", MatchAny, "WHERE"))
+		COMPLETE_WITH_ATTR(prev2_wd, "");
+	else if (
+		(HeadMatches1("SELECT") && TailMatches3("WHERE", MatchAny, MatchAnyExcept("HAVING|BY|LIMIT|OFFSET"))) ||
+		(HeadMatches1("SELECT") && TailMatches4("WHERE", MatchAny, MatchAnyExcept("HAVING|BY|LIMIT|OFFSET"), MatchAnyExcept("HAVING|BY|LIMIT|OFFSET")))
+	)
+		COMPLETE_WITH_LIST5("GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET");
+	/* SELECT GROUP  BY */
+	else if (HeadMatches1("SELECT") && TailMatches3("GROUP", "BY", MatchAny))
+	COMPLETE_WITH_LIST5("HAVING", "UNION", "ORDER BY", "LIMIT", "OFFSET");
+	/* SELECT ORDER BY */
+	else if (HeadMatches1("SELECT") && TailMatches3("ORDER", "BY", MatchAny))
+		COMPLETE_WITH_LIST2("ASC", "DESC");
+	else if ((HeadMatches1("SELECT") && TailMatches3("ORDER", "BY", MatchAny)) ||
+					(HeadMatches1("SELECT") && TailMatches4("ORDER", "BY", MatchAny, "ASC|DESC")))
+		COMPLETE_WITH_LIST2("LIMIT", "OFFSET");
+	/* SELECT LIMIT */
+	else if (HeadMatches1("SELECT") && TailMatches1("LIMIT"))
+		COMPLETE_WITH_CONST("ALL");
+	/* SELECT OFFSET */
+	else if (HeadMatches1("SELECT") && TailMatches2("LIMIT", MatchAny))
+		COMPLETE_WITH_CONST("OFFSET");
+	
 
 /* SET, RESET, SHOW */
 	/* Complete with a variable name */
@@ -3521,8 +3556,7 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_CONST("AUTHORIZATION");
 	/* RESET parameter / ALL */
 	else if (Matches1("RESET"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_show_vars
-												" UNION 'ALL'");
+		COMPLETE_WITH_QUERY(Query_for_list_of_show_vars);
 /* Complete SET <var> with "TO" */
 	else if (Matches2("SET", MatchAny))
 		COMPLETE_WITH_CONST("TO");
