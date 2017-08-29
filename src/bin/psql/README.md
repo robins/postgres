@@ -146,7 +146,7 @@ SHOW ALL | Unsupported
 START TRANSACTION | Native
 TRUNCATE | Partial
 TRUNCATE TABLE | Unsupported
-UNLOAD | Unsupported
+UNLOAD | **Yes**
 UPDATE | Complete
 UPDATE SET FROM | **Yes**
 UPDATE SET WHERE | **Yes**
