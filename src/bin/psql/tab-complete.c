@@ -3651,6 +3651,18 @@ psql_completion(const char *text, int start, int end)
 	/* UPDATE <table> SET <attr> = */
 	else if (TailMatches4("UPDATE", MatchAny, "SET", MatchAny))
 		COMPLETE_WITH_CONST("=");
+	/* UPDATE <table> SET <attr> = FROM / WHERE */
+	else if (TailMatches6("UPDATE", MatchAny, "SET", MatchAny, "=", MatchAny))
+		COMPLETE_WITH_LIST2("FROM", "WHERE");
+	/* UPDATE <table> SET <attr> = FROM */
+	else if (TailMatches7("UPDATE", MatchAny, "SET", MatchAny, "=", MatchAny, "FROM"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
+	/* UPDATE <table> SET <attr> = FROM WHERE */
+	else if (TailMatches8("UPDATE", MatchAny, "SET", MatchAny, "=", MatchAny, "FROM", MatchAny))
+		COMPLETE_WITH_CONST("WHERE");
+	/* UPDATE <table> SET <attr> = FROM WHERE */
+	else if (TailMatches9("UPDATE", MatchAny, "SET", MatchAny, "=", MatchAny, "FROM", MatchAny, "WHERE"))
+		COMPLETE_WITH_ATTR(prev2_wd, "");
 
 /* USER MAPPING */
 	else if (Matches3("ALTER|CREATE|DROP", "USER", "MAPPING"))
