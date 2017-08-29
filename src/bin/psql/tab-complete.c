@@ -2505,6 +2505,24 @@ psql_completion(const char *text, int start, int end)
 	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("IAM_ROLE", MatchAny))
 		COMPLETE_WITH_CONST("CREATE EXTERNAL DATABASE IF NOT EXISTS");
 
+	/* CREATE EXTERNAL TABLE */
+	else if (Matches3("CREATE", "EXTERNAL", "TABLE"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_external_schemas);
+	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("PARTITIONED"))
+		COMPLETE_WITH_CONST("BY (");
+	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("ROW"))
+		COMPLETE_WITH_LIST2("FORMAT", "DELIMITED");
+	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches3("ROW", "FORMAT", "DELIMITED"))
+		COMPLETE_WITH_LIST2("FIELDS TERMINATED BY", "LINES TERMINATED BY");
+	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches3("ROW", "FORMAT", "DELIMITED"))
+		COMPLETE_WITH_LIST2("FIELDS TERMINATED BY", "LINES TERMINATED BY");
+	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches2("STORED", "AS"))
+		COMPLETE_WITH_LIST5("PARQUET", "RCFILE", "SEQUENCEFILE", "TEXTFILE", "ORC");
+	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("PROPERTIES"))
+		COMPLETE_WITH_CONST("('numRows'='");
+	else if (HeadMatches4("CREATE", "EXTERNAL", "TABLE", MatchAny))
+		COMPLETE_WITH_LIST5("PARTITIONED BY (", "ROW FORMAT DELIMITED", "STORED AS", "LOCATION", "TABLE PROPERTIES ('numRows'='");
+
 
 	/* CREATE FOREIGN */
 	else if (Matches2("CREATE", "FOREIGN"))
