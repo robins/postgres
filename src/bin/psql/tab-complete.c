@@ -2896,8 +2896,7 @@ psql_completion(const char *text, int start, int end)
 
 /* DEALLOCATE */
 	else if (Matches1("DEALLOCATE"))
-//	COMPLETE_WITH_QUERY2(Query_for_list_of_prepared_statements, "UNION SELECT 'PREPARE'");
-		COMPLETE_WITH_QUERY(Query_for_list_of_prepared_statements);
+		COMPLETE_WITH_QUERY(Query_for_list_of_prepared_statements " UNION SELECT 'PREPARE'");
 	else if (Matches2("DEALLOCATE", "PREPARE"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_prepared_statements);
 
@@ -2919,7 +2918,12 @@ psql_completion(const char *text, int start, int end)
 	else if (TailMatches3("DELETE", "FROM", MatchAny))
 		COMPLETE_WITH_LIST2("USING", "WHERE");
 	else if (TailMatches4("DELETE", "FROM", MatchAny, "USING"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
+	else if (TailMatches5("DELETE", "FROM", MatchAny, "USING", MatchAny))
 		COMPLETE_WITH_CONST("WHERE");
+	else if ((TailMatches5("DELETE", MatchAny, "USING", MatchAny, "WHERE")) ||
+					(TailMatches6("DELETE", "FROM", MatchAny, "USING", MatchAny, "WHERE")))
+		COMPLETE_WITH_ATTR(prev2_wd, "");
 	/* XXX: implement tab completion for DELETE ... USING */
 
 /* DISCARD */
@@ -3644,6 +3648,8 @@ psql_completion(const char *text, int start, int end)
 
 /* TRUNCATE */
 	else if (Matches1("TRUNCATE"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, " UNION SELECT 'TABLE'");
+	else if (Matches2("TRUNCATE", "TABLE"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
 
 /* UNLISTEN */

@@ -90,11 +90,11 @@ CREATE USER | Complete
 CREATE USER [NO]CREATEUSER | **Yes**
 CREATE VIEW | Partial
 CREATE OR REPLACE VIEW | **Yes**
-DEALLOCATE | Partial
-DEALLOCATE PREPARE | Unsupported
+DEALLOCATE | Complete
+DEALLOCATE PREPARE | **Yes**
 DECLARE | Native
-DELETE | Partial
-DELETE FROM USING WHERE | Unsupported
+DELETE | Complete
+DELETE FROM USING WHERE | **Yes**
 DROP DATABASE | Native
 DROP FUNCTION | Native
 DROP GROUP | Native
@@ -136,16 +136,12 @@ SELECT ALL | **Yes**
 SELECT DISTINCT | **Yes**
 SELECT <similarly many Variants> | Unsupported
 SELECT INTO | **WIP**
-SET | Partial
-SET ALL | Unsupported
-SET SEED TO | Unsupported
-SET SESSION AUTHORIZATION | Unsupported
-SET SESSION CHARACTERISTICS | Native
-SHOW | Partial
-SHOW ALL | Unsupported
+SET | Complete
+SET SEED TO | **Yes**
+SHOW | Native
 START TRANSACTION | Native
-TRUNCATE | Partial
-TRUNCATE TABLE | Unsupported
+TRUNCATE | Complete
+TRUNCATE TABLE | **Yes**
 UNLOAD | **Yes**
 UPDATE | Complete
 UPDATE SET FROM | **Yes**
