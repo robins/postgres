@@ -1532,7 +1532,7 @@ psql_completion(const char *text, int start, int end)
 		"REASSIGN", "REFRESH MATERIALIZED VIEW", "REINDEX", "RELEASE",
 		"RESET", "REVOKE", "ROLLBACK",
 		"SAVEPOINT", "SECURITY LABEL", "SELECT", "SET", "SHOW", "START",
-		"TABLE", "TRUNCATE", "UNLISTEN", "UPDATE", "VACUUM", "VALUES", "WITH",
+		"TABLE", "TRUNCATE", "UNLISTEN", "UNLOAD", "UPDATE", "VACUUM", "VALUES", "WITH",
 		NULL
 	};
 
@@ -3653,15 +3653,15 @@ psql_completion(const char *text, int start, int end)
 /* UNLISTEN */
 	else if (Matches1("UNLOAD"))
 		COMPLETE_WITH_CONST("(");
-	else if (HeadMatches1("UNLOAD") && TailMatches1("TO"))
+	else if (Matches2("UNLOAD", MatchAny))
 		COMPLETE_WITH_CONST("TO");
-	else if (HeadMatches1("UNLOAD") && TailMatches1("TO", MatchAny))
-		COMPLETE_WITH_CONST("IAM_ROLE", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "SESSION_TOKEN", "WITH", "CREDENTIALS");
-	else if (HeadMatches1("UNLOAD") && TailMatches1("ACCESS_KEY_ID", MatchAny))
+	else if (HeadMatches1("UNLOAD") && TailMatches2("TO", MatchAnyExcept("TO")))
+		COMPLETE_WITH_LIST6("IAM_ROLE", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "SESSION_TOKEN", "WITH", "CREDENTIALS");
+	else if (HeadMatches1("UNLOAD") && TailMatches2("ACCESS_KEY_ID", MatchAny))
 		COMPLETE_WITH_CONST("SECRET_ACCESS_KEY");
-	else if (HeadMatches1("UNLOAD") && TailMatches1("SECRET_ACCESS_KEY", MatchAny))
+	else if (HeadMatches1("UNLOAD") && TailMatches2("SECRET_ACCESS_KEY", MatchAny))
 		COMPLETE_WITH_CONST("SESSION_TOKEN");
-	else if (HeadMatches1("UNLOAD") && TailMatches1("TO", MatchAny, "WITH"))
+	else if (HeadMatches1("UNLOAD") && TailMatches3("TO", MatchAny, "WITH"))
 		COMPLETE_WITH_CONST("CREDENTIALS");
 	else if (HeadMatches1("UNLOAD") && TailMatches1("CREDENTIALS"))
 		COMPLETE_WITH_CONST("AS");
@@ -3670,18 +3670,59 @@ psql_completion(const char *text, int start, int end)
 						(TailMatches2("SECRET_ACCESS_KEY", MatchAny)) ||
 						(TailMatches2("SESSION_TOKEN", MatchAny)) ||
 						(TailMatches2("CREDENTIALS|AS", MatchAny))		
-					)
+					))
 		COMPLETE_WITH_LIST12("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
 	else if (HeadMatches1("UNLOAD") && TailMatches1("MANIFEST"))
 		COMPLETE_WITH_LIST11("DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
 	else if (HeadMatches1("UNLOAD") && TailMatches1("ENCRYPTED"))
 		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "FIXEDWIDTH", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
 	else if (HeadMatches1("UNLOAD") && TailMatches1("BZIP2"))
+		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
 	else if (HeadMatches1("UNLOAD") && TailMatches1("GZIP"))
+		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
 	else if (HeadMatches1("UNLOAD") && TailMatches1("ADDQUOTES"))
+		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
 	else if (HeadMatches1("UNLOAD") && TailMatches1("ESCAPE"))
+		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
 	else if (HeadMatches1("UNLOAD") && TailMatches1("ALLOWOVERWRITE"))
-	
+		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("DELIMITER|FIXEDWIDTH|NULL"))
+		COMPLETE_WITH_CONST("AS '");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("MAXFILESIZE"))
+		COMPLETE_WITH_CONST("AS");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("PARALLEL"))
+		COMPLETE_WITH_LIST4("ON", "OFF", "TRUE", "FALSE");
+	else if (HeadMatches1("UNLOAD") && (
+						TailMatches2("MAXFILESIZE", MatchAnyExcept("AS")) ||
+						TailMatches3("MAXFILESIZE", "AS", MatchAny)
+					))
+		COMPLETE_WITH_LIST2("MB", "GB");
+	else if (HeadMatches1("UNLOAD") && (
+						TailMatches2("DELIMITER", MatchAny) ||
+						TailMatches3("DELIMITER", "AS", MatchAny)
+					))
+		COMPLETE_WITH_LIST11("MANIFEST", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
+	else if (HeadMatches1("UNLOAD") && (
+						TailMatches2("FIXEDWIDTH", MatchAny) ||
+						TailMatches3("FIXEDWIDTH", "AS", MatchAny)
+					))
+		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
+	else if (HeadMatches1("UNLOAD") && (
+						TailMatches2("NULL", MatchAny) ||
+						TailMatches3("NULL", "AS", MatchAny)
+					))
+		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
+	else if (HeadMatches1("UNLOAD") && (
+						TailMatches2("PARALLEL", MatchAny) ||
+						TailMatches3("PARALLEL", "AS", MatchAny)
+					))
+		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "MAXFILESIZE");
+	else if (HeadMatches1("UNLOAD") && (
+						TailMatches3("MAXFILESIZE", MatchAnyExcept("AS"), "MB|GB") ||
+						TailMatches4("MAXFILESIZE", "AS", MatchAnyExcept("AS"), "MB|GB")
+					))
+		COMPLETE_WITH_LIST12("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
+
 
 /* UPDATE --- can be inside EXPLAIN, RULE, etc */
 	/* If prev. word is UPDATE suggest a list of tables */
