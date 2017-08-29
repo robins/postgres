@@ -147,9 +147,9 @@ START TRANSACTION | Native
 TRUNCATE | Partial
 TRUNCATE TABLE | Unsupported
 UNLOAD | Unsupported
-UPDATE | Unsupported
-UPDATE SET FROM | Unsupported
-UPDATE SET WHERE | Unsupported
+UPDATE | Complete
+UPDATE SET FROM | **Yes**
+UPDATE SET WHERE | **Yes**
 VACUUM | Complete
 VACUUM SORT | **Yes**
 VACUUM DELETE | **Yes**
