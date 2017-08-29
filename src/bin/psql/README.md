@@ -84,7 +84,7 @@ CREATE TABLE DISTKEY | **Yes**
 CREATE TABLE INTERLEAVED SORTKEY | **Yes**
 CREATE TABLE COMPOUND SORTKEY | **Yes**
 CREATE TABLE SORTKEY | **Yes**
-CREATE TABLE <similarly many Variants> | Unsupported
+CREATE TABLE (similarly many variants) | Unsupported
 CREATE TABLE AS | Unsupported
 CREATE USER | Complete
 CREATE USER [NO]CREATEUSER | **Yes**
@@ -120,7 +120,7 @@ GRANT ALL ON TABLE TO GROUP | Unsupported
 GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
 GRANT CREATE ALL | Unsupported
 GRANT CREATE ON | Unsupported
-GRANT <similarly many variants> | Unsupported
+GRANT (similarly many variants) | Unsupported
 INSERT | Partial
 INSERT INTO DEFAULT VALUES | Unsupported
 LOCK | Native
@@ -128,13 +128,13 @@ PREPARE | Native
 RESET | Native
 REVOKE | Partial
 REVOKE GRANT | **Yes**
-REVOKE <similarly many variants> | Unsupported
+REVOKE (similarly many variants) | Unsupported
 ROLLBACK | Native
 SELECT | Partial
 SELECT TOP | **Yes**
 SELECT ALL | **Yes**
 SELECT DISTINCT | **Yes**
-SELECT <similarly many Variants> | Unsupported
+SELECT (similarly many variants) | Unsupported
 SELECT INTO | **WIP**
 SET | Complete
 SET SEED TO | **Yes**
