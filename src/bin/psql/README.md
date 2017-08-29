@@ -38,7 +38,7 @@ ALTER GROUP | Native
 ALTER SCHEMA | Native
 ALTER TABLE | Partial
 ALTER TABLE ADD COLUMN | **Yes**
-ALTER TABLE ADD ENCODING <Column-Compressions>| **Yes**
+ALTER TABLE ADD ENCODING (Column-Compressions)| **Yes**
 ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
 ALTER TABLE SET FILE FORMAT format | Unsupported
 ALTER TABLE SET TABLE PROPERTIES ( 'numRows'='row_count' ) | Unsupported
@@ -54,12 +54,12 @@ ANALYSE PREDICATE COLUMNS | Unsupported
 ANALYZE ALL COLUMNS | Unsupported
 ANALYZE COMPRESSION | Unsupported
 BEGIN | Native
-CANCEL | Unsupported
-CLOSE | Unsupported
+CANCEL | **Yes**
+CLOSE | **Yes**
 COMMENT | Native
 COMMIT | Native
 COPY | Unsupported
-COPY .. REGION <aws-regions> | **Yes**
+COPY .. REGION (aws-regions) | **Yes**
 CREATE DATABASE | Complete
 CREATE DATABASE CONNECTION LIMIT UNLIMITED | **Yes**
 CREATE DATABASE WITH | **Yes**

@@ -779,6 +779,9 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "  UNION ALL SELECT 'all') ss "\
 " WHERE substring(name,1,%d)='%s'"
 
+#define Query_for_list_of_pids \
+"SELECT process || ' (user->' || user_name || '; database->' || db_name || ')' FROM stv_sessions ORDER BY db_name, user_name"
+
 #define Query_for_list_of_set_vars \
 "SELECT name FROM "\
 " (SELECT pg_catalog.lower(name) AS name FROM pg_catalog.pg_settings "\
@@ -1534,7 +1537,7 @@ psql_completion(const char *text, int start, int end)
 
 						/* Known command-starting keywords. */
 	static const char *const sql_commands[] = {
-		"ABORT", "ALTER", "ANALYZE", "BEGIN", "CHECKPOINT", "CLOSE", "CLUSTER",
+		"ABORT", "ALTER", "ANALYZE", "BEGIN", "CANCEL", "CHECKPOINT", "CLOSE", "CLUSTER",
 		"COMMENT", "COMMIT", "COPY", "CREATE", "DEALLOCATE", "DECLARE",
 		"DELETE FROM", "DISCARD", "DO", "DROP", "END", "EXECUTE", "EXPLAIN",
 		"FETCH", "GRANT", "IMPORT", "INSERT", "LISTEN", "LOAD", "LOCK",
@@ -2318,6 +2321,13 @@ psql_completion(const char *text, int start, int end)
 		completion_info_charp = prev2_wd;
 		COMPLETE_WITH_QUERY(Query_for_index_of_table);
 	}
+/* CANCEL */
+	else if (Matches1("CANCEL"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_pids);
+
+/* CLOSE */
+	else if (Matches1("CLOSE"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_cursors);
 
 /* COMMENT */
 	else if (Matches1("COMMENT"))
