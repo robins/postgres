@@ -683,20 +683,20 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "        OR '\"' || nspname || '\"' ='%s') "
 
 #define Query_for_list_of_aws_regions \
-"SELECT 'ap-northeast-1' UNION ALL "\
-"SELECT 'ap-northeast-2' UNION ALL "\
-"SELECT 'ap-south-1' UNION ALL "\
-"SELECT 'ap-southeast-1' UNION ALL "\
-"SELECT 'ap-southeast-2' UNION ALL "\
-"SELECT 'ca-central-1' UNION ALL "\
-"SELECT 'eu-central-1' UNION ALL "\
-"SELECT 'eu-west-1' UNION ALL "\
-"SELECT 'eu-west-2' UNION ALL "\
-"SELECT 'sa-east-1' UNION ALL "\
-"SELECT 'us-east-1' UNION ALL "\
-"SELECT 'us-east-2' UNION ALL "\
-"SELECT 'us-west-1' UNION ALL "\
-"SELECT 'us-west-2' "
+"SELECT '''ap-northeast-1''' UNION ALL "\
+"SELECT '''ap-northeast-2''' UNION ALL "\
+"SELECT '''ap-south-1''' UNION ALL "\
+"SELECT '''ap-southeast-1''' UNION ALL "\
+"SELECT '''ap-southeast-2''' UNION ALL "\
+"SELECT '''ca-central-1''' UNION ALL "\
+"SELECT '''eu-central-1''' UNION ALL "\
+"SELECT '''eu-west-1''' UNION ALL "\
+"SELECT '''eu-west-2''' UNION ALL "\
+"SELECT '''sa-east-1''' UNION ALL "\
+"SELECT '''us-east-1''' UNION ALL "\
+"SELECT '''us-east-2''' UNION ALL "\
+"SELECT '''us-west-1''' UNION ALL "\
+"SELECT '''us-west-2''' "
 
 #define Query_for_list_of_column_compressions \
 " SELECT 'BYTEDICT' UNION ALL "\
@@ -763,6 +763,14 @@ static const SchemaQuery Query_for_list_of_statistics = {
 #define Query_for_list_of_schemas \
 "SELECT pg_catalog.quote_ident(nspname) FROM pg_catalog.pg_namespace "\
 " WHERE substring(pg_catalog.quote_ident(nspname),1,%d)='%s'"
+
+#define Query_for_list_of_external_schemas \
+"SELECT pg_catalog.quote_ident(schemaname) FROM SVV_EXTERNAL_SCHEMAS "\
+" WHERE substring(pg_catalog.quote_ident(schemaname),1,%d)='%s'"
+
+#define Query_for_list_of_external_tables \
+"SELECT pg_catalog.quote_ident(tablename) FROM SVV_EXTERNAL_TABLES "\
+" WHERE substring(pg_catalog.quote_ident(tablename),1,%d)='%s'"
 
 #define Query_for_list_of_alter_system_set_vars \
 "SELECT name FROM "\
@@ -1074,6 +1082,8 @@ static const pgsql_thing_t words_after_create[] = {
 	{"DOMAIN", NULL, &Query_for_list_of_domains},
 	{"EVENT TRIGGER", NULL, NULL},
 	{"EXTENSION", Query_for_list_of_extensions},
+	{"EXTERNAL SCHEMA", Query_for_list_of_external_schemas},
+	{"EXTERNAL TABLE", Query_for_list_of_external_tables},
 	{"FOREIGN DATA WRAPPER", NULL, NULL},
 	{"FOREIGN TABLE", NULL, NULL},
 	{"FUNCTION", NULL, &Query_for_list_of_functions},
@@ -2464,6 +2474,37 @@ psql_completion(const char *text, int start, int end)
 		completion_info_charp = prev2_wd;
 		COMPLETE_WITH_QUERY(Query_for_list_of_available_extension_versions);
 	}
+
+	/* CREATE EXTERNAL SCHEMA */
+	else if (Matches2("CREATE", "EXTERNAL"))
+		COMPLETE_WITH_LIST2("SCHEMA", "TABLE");
+	else if (Matches3("CREATE", "EXTERNAL", "SCHEMA"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_external_schemas
+											" UNION ALL SELECT 'IF NOT EXISTS'");
+	else if (
+				(Matches7("CREATE", "EXTERNAL", "SCHEMA", "IF", "NOT", "EXISTS", MatchAnyExcept("FROM"))) || 
+				(Matches4("CREATE", "EXTERNAL", "SCHEMA", MatchAnyExcept("FROM")))
+			)
+		COMPLETE_WITH_CONST("FROM");
+	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches1("FROM"))
+		COMPLETE_WITH_LIST2("DATA CATALOG", "HIVE METASTORE");
+	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && 
+						(TailMatches2("DATA", "CATALOG") || TailMatches2("HIVE", "METASTORE"))
+					)
+		COMPLETE_WITH_CONST("DATABASE");
+	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("DATABASE", MatchAny))
+		COMPLETE_WITH_LIST4("REGION", "URI", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
+	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches1("REGION"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
+	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("REGION", MatchAny))
+		COMPLETE_WITH_LIST3("URI", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
+	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("URI", MatchAny))
+		COMPLETE_WITH_LIST3("PORT", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
+	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("PORT", MatchAny))
+		COMPLETE_WITH_LIST2("IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
+	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("IAM_ROLE", MatchAny))
+		COMPLETE_WITH_CONST("CREATE EXTERNAL DATABASE IF NOT EXISTS");
+
 
 	/* CREATE FOREIGN */
 	else if (Matches2("CREATE", "FOREIGN"))
