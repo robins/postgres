@@ -314,6 +314,18 @@ do { \
 	COMPLETE_WITH_LIST(list); \
 } while (0)
 
+#define COMPLETE_WITH_LIST11(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11) \
+do { \
+	static const char *const list[] = { s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, NULL }; \
+	COMPLETE_WITH_LIST(list); \
+} while (0)
+
+#define COMPLETE_WITH_LIST12(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) \
+do { \
+	static const char *const list[] = { s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, NULL }; \
+	COMPLETE_WITH_LIST(list); \
+} while (0)
+
 /*
  * Likewise for COMPLETE_WITH_LIST_CS.
  */
@@ -3637,6 +3649,39 @@ psql_completion(const char *text, int start, int end)
 /* UNLISTEN */
 	else if (Matches1("UNLISTEN"))
 		COMPLETE_WITH_QUERY("SELECT pg_catalog.quote_ident(channel) FROM pg_catalog.pg_listening_channels() AS channel WHERE substring(pg_catalog.quote_ident(channel),1,%d)='%s' UNION SELECT '*'");
+
+/* UNLISTEN */
+	else if (Matches1("UNLOAD"))
+		COMPLETE_WITH_CONST("(");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("TO"))
+		COMPLETE_WITH_CONST("TO");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("TO", MatchAny))
+		COMPLETE_WITH_CONST("IAM_ROLE", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "SESSION_TOKEN", "WITH", "CREDENTIALS");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("ACCESS_KEY_ID", MatchAny))
+		COMPLETE_WITH_CONST("SECRET_ACCESS_KEY");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("SECRET_ACCESS_KEY", MatchAny))
+		COMPLETE_WITH_CONST("SESSION_TOKEN");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("TO", MatchAny, "WITH"))
+		COMPLETE_WITH_CONST("CREDENTIALS");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("CREDENTIALS"))
+		COMPLETE_WITH_CONST("AS");
+	else if (HeadMatches1("UNLOAD") && (
+						(TailMatches2("IAM_ROLE", MatchAny)) ||
+						(TailMatches2("SECRET_ACCESS_KEY", MatchAny)) ||
+						(TailMatches2("SESSION_TOKEN", MatchAny)) ||
+						(TailMatches2("CREDENTIALS|AS", MatchAny))		
+					)
+		COMPLETE_WITH_LIST12("MANIFEST", "DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("MANIFEST"))
+		COMPLETE_WITH_LIST11("DELIMITER", "FIXEDWIDTH", "ENCRYPTED", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("ENCRYPTED"))
+		COMPLETE_WITH_LIST11("MANIFEST", "DELIMITER", "FIXEDWIDTH", "BZIP2", "GZIP", "ADDQUOTES", "NULL", "ESCAPE", "ALLOWOVERWRITE", "PARALLEL", "MAXFILESIZE");
+	else if (HeadMatches1("UNLOAD") && TailMatches1("BZIP2"))
+	else if (HeadMatches1("UNLOAD") && TailMatches1("GZIP"))
+	else if (HeadMatches1("UNLOAD") && TailMatches1("ADDQUOTES"))
+	else if (HeadMatches1("UNLOAD") && TailMatches1("ESCAPE"))
+	else if (HeadMatches1("UNLOAD") && TailMatches1("ALLOWOVERWRITE"))
+	
 
 /* UPDATE --- can be inside EXPLAIN, RULE, etc */
 	/* If prev. word is UPDATE suggest a list of tables */
