@@ -3464,11 +3464,18 @@ psql_completion(const char *text, int start, int end)
 /* SELECT */
 	else if (Matches1("SELECT"))
 		COMPLETE_WITH_LIST4("TOP", "ALL", "DISTINCT", "*");
+/* remove if MatchAny below works for *
 	else if (Matches2("SELECT", "*"))
 		COMPLETE_WITH_LIST7("FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET");
+*/
 	else if (Matches2("SELECT", MatchAny))
+		COMPLETE_WITH_LIST8("FROM", "INTO", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET");
+	else if (HeadMatches1("SELECT") && TailMatches1("INTO"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables,
+															"UNION SELECT 'TEMP' UNION SELECT 'TEMPORARY' UNION SELECT 'TABLE'");
+	else if (HeadMatches1("SELECT") && TailMatches2("INTO", MatchAny))
 		COMPLETE_WITH_LIST7("FROM", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET");
-/* SELECT FROM */
+													/* SELECT FROM */
 	else if (HeadMatches1("SELECT") && TailMatches1("FROM"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
 	else if (HeadMatches1("SELECT") && TailMatches2("FROM", MatchAny))
@@ -3501,7 +3508,10 @@ psql_completion(const char *text, int start, int end)
 /* SET, RESET, SHOW */
 	/* Complete with a variable name */
 	else if (TailMatches1("SET|RESET") && !TailMatches3("UPDATE", MatchAny, "SET"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_set_vars);
+		COMPLETE_WITH_QUERY(Query_for_list_of_set_vars
+												" UNION SELECT 'SESSION'"
+												" UNION SELECT 'LOCAL'"
+												" UNION SELECT 'SEED'");
 	else if (Matches1("SHOW"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_show_vars);
 	/* Complete "SET TRANSACTION" */
@@ -3663,7 +3673,10 @@ psql_completion(const char *text, int start, int end)
  */
 	else if (Matches1("VACUUM"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tm,
-								   " UNION SELECT 'FULL'"
+									 " UNION SELECT 'FULL'"
+									 " UNION SELECT 'SORT ONLY'"
+								   " UNION SELECT 'DELETE ONLY'"
+								   " UNION SELECT 'REINDEX'"
 								   " UNION SELECT 'FREEZE'"
 								   " UNION SELECT 'ANALYZE'"
 								   " UNION SELECT 'VERBOSE'");
@@ -3683,8 +3696,12 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches2("VACUUM", "ANALYZE"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tm,
 								   " UNION SELECT 'VERBOSE'");
-	else if (HeadMatches1("VACUUM"))
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tm, NULL);
+	else if (Matches3("VACUUM", "FULL|REINDEX", MatchAny) || 
+					 Matches4("VACUUM", "SORT|DELETE", "ONLY", MatchAny))
+		COMPLETE_WITH_CONST("TO");
+	else if (Matches5("VACUUM", "FULL|REINDEX", MatchAny, "TO", MatchAny) ||
+					 Matches6("VACUUM", "SORT|DELETE", "ONLY", MatchAny, "TO", MatchAny))
+		COMPLETE_WITH_CONST("PERCENT");
 
 /* WITH [RECURSIVE] */
 

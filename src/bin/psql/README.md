@@ -124,21 +124,18 @@ GRANT <similarly many variants> | Unsupported
 INSERT | Partial
 INSERT INTO DEFAULT VALUES | Unsupported
 LOCK | Native
-PREPARE | Partial
-PREPARE AS | Unsupported
-RESET | Partial
-RESET ALL | Unsupported
+PREPARE | Native
+RESET | Native
 REVOKE | Partial
-REVOKE GRANT | Unsupported
-REVOKE SELECT ALL PRIVILEGES | Unsupported
+REVOKE GRANT | **Yes**
 REVOKE <similarly many variants> | Unsupported
 ROLLBACK | Native
 SELECT | Partial
-SELECT TOP | Unsupported
-SELECT ALL | Unsupported
-SELECT DISTINCT | Unsupported
+SELECT TOP | **Yes**
+SELECT ALL | **Yes**
+SELECT DISTINCT | **Yes**
 SELECT <similarly many Variants> | Unsupported
-SELECT INTO | Unsupported
+SELECT INTO | **WIP**
 SET | Partial
 SET ALL | Unsupported
 SET SEED TO | Unsupported
@@ -153,11 +150,11 @@ UNLOAD | Unsupported
 UPDATE | Unsupported
 UPDATE SET FROM | Unsupported
 UPDATE SET WHERE | Unsupported
-VACUUM | Partial
-VACUUM SORT | Unsupported
-VACUUM DELETE | Unsupported
-VACUUM REINDEX | Unsupported
-VACUUM TO | Unsupported
+VACUUM | Complete
+VACUUM SORT | **Yes**
+VACUUM DELETE | **Yes**
+VACUUM REINDEX | **Yes**
+VACUUM TO | **Yes**
 
 
 
