@@ -121,8 +121,7 @@ GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
 GRANT CREATE ALL | Unsupported
 GRANT CREATE ON | Unsupported
 GRANT (similarly many variants) | Unsupported
-INSERT | Partial
-INSERT INTO DEFAULT VALUES | Unsupported
+INSERT | Native
 LOCK | Native
 PREPARE | Native
 RESET | Native
