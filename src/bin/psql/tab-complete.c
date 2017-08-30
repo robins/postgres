@@ -48,7 +48,6 @@
 #include "common.h"
 #include "settings.h"
 #include "stringutils.h"
-#include "fe_utils/string_utils.h"
 
 #ifdef HAVE_RL_FILENAME_COMPLETION_FUNCTION
 #define filename_completion_function rl_filename_completion_function
@@ -715,8 +714,8 @@ static const SchemaQuery Query_for_list_of_statistics = {
 
 #define Query_for_list_of_cursors \
 ((strncmp(pset.sengine, "redshift", 8) == 0) ? \
-		" SELECT trim(name) FROM stv_active_cursors" : \
-		" SELECT trim(name) FROM pg_cursors" )
+		" SELECT trim(name) FROM stv_active_cursors ORDER BY 1" : \
+		" SELECT trim(name) FROM pg_cursors ORDER BY 1" )
 
 #define Query_for_list_of_enum_values \
 "SELECT pg_catalog.quote_literal(enumlabel) "\
@@ -783,7 +782,9 @@ static const SchemaQuery Query_for_list_of_statistics = {
 " WHERE substring(name,1,%d)='%s'"
 
 #define Query_for_list_of_pids \
-"SELECT process || ' (user->' || user_name || '; database->' || db_name || ')' FROM stv_sessions ORDER BY db_name, user_name"
+((strncmp(pset.sengine, "redshift", 8) == 0) ? \
+	"SELECT procpid || ' (user->' || usename || '; database->' || datname || ')' FROM pg_stat_activity ORDER BY datname, usename" : \
+	"SELECT process || ' (user->' || usename || '; database->' || datname || ')' FROM pg_stat_activity ORDER BY datname, usename")
 
 #define Query_for_list_of_set_vars \
 "SELECT name FROM "\
@@ -801,7 +802,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "SELECT name FROM "\
 " (SELECT pg_catalog.lower(name) AS name FROM pg_catalog.pg_settings "\
 "  UNION ALL SELECT 'session authorization' "\
-"  UNION ALL SELECT 'ALL') ss "\
+"  UNION ALL SELECT 'all') ss "\
 " WHERE substring(name,1,%d)='%s'"
 
 #define Query_for_list_of_roles \
@@ -1640,66 +1641,11 @@ psql_completion(const char *text, int start, int end)
 		matches = completion_matches(text, drop_command_generator);
 
 /* ALTER */
-/*
-	/ * ALTER TABLE * /
+
+	/* ALTER TABLE */
 	else if (Matches2("ALTER", "TABLE"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables,
-															" UNION SELECT 'ALL IN TABLESPACE'"
-															" UNION SELECT 'ADD'"
-															" UNION SELECT 'SET'"
-															" UNION SELECT 'PARTITION'"
-															" UNION SELECT 'DROP'"
-															" UNION SELECT 'APPEND'"
-															" UNION SELECT 'OWNER'"
-															" UNION SELECT 'RENAME'");
-	else if (Matches4("ALTER", "TABLE", MatchAny, "ADD"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_tables_for_constraint
-															" UNION SELECT 'CONSTRAINT'"
-															" UNION SELECT 'UNIQUE'"
-															" UNION SELECT 'PRIMARY KEY'"
-															" UNION SELECT 'FOREIGN KEY'"
-															" UNION SELECT 'REFERENCES'"
-															" UNION SELECT 'PARTITION'"
-		);
-	else if (Matches4("ALTER", "TABLE", MatchAny, "OWNER"))
-		COMPLETE_WITH_CONST("TO");
-	else if (Matches5("ALTER", "TABLE", MatchAny, "OWNER", "TO"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_users);
-	else if (Matches4("ALTER", "TABLE", MatchAny, "RENAME"))
-		COMPLETE_WITH_CONST("TO");
-		else if (Matches5("ALTER", "TABLE", MatchAny, "RENAME", "TO"))
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
-		else if (Matches5("ALTER", "TABLE", MatchAny, "RENAME", "COLUMN"))
-		COMPLETE_WITH_ATTR(prev3_wd, "");
-		else if (Matches4("ALTER", "TABLE", MatchAny, "ADD"))
-		COMPLETE_WITH_CONST("COLUMN");
-		else if (Matches5("ALTER", "TABLE", MatchAny, "ADD", "COLUMN"))
-		COMPLETE_WITH_ATTR(prev3_wd, "");
-	else if (Matches6("ALTER", "TABLE", MatchAny, "ADD", "COLUMN", MatchAny))
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
-	else if (
-						(Matches6("ALTER", "TABLE", MatchAny, "ADD", MatchAny, MatchAny)) ||
-						(Matches7("ALTER", "TABLE", MatchAny, "ADD", "COLUMN", MatchAny, MatchAny))
-					)
-		COMPLETE_WITH_LIST4("DEFAULT", "ENCODE", "NOT NULL", "NULL");
-	else if (Matches2("ALTER", "TABLE") && Matches1("ENCODE"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_column_compressions);
-	else if (Matches2("ALTER", "TABLE") && Matches1("DROP"))
-		COMPLETE_WITH_LIST2("CONSTRAINT", "COLUMN");
-	else if (Matches4("ALTER", "TABLE", MatchAny, "DROP"))
-	COMPLETE_WITH_ATTR(prev2_wd,
-										" UNION SELECT 'CONSTRAINT'"
-										" UNION SELECT 'COLUMN'"
-	);
-	else if (Matches5("ALTER", "TABLE", MatchAny, "DROP", "COLUMN"))
-		COMPLETE_WITH_ATTR(prev3_wd, "");
-	else if (
-			Matches5("ALTER", "TABLE", MatchAny, "DROP", MatchAnyExcept("CONSTRAINT|COLUMN")) || 
-			Matches6("ALTER", "TABLE", MatchAny, "DROP", "CONSTRAINT|COLUMN", MatchAny)
-					)
-		COMPLETE_WITH_LIST2("RESTRICT", "CASCADE");
-
-*/
+								   "UNION SELECT 'ALL IN TABLESPACE'");
 
 	/* ALTER something */
 	else if (Matches1("ALTER"))
@@ -2059,10 +2005,10 @@ psql_completion(const char *text, int start, int end)
 	}
 
 	/* ALTER TABLE xxx ADD */
-	 else if (Matches4("ALTER", "TABLE", MatchAny, "ADD"))
+	else if (IS_REDSHIFT && Matches4("ALTER", "TABLE", MatchAny, "ADD"))
 		COMPLETE_WITH_CONST("COLUMN");
 
-		else if (HeadMatches6("ALTER", "TABLE", MatchAny, "ADD", MatchAny, MatchAny))
+	else if (IS_REDSHIFT && HeadMatches6("ALTER", "TABLE", MatchAny, "ADD", MatchAny, MatchAny))
 		{
 			if (TailMatches2("COLUMN", MatchAny))
 				COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
@@ -2084,7 +2030,7 @@ psql_completion(const char *text, int start, int end)
 			}
 		}
 
-		else if (HeadMatches5("ALTER", "TABLE", MatchAny, "ADD", MatchAny) &&
+		else if (IS_REDSHIFT && HeadMatches5("ALTER", "TABLE", MatchAny, "ADD", MatchAny) &&
 				(!TailMatches1("COLUMN")))
 			COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
 
@@ -2385,7 +2331,7 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_QUERY(Query_for_index_of_table);
 	}
 /* CANCEL */
-	else if (Matches1("CANCEL"))
+	else if (IS_REDSHIFT && Matches1("CANCEL"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_pids);
 
 /* CLOSE */
@@ -2472,17 +2418,6 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST5("HEADER", "QUOTE", "ESCAPE", "FORCE QUOTE",
 							"FORCE NOT NULL");
 
-/*
-		TailMatches2("ACCESS_KEY_ID", MatchAny) ||
-		TailMatches4("IAM_ROLE", MatchAny, "SECRET_ACCESS_KEY", MatchAny) ||
-		TailMatches6("IAM_ROLE", MatchAny, "SECRET_ACCESS_KEY", MatchAny, "SESSION_TOKEN", MatchAny) ||
-		TailMatches6("IAM_ROLE", MatchAny, "SECRET_ACCESS_KEY", MatchAny, "token", MatchAny) ||
-		TailMatches8("IAM_ROLE", MatchAny, "SECRET_ACCESS_KEY", MatchAny, "token", MatchAny, "MASTER_SYMMETRIC_KEY", MatchAny) ||
-		TailMatches2("CREDENTIALS", MatchAny) ||
-		TailMatches3("WITH", "CREDENTIALS", MatchAny) ||
-		TailMatches4("WITH", "CREDENTIALS", "AS", MatchAny) ||
-
-*/
 	/* COPY FROM REGION */
 	else if (IS_REDSHIFT && HeadMatches2("COPY", MatchAny) && TailMatches1("REGION"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
@@ -2548,54 +2483,60 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_QUERY(Query_for_list_of_available_extension_versions);
 	}
 
-	/* CREATE EXTERNAL SCHEMA */
-	else if (Matches2("CREATE", "EXTERNAL"))
+	else if (IS_REDSHIFT && (Matches2("CREATE", "EXTERNAL")))
 		COMPLETE_WITH_LIST2("SCHEMA", "TABLE");
-	else if (Matches3("CREATE", "EXTERNAL", "SCHEMA"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_external_schemas
-											" UNION ALL SELECT 'IF NOT EXISTS'");
-	else if (
-				(Matches7("CREATE", "EXTERNAL", "SCHEMA", "IF", "NOT", "EXISTS", MatchAnyExcept("FROM"))) || 
-				(Matches4("CREATE", "EXTERNAL", "SCHEMA", MatchAnyExcept("FROM")))
-			)
-		COMPLETE_WITH_CONST("FROM");
-	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches1("FROM"))
-		COMPLETE_WITH_LIST2("DATA CATALOG", "HIVE METASTORE");
-	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && 
-						(TailMatches2("DATA", "CATALOG") || TailMatches2("HIVE", "METASTORE"))
-					)
-		COMPLETE_WITH_CONST("DATABASE");
-	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("DATABASE", MatchAny))
-		COMPLETE_WITH_LIST4("REGION", "URI", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
-	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches1("REGION"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
-	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("REGION", MatchAny))
-		COMPLETE_WITH_LIST3("URI", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
-	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("URI", MatchAny))
-		COMPLETE_WITH_LIST3("PORT", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
-	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("PORT", MatchAny))
-		COMPLETE_WITH_LIST2("IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
-	else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("IAM_ROLE", MatchAny))
-		COMPLETE_WITH_CONST("CREATE EXTERNAL DATABASE IF NOT EXISTS");
+
+			/* CREATE EXTERNAL SCHEMA */
+	else if (IS_REDSHIFT && (Matches3("CREATE", "EXTERNAL", "SCHEMA"))) {
+		if (Matches2("CREATE", "EXTERNAL"))
+			COMPLETE_WITH_LIST2("SCHEMA", "TABLE");
+		else if (Matches3("CREATE", "EXTERNAL", "SCHEMA"))
+			COMPLETE_WITH_QUERY(Query_for_list_of_external_schemas
+												" UNION ALL SELECT 'IF NOT EXISTS'");
+		else if (
+					(Matches7("CREATE", "EXTERNAL", "SCHEMA", "IF", "NOT", "EXISTS", MatchAnyExcept("FROM"))) ||
+					(Matches4("CREATE", "EXTERNAL", "SCHEMA", MatchAnyExcept("FROM")))
+				)
+			COMPLETE_WITH_CONST("FROM");
+		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches1("FROM"))
+			COMPLETE_WITH_LIST2("DATA CATALOG", "HIVE METASTORE");
+		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") &&
+							(TailMatches2("DATA", "CATALOG") || TailMatches2("HIVE", "METASTORE"))
+						)
+			COMPLETE_WITH_CONST("DATABASE");
+		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("DATABASE", MatchAny))
+			COMPLETE_WITH_LIST4("REGION", "URI", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
+		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches1("REGION"))
+			COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
+		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("REGION", MatchAny))
+			COMPLETE_WITH_LIST3("URI", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
+		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("URI", MatchAny))
+			COMPLETE_WITH_LIST3("PORT", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
+		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("PORT", MatchAny))
+			COMPLETE_WITH_LIST2("IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
+		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("IAM_ROLE", MatchAny))
+			COMPLETE_WITH_CONST("CREATE EXTERNAL DATABASE IF NOT EXISTS");
+	}
 
 	/* CREATE EXTERNAL TABLE */
-	else if (Matches3("CREATE", "EXTERNAL", "TABLE"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_external_schemas);
-	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("PARTITIONED"))
-		COMPLETE_WITH_CONST("BY (");
-	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("ROW"))
-		COMPLETE_WITH_LIST2("FORMAT", "DELIMITED");
-	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches3("ROW", "FORMAT", "DELIMITED"))
-		COMPLETE_WITH_LIST2("FIELDS TERMINATED BY", "LINES TERMINATED BY");
-	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches3("ROW", "FORMAT", "DELIMITED"))
-		COMPLETE_WITH_LIST2("FIELDS TERMINATED BY", "LINES TERMINATED BY");
-	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches2("STORED", "AS"))
-		COMPLETE_WITH_LIST5("PARQUET", "RCFILE", "SEQUENCEFILE", "TEXTFILE", "ORC");
-	else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("PROPERTIES"))
-		COMPLETE_WITH_CONST("('numRows'='");
-	else if (HeadMatches4("CREATE", "EXTERNAL", "TABLE", MatchAny))
-		COMPLETE_WITH_LIST5("PARTITIONED BY (", "ROW FORMAT DELIMITED", "STORED AS", "LOCATION", "TABLE PROPERTIES ('numRows'='");
-
+	else if (IS_REDSHIFT && (Matches3("CREATE", "EXTERNAL", "TABLE"))) {
+		if (Matches3("CREATE", "EXTERNAL", "TABLE"))
+			COMPLETE_WITH_QUERY(Query_for_list_of_external_schemas);
+		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("PARTITIONED"))
+			COMPLETE_WITH_CONST("BY (");
+		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("ROW"))
+			COMPLETE_WITH_LIST2("FORMAT", "DELIMITED");
+		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches3("ROW", "FORMAT", "DELIMITED"))
+			COMPLETE_WITH_LIST2("FIELDS TERMINATED BY", "LINES TERMINATED BY");
+		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches3("ROW", "FORMAT", "DELIMITED"))
+			COMPLETE_WITH_LIST2("FIELDS TERMINATED BY", "LINES TERMINATED BY");
+		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches2("STORED", "AS"))
+			COMPLETE_WITH_LIST5("PARQUET", "RCFILE", "SEQUENCEFILE", "TEXTFILE", "ORC");
+		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("PROPERTIES"))
+			COMPLETE_WITH_CONST("('numRows'='");
+		else if (HeadMatches4("CREATE", "EXTERNAL", "TABLE", MatchAny))
+			COMPLETE_WITH_LIST5("PARTITIONED BY (", "ROW FORMAT DELIMITED", "STORED AS", "LOCATION", "TABLE PROPERTIES ('numRows'='");
+	}
 
 	/* CREATE FOREIGN */
 	else if (Matches2("CREATE", "FOREIGN"))
