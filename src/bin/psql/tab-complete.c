@@ -48,6 +48,7 @@
 #include "common.h"
 #include "settings.h"
 #include "stringutils.h"
+#include "fe_utils/string_utils.h"
 
 #ifdef HAVE_RL_FILENAME_COMPLETION_FUNCTION
 #define filename_completion_function rl_filename_completion_function
@@ -1632,11 +1633,66 @@ psql_completion(const char *text, int start, int end)
 		matches = completion_matches(text, drop_command_generator);
 
 /* ALTER */
-
-	/* ALTER TABLE */
+/*
+	/ * ALTER TABLE * /
 	else if (Matches2("ALTER", "TABLE"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables,
-								   "UNION SELECT 'ALL IN TABLESPACE'");
+															" UNION SELECT 'ALL IN TABLESPACE'"
+															" UNION SELECT 'ADD'"
+															" UNION SELECT 'SET'"
+															" UNION SELECT 'PARTITION'"
+															" UNION SELECT 'DROP'"
+															" UNION SELECT 'APPEND'"
+															" UNION SELECT 'OWNER'"
+															" UNION SELECT 'RENAME'");
+	else if (Matches4("ALTER", "TABLE", MatchAny, "ADD"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_tables_for_constraint
+															" UNION SELECT 'CONSTRAINT'"
+															" UNION SELECT 'UNIQUE'"
+															" UNION SELECT 'PRIMARY KEY'"
+															" UNION SELECT 'FOREIGN KEY'"
+															" UNION SELECT 'REFERENCES'"
+															" UNION SELECT 'PARTITION'"
+		);
+	else if (Matches4("ALTER", "TABLE", MatchAny, "OWNER"))
+		COMPLETE_WITH_CONST("TO");
+	else if (Matches5("ALTER", "TABLE", MatchAny, "OWNER", "TO"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_users);
+	else if (Matches4("ALTER", "TABLE", MatchAny, "RENAME"))
+		COMPLETE_WITH_CONST("TO");
+		else if (Matches5("ALTER", "TABLE", MatchAny, "RENAME", "TO"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
+		else if (Matches5("ALTER", "TABLE", MatchAny, "RENAME", "COLUMN"))
+		COMPLETE_WITH_ATTR(prev3_wd, "");
+		else if (Matches4("ALTER", "TABLE", MatchAny, "ADD"))
+		COMPLETE_WITH_CONST("COLUMN");
+		else if (Matches5("ALTER", "TABLE", MatchAny, "ADD", "COLUMN"))
+		COMPLETE_WITH_ATTR(prev3_wd, "");
+	else if (Matches6("ALTER", "TABLE", MatchAny, "ADD", "COLUMN", MatchAny))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
+	else if (
+						(Matches6("ALTER", "TABLE", MatchAny, "ADD", MatchAny, MatchAny)) ||
+						(Matches7("ALTER", "TABLE", MatchAny, "ADD", "COLUMN", MatchAny, MatchAny))
+					)
+		COMPLETE_WITH_LIST4("DEFAULT", "ENCODE", "NOT NULL", "NULL");
+	else if (Matches2("ALTER", "TABLE") && Matches1("ENCODE"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_column_compressions);
+	else if (Matches2("ALTER", "TABLE") && Matches1("DROP"))
+		COMPLETE_WITH_LIST2("CONSTRAINT", "COLUMN");
+	else if (Matches4("ALTER", "TABLE", MatchAny, "DROP"))
+	COMPLETE_WITH_ATTR(prev2_wd,
+										" UNION SELECT 'CONSTRAINT'"
+										" UNION SELECT 'COLUMN'"
+	);
+	else if (Matches5("ALTER", "TABLE", MatchAny, "DROP", "COLUMN"))
+		COMPLETE_WITH_ATTR(prev3_wd, "");
+	else if (
+			Matches5("ALTER", "TABLE", MatchAny, "DROP", MatchAnyExcept("CONSTRAINT|COLUMN")) || 
+			Matches6("ALTER", "TABLE", MatchAny, "DROP", "CONSTRAINT|COLUMN", MatchAny)
+					)
+		COMPLETE_WITH_LIST2("RESTRICT", "CASCADE");
+
+*/
 
 	/* ALTER something */
 	else if (Matches1("ALTER"))
