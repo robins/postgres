@@ -3342,6 +3342,12 @@ SyncVariables(void)
 	pset.popt.topt.encoding = pset.encoding;
 	pset.sversion = PQserverVersion(pset.db);
 
+	if (pset.sversion == 80002) {
+		pset.sengine = "redshift";
+	} else {
+		pset.sengine = "postgres";
+	}
+
 	SetVariable(pset.vars, "DBNAME", PQdb(pset.db));
 	SetVariable(pset.vars, "USER", PQuser(pset.db));
 	SetVariable(pset.vars, "HOST", PQhost(pset.db));

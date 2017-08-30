@@ -104,6 +104,7 @@ typedef struct _psqlSettings
 								 * loop */
 	bool		cur_cmd_interactive;
 	int			sversion;		/* backend server version */
+	const char *sengine;		/* backend server engine variant (if not postgres) */
 	const char *progname;		/* in case you renamed psql */
 	char	   *inputfile;		/* file being currently processed, if any */
 	uint64		lineno;			/* also for error reporting */

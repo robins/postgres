@@ -714,7 +714,9 @@ static const SchemaQuery Query_for_list_of_statistics = {
 " SELECT 'ZST' "
 
 #define Query_for_list_of_cursors \
-" SELECT trim(name) FROM stv_active_cursors"
+((strncmp(pset.sengine, "redshift", 8) == 0) ? \
+		" SELECT trim(name) FROM stv_active_cursors" : \
+		" SELECT trim(name) FROM pg_cursors" )
 
 #define Query_for_list_of_enum_values \
 "SELECT pg_catalog.quote_literal(enumlabel) "\
@@ -1587,6 +1589,11 @@ psql_completion(const char *text, int start, int end)
 #ifdef HAVE_RL_COMPLETION_APPEND_CHARACTER
 	rl_completion_append_character = ' ';
 #endif
+
+/* Flag to check if server is a Redshift Engine.
+	 Any change here should probably be replicated elsewhere since
+	 #define for various SQLs (in this script) employ there own string-compare */
+#define IS_REDSHIFT strncmp(pset.sengine, "redshift", 8) == 0
 
 	/* Clear a few things. */
 	completion_charp = NULL;
@@ -2477,7 +2484,7 @@ psql_completion(const char *text, int start, int end)
 
 */
 	/* COPY FROM REGION */
-	else if (HeadMatches2("COPY", MatchAny) && TailMatches1("REGION"))
+	else if (IS_REDSHIFT && HeadMatches2("COPY", MatchAny) && TailMatches1("REGION"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
 
 
