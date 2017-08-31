@@ -26,6 +26,8 @@
 #include "settings.h"
 #include "variables.h"
 
+/* Flag to check if server is a Redshift Engine */
+#define IS_REDSHIFT strncmp(pset.sengine, "redshift", 8) == 0
 
 static bool describeOneTableDetails(const char *schemaname,
 						const char *relationname,
@@ -1633,10 +1635,10 @@ describeOneTableDetails(const char *schemaname,
 	else
 		appendPQExpBufferStr(&buf, ",\n  NULL AS attfdwoptions");
 	if (IS_REDSHIFT)
-		appendPQExpBufferStr(&buf, "\n  (SELECT encoding FROM pg_catalog.pg_table_def df\n"
-							"   WHERE df.tablename = %s AND df.schemaname = %s) AS attcompression");
+		appendPQExpBufferStr(&buf, ",\n  (SELECT format_encoding(attencodingtype) FROM pg_catalog.pg_attribute att \n"
+							"   WHERE att.attrelid = a.attrelid AND att.attnum = a.attnum) AS attcompression");
 	else
-		appendPQExpBufferStr(&buf, "\n  NULL AS attcompression");
+		appendPQExpBufferStr(&buf, ",\n  NULL AS attcompression");
 
 	if (verbose)
 	{
@@ -1738,7 +1740,7 @@ describeOneTableDetails(const char *schemaname,
 	cols = 2;
 
 	if (IS_REDSHIFT && (tableinfo.relkind == RELKIND_RELATION))
-		headers[cols++] = gettext_noop("ENCODING");
+		headers[cols++] = gettext_noop("Encoding");
 
 	if (tableinfo.relkind == RELKIND_RELATION ||
 		tableinfo.relkind == RELKIND_VIEW ||
@@ -1820,13 +1822,13 @@ describeOneTableDetails(const char *schemaname,
 			char	   *identity;
 			char	   *default_str = "";
 
+			/* Column-Compression Type (For engines that support Column-Compression) */
+			if (IS_REDSHIFT && tableinfo.relkind == RELKIND_RELATION)
+			printTableAddCell(&cont, PQgetvalue(res, i, 9), false, false);
+
 			printTableAddCell(&cont, PQgetvalue(res, i, 5), false, false);
 
 			printTableAddCell(&cont, strcmp(PQgetvalue(res, i, 3), "t") == 0 ? "not null" : "", false, false);
-
-			/* Column Compression Options (For Engines that support Column Compressions) */
-			if (IS_REDSHIFT && tableinfo.relkind == RELKIND_RELATION)
-				printTableAddCell(&cont, PQgetvalue(res, i, 9), false, false);
 
 			identity = PQgetvalue(res, i, 6);
 
