@@ -58,8 +58,9 @@ CANCEL | **Yes**
 CLOSE | **Yes**
 COMMENT | Native
 COMMIT | Native
-COPY | Unsupported
+COPY | Partial
 COPY .. REGION (aws-regions) | **Yes**
+COPY (Many Variants) | Unsupported
 CREATE DATABASE | Complete
 CREATE DATABASE CONNECTION LIMIT UNLIMITED | **Yes**
 CREATE DATABASE WITH | **Yes**
@@ -85,7 +86,7 @@ CREATE TABLE INTERLEAVED SORTKEY | **Yes**
 CREATE TABLE COMPOUND SORTKEY | **Yes**
 CREATE TABLE SORTKEY | **Yes**
 CREATE TABLE (similarly many variants) | Unsupported
-CREATE TABLE AS | Unsupported
+CREATE TABLE AS | **Yes**
 CREATE USER | Complete
 CREATE USER [NO]CREATEUSER | **Yes**
 CREATE VIEW | Partial
@@ -114,12 +115,6 @@ FETCH | Complete
 FETCH NEXT | **Yes**
 FETCH ALL | **Yes**
 GRANT | Partial
-GRANT ALL PRIVILEGES | Unsupported
-GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
-GRANT ALL ON TABLE TO GROUP | Unsupported
-GRANT ALL ON TABLE ALL TABLES IN SCHEMA | Unsupported
-GRANT CREATE ALL | Unsupported
-GRANT CREATE ON | Unsupported
 GRANT (similarly many variants) | Unsupported
 INSERT | Native
 LOCK | Native

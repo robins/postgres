@@ -2777,7 +2777,7 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches2("CREATE", "TABLE") ||
 						Matches3("CREATE", "TEMP|TEMPORARY", "TABLE") ||
 						Matches4("CREATE", "LOCAL", "TEMP|TEMPORARY", "TABLE"))
-		COMPLETE_WITH_CONST("IF NOT EXISTS");
+		COMPLETE_WITH_LIST2("IF NOT EXISTS", "AS");
 
 	else if (Matches3("CREATE", "TABLE", MatchAny))
 		COMPLETE_WITH_CONST("(");
