@@ -3891,8 +3891,13 @@ psql_completion(const char *text, int start, int end)
 
 /* ANALYZE */
 	/* Complete with list of tables */
-	else if (Matches1("ANALYZE"))
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tmf, NULL);
+	else if (Matches1("ANALYZE|ANALYSE"))
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tmf, 
+				" UNION SELECT 'VERBOSE'"
+				" UNION SELECT 'PREDICATE COLUMNS'"
+				" UNION SELECT 'ALL COLUMNS'"
+				" UNION SELECT 'COMPRESSION'"
+			);
 
 /* WHERE */
 	/* Simple case of the word before the where being the table name */

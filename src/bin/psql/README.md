@@ -48,11 +48,11 @@ ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupp
 ALTER TABLE APPEND | Unsupported
 ALTER USER | Complete
 ALTER USER [NO]CREATEUSER | **Yes**
-ANALYZE | Partial
-ANALYZE VERBOSE | Unsupported
-ANALYSE PREDICATE COLUMNS | Unsupported
-ANALYZE ALL COLUMNS | Unsupported
-ANALYZE COMPRESSION | Unsupported
+ANALYZE | Complete
+ANALYZE VERBOSE | **Yes**
+ANALYSE PREDICATE COLUMNS | **Yes**
+ANALYZE ALL COLUMNS | **Yes**
+ANALYZE COMPRESSION | **Yes**
 BEGIN | Native
 CANCEL | **Yes**
 CLOSE | **Yes**
