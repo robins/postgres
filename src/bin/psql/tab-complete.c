@@ -1996,7 +1996,7 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches3("ALTER", "TABLE", MatchAny))
 	{
 		static const char *const list_ALTER2[] =
-		{"ADD", "ALTER", "CLUSTER ON", "DISABLE", "DROP", "ENABLE", "INHERIT",
+		{"ADD", "ALTER", "APPEND FROM", "CLUSTER ON", "DISABLE", "DROP", "ENABLE", "INHERIT",
 			"NO INHERIT", "RENAME", "RESET", "OWNER TO", "SET",
 			"VALIDATE CONSTRAINT", "REPLICA IDENTITY", "ATTACH PARTITION",
 		"DETACH PARTITION", NULL};
@@ -2006,7 +2006,7 @@ psql_completion(const char *text, int start, int end)
 
 	/* ALTER TABLE xxx ADD */
 	else if (IS_REDSHIFT && Matches4("ALTER", "TABLE", MatchAny, "ADD"))
-		COMPLETE_WITH_CONST("COLUMN");
+		COMPLETE_WITH_LIST2("COLUMN", "PARTITION");
 
 	else if (IS_REDSHIFT && HeadMatches6("ALTER", "TABLE", MatchAny, "ADD", MatchAny, MatchAny))
 		{
@@ -2100,7 +2100,7 @@ psql_completion(const char *text, int start, int end)
 
 	/* If we have ALTER TABLE <sth> DROP, provide COLUMN or CONSTRAINT */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "DROP"))
-		COMPLETE_WITH_LIST2("COLUMN", "CONSTRAINT");
+		COMPLETE_WITH_LIST3("COLUMN", "CONSTRAINT", "PARTITION");
 	/* If we have ALTER TABLE <sth> DROP COLUMN, provide list of columns */
 	else if (Matches5("ALTER", "TABLE", MatchAny, "DROP", "COLUMN"))
 		COMPLETE_WITH_ATTR(prev3_wd, "");
@@ -2143,7 +2143,7 @@ psql_completion(const char *text, int start, int end)
 	}
 	/* If we have ALTER TABLE <sth> SET, provide list of attributes and '(' */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "SET"))
-		COMPLETE_WITH_LIST7("(", "LOGGED", "SCHEMA", "TABLESPACE", "UNLOGGED",
+		COMPLETE_WITH_LIST10("(", "LOGGED", "LOCATION", "FILE FORMAT", "TABLE PROPERTIES", "SCHEMA", "TABLESPACE", "UNLOGGED",
 							"WITH", "WITHOUT");
 
 	/*

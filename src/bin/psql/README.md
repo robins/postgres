@@ -38,14 +38,14 @@ ALTER GROUP | Native
 ALTER SCHEMA | Native
 ALTER TABLE | Partial
 ALTER TABLE ADD COLUMN | **Yes**
-ALTER TABLE ADD ENCODING (Column-Compressions)| **Yes**
-ALTER TABLE SET LOCATION 's3://bucket/folder' | Unsupported
-ALTER TABLE SET FILE FORMAT format | Unsupported
-ALTER TABLE SET TABLE PROPERTIES ( 'numRows'='row_count' ) | Unsupported
-ALTER TABLE PARTITION ( partition_column=partition_value [, ...] ) SET LOCATION 's3://bucket/folder' | Unsupported
-ALTER TABLE ADD PARTITION ( partition_column=partition_value [, ...] ) LOCATION 's3://bucket/folder' | Unsupported
-ALTER TABLE DROP PARTITION ( partition_column=partition_value [, ...] ) | Unsupported
-ALTER TABLE APPEND | Unsupported
+ALTER TABLE SET LOCATION | **Yes**
+ALTER TABLE SET FILE FORMAT | **Yes**
+ALTER TABLE SET TABLE PROPERTIES | **Yes**
+ALTER TABLE PARTITION | Unsupported
+ALTER TABLE ADD PARTITION | **Yes**
+ALTER TABLE DROP PARTITION | **Yes**
+ALTER TABLE (Similarly Many Variants) | Unsupported
+ALTER TABLE APPEND | **Yes**
 ALTER USER | Complete
 ALTER USER [NO]CREATEUSER | **Yes**
 ANALYZE | Complete
