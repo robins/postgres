@@ -1500,6 +1500,20 @@ describeOneTableDetails(const char *schemaname,
 	}
 	else if (pset.sversion >= 80200)
 	{
+		if (IS_REDSHIFT) {
+			printfPQExpBuffer(&buf,
+				"SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
+				"c.relhastriggers, false, false, c.relhasoids, "
+				"%s, c.reltablespace\n"
+				"FROM pg_catalog.pg_class c\n "
+				"LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)\n"
+				"WHERE c.oid = '%s';",
+				(verbose ?
+				 "pg_catalog.array_to_string(c.reloptions || "
+				 "array(select 'toast.' || x from pg_catalog.unnest(tc.reloptions) x), ', ')\n"
+				 : "''"),
+				oid);
+		} else {
 		printfPQExpBuffer(&buf,
 						  "SELECT relchecks, relkind, relhasindex, relhasrules, "
 						  "reltriggers <> 0, false, false, relhasoids, "
@@ -1508,6 +1522,7 @@ describeOneTableDetails(const char *schemaname,
 						  (verbose ?
 						   "pg_catalog.array_to_string(reloptions, E', ')" : "''"),
 						  oid);
+		}
 	}
 	else if (pset.sversion >= 80000)
 	{
@@ -1617,6 +1632,12 @@ describeOneTableDetails(const char *schemaname,
 							 "  pg_catalog.pg_options_to_table(attfdwoptions)), ', ') || ')' END AS attfdwoptions");
 	else
 		appendPQExpBufferStr(&buf, ",\n  NULL AS attfdwoptions");
+	if (IS_REDSHIFT)
+		appendPQExpBufferStr(&buf, "\n  (SELECT encoding FROM pg_catalog.pg_table_def df\n"
+							"   WHERE df.tablename = %s AND df.schemaname = %s) AS attcompression");
+	else
+		appendPQExpBufferStr(&buf, "\n  NULL AS attcompression");
+
 	if (verbose)
 	{
 		appendPQExpBufferStr(&buf, ",\n  a.attstorage");
@@ -1716,6 +1737,9 @@ describeOneTableDetails(const char *schemaname,
 	headers[1] = gettext_noop("Type");
 	cols = 2;
 
+	if (IS_REDSHIFT && (tableinfo.relkind == RELKIND_RELATION))
+		headers[cols++] = gettext_noop("ENCODING");
+
 	if (tableinfo.relkind == RELKIND_RELATION ||
 		tableinfo.relkind == RELKIND_VIEW ||
 		tableinfo.relkind == RELKIND_MATVIEW ||
@@ -1800,6 +1824,10 @@ describeOneTableDetails(const char *schemaname,
 
 			printTableAddCell(&cont, strcmp(PQgetvalue(res, i, 3), "t") == 0 ? "not null" : "", false, false);
 
+			/* Column Compression Options (For Engines that support Column Compressions) */
+			if (IS_REDSHIFT && tableinfo.relkind == RELKIND_RELATION)
+				printTableAddCell(&cont, PQgetvalue(res, i, 9), false, false);
+
 			identity = PQgetvalue(res, i, 6);
 
 			if (!identity[0])
@@ -1828,7 +1856,7 @@ describeOneTableDetails(const char *schemaname,
 		/* Storage and Description */
 		if (verbose)
 		{
-			int			firstvcol = 9;
+			int			firstvcol = 10;
 			char	   *storage = PQgetvalue(res, i, firstvcol);
 
 			/* these strings are literal in our syntax, so not translated. */
