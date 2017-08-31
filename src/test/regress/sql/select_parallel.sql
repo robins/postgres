@@ -118,13 +118,36 @@ explain (costs off)
 
 select count(*) from tenk1 group by twenty;
 
+--test rescan behavior of gather merge
+set enable_material = false;
+
+explain (costs off)
+select * from
+  (select string4, count(unique2)
+   from tenk1 group by string4 order by string4) ss
+  right join (values (1),(2),(3)) v(x) on true;
+
+select * from
+  (select string4, count(unique2)
+   from tenk1 group by string4 order by string4) ss
+  right join (values (1),(2),(3)) v(x) on true;
+
+reset enable_material;
+
+reset enable_hashagg;
+
+-- gather merge test with a LIMIT
+explain (costs off)
+  select fivethous from tenk1 order by fivethous limit 4;
+
+select fivethous from tenk1 order by fivethous limit 4;
+
 -- gather merge test with 0 worker
 set max_parallel_workers = 0;
 explain (costs off)
    select string4 from tenk1 order by string4 limit 5;
 select string4 from tenk1 order by string4 limit 5;
 reset max_parallel_workers;
-reset enable_hashagg;
 
 SAVEPOINT settings;
 SET LOCAL force_parallel_mode = 1;

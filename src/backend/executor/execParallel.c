@@ -28,9 +28,10 @@
 #include "executor/nodeBitmapHeapscan.h"
 #include "executor/nodeCustom.h"
 #include "executor/nodeForeignscan.h"
-#include "executor/nodeSeqscan.h"
 #include "executor/nodeIndexscan.h"
 #include "executor/nodeIndexonlyscan.h"
+#include "executor/nodeSeqscan.h"
+#include "executor/nodeSort.h"
 #include "executor/tqueue.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/planmain.h"
@@ -47,15 +48,24 @@
  * greater than any 32-bit integer here so that values < 2^32 can be used
  * by individual parallel nodes to store their own state.
  */
-#define PARALLEL_KEY_PLANNEDSTMT		UINT64CONST(0xE000000000000001)
-#define PARALLEL_KEY_PARAMS				UINT64CONST(0xE000000000000002)
-#define PARALLEL_KEY_BUFFER_USAGE		UINT64CONST(0xE000000000000003)
-#define PARALLEL_KEY_TUPLE_QUEUE		UINT64CONST(0xE000000000000004)
-#define PARALLEL_KEY_INSTRUMENTATION	UINT64CONST(0xE000000000000005)
-#define PARALLEL_KEY_DSA				UINT64CONST(0xE000000000000006)
-#define PARALLEL_KEY_QUERY_TEXT		UINT64CONST(0xE000000000000007)
+#define PARALLEL_KEY_EXECUTOR_FIXED		UINT64CONST(0xE000000000000001)
+#define PARALLEL_KEY_PLANNEDSTMT		UINT64CONST(0xE000000000000002)
+#define PARALLEL_KEY_PARAMS				UINT64CONST(0xE000000000000003)
+#define PARALLEL_KEY_BUFFER_USAGE		UINT64CONST(0xE000000000000004)
+#define PARALLEL_KEY_TUPLE_QUEUE		UINT64CONST(0xE000000000000005)
+#define PARALLEL_KEY_INSTRUMENTATION	UINT64CONST(0xE000000000000006)
+#define PARALLEL_KEY_DSA				UINT64CONST(0xE000000000000007)
+#define PARALLEL_KEY_QUERY_TEXT		UINT64CONST(0xE000000000000008)
 
 #define PARALLEL_TUPLE_QUEUE_SIZE		65536
+
+/*
+ * Fixed-size random stuff that we need to pass to parallel workers.
+ */
+typedef struct FixedParallelExecutorState
+{
+	int64		tuples_needed;	/* tuple bound, see ExecSetTupleBound */
+} FixedParallelExecutorState;
 
 /*
  * DSM structure for accumulating per-PlanState instrumentation.
@@ -109,6 +119,8 @@ static bool ExecParallelInitializeDSM(PlanState *node,
 						  ExecParallelInitializeDSMContext *d);
 static shm_mq_handle **ExecParallelSetupTupleQueues(ParallelContext *pcxt,
 							 bool reinitialize);
+static bool ExecParallelReInitializeDSM(PlanState *planstate,
+							ParallelContext *pcxt);
 static bool ExecParallelRetrieveInstrumentation(PlanState *planstate,
 									SharedExecutorInstrumentation *instrumentation);
 
@@ -193,10 +205,10 @@ ExecSerializePlan(Plan *plan, EState *estate)
 }
 
 /*
- * Ordinary plan nodes won't do anything here, but parallel-aware plan nodes
- * may need some state which is shared across all parallel workers.  Before
- * we size the DSM, give them a chance to call shm_toc_estimate_chunk or
- * shm_toc_estimate_keys on &pcxt->estimator.
+ * Parallel-aware plan nodes (and occasionally others) may need some state
+ * which is shared across all parallel workers.  Before we size the DSM, give
+ * them a chance to call shm_toc_estimate_chunk or shm_toc_estimate_keys on
+ * &pcxt->estimator.
  *
  * While we're at it, count the number of PlanState nodes in the tree, so
  * we know how many SharedPlanStateInstrumentation structures we need.
@@ -210,38 +222,45 @@ ExecParallelEstimate(PlanState *planstate, ExecParallelEstimateContext *e)
 	/* Count this node. */
 	e->nnodes++;
 
-	/* Call estimators for parallel-aware nodes. */
-	if (planstate->plan->parallel_aware)
+	switch (nodeTag(planstate))
 	{
-		switch (nodeTag(planstate))
-		{
-			case T_SeqScanState:
+		case T_SeqScanState:
+			if (planstate->plan->parallel_aware)
 				ExecSeqScanEstimate((SeqScanState *) planstate,
 									e->pcxt);
-				break;
-			case T_IndexScanState:
+			break;
+		case T_IndexScanState:
+			if (planstate->plan->parallel_aware)
 				ExecIndexScanEstimate((IndexScanState *) planstate,
 									  e->pcxt);
-				break;
-			case T_IndexOnlyScanState:
+			break;
+		case T_IndexOnlyScanState:
+			if (planstate->plan->parallel_aware)
 				ExecIndexOnlyScanEstimate((IndexOnlyScanState *) planstate,
 										  e->pcxt);
-				break;
-			case T_ForeignScanState:
+			break;
+		case T_ForeignScanState:
+			if (planstate->plan->parallel_aware)
 				ExecForeignScanEstimate((ForeignScanState *) planstate,
 										e->pcxt);
-				break;
-			case T_CustomScanState:
+			break;
+		case T_CustomScanState:
+			if (planstate->plan->parallel_aware)
 				ExecCustomScanEstimate((CustomScanState *) planstate,
 									   e->pcxt);
-				break;
-			case T_BitmapHeapScanState:
+			break;
+		case T_BitmapHeapScanState:
+			if (planstate->plan->parallel_aware)
 				ExecBitmapHeapEstimate((BitmapHeapScanState *) planstate,
 									   e->pcxt);
-				break;
-			default:
-				break;
-		}
+			break;
+		case T_SortState:
+			/* even when not parallel-aware */
+			ExecSortEstimate((SortState *) planstate, e->pcxt);
+			break;
+
+		default:
+			break;
 	}
 
 	return planstate_tree_walker(planstate, ExecParallelEstimate, e);
@@ -267,46 +286,53 @@ ExecParallelInitializeDSM(PlanState *planstate,
 	d->nnodes++;
 
 	/*
-	 * Call initializers for parallel-aware plan nodes.
+	 * Call initializers for DSM-using plan nodes.
 	 *
-	 * Ordinary plan nodes won't do anything here, but parallel-aware plan
-	 * nodes may need to initialize shared state in the DSM before parallel
-	 * workers are available.  They can allocate the space they previously
+	 * Most plan nodes won't do anything here, but plan nodes that allocated
+	 * DSM may need to initialize shared state in the DSM before parallel
+	 * workers are launched.  They can allocate the space they previously
 	 * estimated using shm_toc_allocate, and add the keys they previously
 	 * estimated using shm_toc_insert, in each case targeting pcxt->toc.
 	 */
-	if (planstate->plan->parallel_aware)
+	switch (nodeTag(planstate))
 	{
-		switch (nodeTag(planstate))
-		{
-			case T_SeqScanState:
+		case T_SeqScanState:
+			if (planstate->plan->parallel_aware)
 				ExecSeqScanInitializeDSM((SeqScanState *) planstate,
 										 d->pcxt);
-				break;
-			case T_IndexScanState:
+			break;
+		case T_IndexScanState:
+			if (planstate->plan->parallel_aware)
 				ExecIndexScanInitializeDSM((IndexScanState *) planstate,
 										   d->pcxt);
-				break;
-			case T_IndexOnlyScanState:
+			break;
+		case T_IndexOnlyScanState:
+			if (planstate->plan->parallel_aware)
 				ExecIndexOnlyScanInitializeDSM((IndexOnlyScanState *) planstate,
 											   d->pcxt);
-				break;
-			case T_ForeignScanState:
+			break;
+		case T_ForeignScanState:
+			if (planstate->plan->parallel_aware)
 				ExecForeignScanInitializeDSM((ForeignScanState *) planstate,
 											 d->pcxt);
-				break;
-			case T_CustomScanState:
+			break;
+		case T_CustomScanState:
+			if (planstate->plan->parallel_aware)
 				ExecCustomScanInitializeDSM((CustomScanState *) planstate,
 											d->pcxt);
-				break;
-			case T_BitmapHeapScanState:
+			break;
+		case T_BitmapHeapScanState:
+			if (planstate->plan->parallel_aware)
 				ExecBitmapHeapInitializeDSM((BitmapHeapScanState *) planstate,
 											d->pcxt);
-				break;
+			break;
+		case T_SortState:
+			/* even when not parallel-aware */
+			ExecSortInitializeDSM((SortState *) planstate, d->pcxt);
+			break;
 
-			default:
-				break;
-		}
+		default:
+			break;
 	}
 
 	return planstate_tree_walker(planstate, ExecParallelInitializeDSM, d);
@@ -365,28 +391,18 @@ ExecParallelSetupTupleQueues(ParallelContext *pcxt, bool reinitialize)
 }
 
 /*
- * Re-initialize the parallel executor info such that it can be reused by
- * workers.
- */
-void
-ExecParallelReinitialize(ParallelExecutorInfo *pei)
-{
-	ReinitializeParallelDSM(pei->pcxt);
-	pei->tqueue = ExecParallelSetupTupleQueues(pei->pcxt, true);
-	pei->finished = false;
-}
-
-/*
  * Sets up the required infrastructure for backend workers to perform
  * execution and return results to the main backend.
  */
 ParallelExecutorInfo *
-ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
+ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers,
+					 int64 tuples_needed)
 {
 	ParallelExecutorInfo *pei;
 	ParallelContext *pcxt;
 	ExecParallelEstimateContext e;
 	ExecParallelInitializeDSMContext d;
+	FixedParallelExecutorState *fpes;
 	char	   *pstmt_data;
 	char	   *pstmt_space;
 	char	   *param_space;
@@ -417,6 +433,11 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
 	 * segment, we need to figure out how big it should be.  Estimate space
 	 * for the various things we need to store.
 	 */
+
+	/* Estimate space for fixed-size state. */
+	shm_toc_estimate_chunk(&pcxt->estimator,
+						   sizeof(FixedParallelExecutorState));
+	shm_toc_estimate_keys(&pcxt->estimator, 1);
 
 	/* Estimate space for query text. */
 	query_len = strlen(estate->es_sourceText);
@@ -486,6 +507,11 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
 	 * ParallelContext itself needs to store there.  None of the space we
 	 * asked for has been allocated or initialized yet, though, so do that.
 	 */
+
+	/* Store fixed-size state. */
+	fpes = shm_toc_allocate(pcxt->toc, sizeof(FixedParallelExecutorState));
+	fpes->tuples_needed = tuples_needed;
+	shm_toc_insert(pcxt->toc, PARALLEL_KEY_EXECUTOR_FIXED, fpes);
 
 	/* Store query string */
 	query_string = shm_toc_allocate(pcxt->toc, query_len);
@@ -567,7 +593,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
 	ExecParallelInitializeDSM(planstate, &d);
 
 	/*
-	 * Make sure that the world hasn't shifted under our feat.  This could
+	 * Make sure that the world hasn't shifted under our feet.  This could
 	 * probably just be an Assert(), but let's be conservative for now.
 	 */
 	if (e.nnodes != d.nnodes)
@@ -575,6 +601,82 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate, int nworkers)
 
 	/* OK, we're ready to rock and roll. */
 	return pei;
+}
+
+/*
+ * Re-initialize the parallel executor shared memory state before launching
+ * a fresh batch of workers.
+ */
+void
+ExecParallelReinitialize(PlanState *planstate,
+						 ParallelExecutorInfo *pei)
+{
+	/* Old workers must already be shut down */
+	Assert(pei->finished);
+
+	ReinitializeParallelDSM(pei->pcxt);
+	pei->tqueue = ExecParallelSetupTupleQueues(pei->pcxt, true);
+	pei->finished = false;
+
+	/* Traverse plan tree and let each child node reset associated state. */
+	ExecParallelReInitializeDSM(planstate, pei->pcxt);
+}
+
+/*
+ * Traverse plan tree to reinitialize per-node dynamic shared memory state
+ */
+static bool
+ExecParallelReInitializeDSM(PlanState *planstate,
+							ParallelContext *pcxt)
+{
+	if (planstate == NULL)
+		return false;
+
+	/*
+	 * Call reinitializers for DSM-using plan nodes.
+	 */
+	switch (nodeTag(planstate))
+	{
+		case T_SeqScanState:
+			if (planstate->plan->parallel_aware)
+				ExecSeqScanReInitializeDSM((SeqScanState *) planstate,
+										   pcxt);
+			break;
+		case T_IndexScanState:
+			if (planstate->plan->parallel_aware)
+				ExecIndexScanReInitializeDSM((IndexScanState *) planstate,
+											 pcxt);
+			break;
+		case T_IndexOnlyScanState:
+			if (planstate->plan->parallel_aware)
+				ExecIndexOnlyScanReInitializeDSM((IndexOnlyScanState *) planstate,
+												 pcxt);
+			break;
+		case T_ForeignScanState:
+			if (planstate->plan->parallel_aware)
+				ExecForeignScanReInitializeDSM((ForeignScanState *) planstate,
+											   pcxt);
+			break;
+		case T_CustomScanState:
+			if (planstate->plan->parallel_aware)
+				ExecCustomScanReInitializeDSM((CustomScanState *) planstate,
+											  pcxt);
+			break;
+		case T_BitmapHeapScanState:
+			if (planstate->plan->parallel_aware)
+				ExecBitmapHeapReInitializeDSM((BitmapHeapScanState *) planstate,
+											  pcxt);
+			break;
+		case T_SortState:
+			/* even when not parallel-aware */
+			ExecSortReInitializeDSM((SortState *) planstate, pcxt);
+			break;
+
+		default:
+			break;
+	}
+
+	return planstate_tree_walker(planstate, ExecParallelReInitializeDSM, pcxt);
 }
 
 /*
@@ -620,6 +722,13 @@ ExecParallelRetrieveInstrumentation(PlanState *planstate,
 
 	planstate->worker_instrument->num_workers = instrumentation->num_workers;
 	memcpy(&planstate->worker_instrument->instrument, instrument, ibytes);
+
+	/*
+	 * Perform any node-type-specific work that needs to be done.  Currently,
+	 * only Sort nodes need to do anything here.
+	 */
+	if (IsA(planstate, SortState))
+		ExecSortRetrieveInstrumentation((SortState *) planstate);
 
 	return planstate_tree_walker(planstate, ExecParallelRetrieveInstrumentation,
 								 instrumentation);
@@ -780,35 +889,41 @@ ExecParallelInitializeWorker(PlanState *planstate, shm_toc *toc)
 	if (planstate == NULL)
 		return false;
 
-	/* Call initializers for parallel-aware plan nodes. */
-	if (planstate->plan->parallel_aware)
+	switch (nodeTag(planstate))
 	{
-		switch (nodeTag(planstate))
-		{
-			case T_SeqScanState:
+		case T_SeqScanState:
+			if (planstate->plan->parallel_aware)
 				ExecSeqScanInitializeWorker((SeqScanState *) planstate, toc);
-				break;
-			case T_IndexScanState:
+			break;
+		case T_IndexScanState:
+			if (planstate->plan->parallel_aware)
 				ExecIndexScanInitializeWorker((IndexScanState *) planstate, toc);
-				break;
-			case T_IndexOnlyScanState:
+			break;
+		case T_IndexOnlyScanState:
+			if (planstate->plan->parallel_aware)
 				ExecIndexOnlyScanInitializeWorker((IndexOnlyScanState *) planstate, toc);
-				break;
-			case T_ForeignScanState:
+			break;
+		case T_ForeignScanState:
+			if (planstate->plan->parallel_aware)
 				ExecForeignScanInitializeWorker((ForeignScanState *) planstate,
 												toc);
-				break;
-			case T_CustomScanState:
+			break;
+		case T_CustomScanState:
+			if (planstate->plan->parallel_aware)
 				ExecCustomScanInitializeWorker((CustomScanState *) planstate,
 											   toc);
-				break;
-			case T_BitmapHeapScanState:
-				ExecBitmapHeapInitializeWorker(
-											   (BitmapHeapScanState *) planstate, toc);
-				break;
-			default:
-				break;
-		}
+			break;
+		case T_BitmapHeapScanState:
+			if (planstate->plan->parallel_aware)
+				ExecBitmapHeapInitializeWorker((BitmapHeapScanState *) planstate, toc);
+			break;
+		case T_SortState:
+			/* even when not parallel-aware */
+			ExecSortInitializeWorker((SortState *) planstate, toc);
+			break;
+
+		default:
+			break;
 	}
 
 	return planstate_tree_walker(planstate, ExecParallelInitializeWorker, toc);
@@ -833,6 +948,7 @@ ExecParallelInitializeWorker(PlanState *planstate, shm_toc *toc)
 void
 ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 {
+	FixedParallelExecutorState *fpes;
 	BufferUsage *buffer_usage;
 	DestReceiver *receiver;
 	QueryDesc  *queryDesc;
@@ -840,6 +956,9 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 	int			instrument_options = 0;
 	void	   *area_space;
 	dsa_area   *area;
+
+	/* Get fixed-size state. */
+	fpes = shm_toc_lookup(toc, PARALLEL_KEY_EXECUTOR_FIXED, false);
 
 	/* Set up DestReceiver, SharedExecutorInstrumentation, and QueryDesc. */
 	receiver = ExecParallelGetReceiver(seg, toc);
@@ -868,8 +987,17 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 	queryDesc->planstate->state->es_query_dsa = area;
 	ExecParallelInitializeWorker(queryDesc->planstate, toc);
 
-	/* Run the plan */
-	ExecutorRun(queryDesc, ForwardScanDirection, 0L, true);
+	/* Pass down any tuple bound */
+	ExecSetTupleBound(fpes->tuples_needed, queryDesc->planstate);
+
+	/*
+	 * Run the plan.  If we specified a tuple bound, be careful not to demand
+	 * more tuples than that.
+	 */
+	ExecutorRun(queryDesc,
+				ForwardScanDirection,
+				fpes->tuples_needed < 0 ? (int64) 0 : fpes->tuples_needed,
+				true);
 
 	/* Shut down the executor */
 	ExecutorFinish(queryDesc);

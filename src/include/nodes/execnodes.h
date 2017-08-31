@@ -1731,6 +1731,16 @@ typedef struct MaterialState
 } MaterialState;
 
 /* ----------------
+ *	 Shared memory container for per-worker sort information
+ * ----------------
+ */
+typedef struct SharedSortInfo
+{
+	int			num_workers;
+	TuplesortInstrumentation sinstrument[FLEXIBLE_ARRAY_MEMBER];
+} SharedSortInfo;
+
+/* ----------------
  *	 SortState information
  * ----------------
  */
@@ -1744,6 +1754,8 @@ typedef struct SortState
 	bool		bounded_Done;	/* value of bounded we did the sort with */
 	int64		bound_Done;		/* value of bound we did the sort with */
 	void	   *tuplesortstate; /* private state of tuplesort.c */
+	bool		am_worker;		/* are we a worker? */
+	SharedSortInfo *shared_info;	/* one entry per worker */
 } SortState;
 
 /* ---------------------
@@ -1911,14 +1923,17 @@ typedef struct UniqueState
 typedef struct GatherState
 {
 	PlanState	ps;				/* its first field is NodeTag */
-	bool		initialized;
-	struct ParallelExecutorInfo *pei;
-	int			nreaders;
-	int			nextreader;
-	int			nworkers_launched;
-	struct TupleQueueReader **reader;
+	bool		initialized;	/* workers launched? */
+	bool		need_to_scan_locally;	/* need to read from local plan? */
+	int64		tuples_needed;	/* tuple bound, see ExecSetTupleBound */
+	/* these fields are set up once: */
 	TupleTableSlot *funnel_slot;
-	bool		need_to_scan_locally;
+	struct ParallelExecutorInfo *pei;
+	/* all remaining fields are reinitialized during a rescan: */
+	int			nworkers_launched;	/* original number of workers */
+	int			nreaders;		/* number of still-active workers */
+	int			nextreader;		/* next one to try to read from */
+	struct TupleQueueReader **reader;	/* array with nreaders active entries */
 } GatherState;
 
 /* ----------------
@@ -1929,24 +1944,27 @@ typedef struct GatherState
  *		merge the results into a single sorted stream.
  * ----------------
  */
-struct GMReaderTuple;
+struct GMReaderTupleBuffer;		/* private in nodeGatherMerge.c */
 
 typedef struct GatherMergeState
 {
 	PlanState	ps;				/* its first field is NodeTag */
-	bool		initialized;
+	bool		initialized;	/* workers launched? */
+	bool		gm_initialized; /* gather_merge_init() done? */
+	bool		need_to_scan_locally;	/* need to read from local plan? */
+	int64		tuples_needed;	/* tuple bound, see ExecSetTupleBound */
+	/* these fields are set up once: */
+	TupleDesc	tupDesc;		/* descriptor for subplan result tuples */
+	int			gm_nkeys;		/* number of sort columns */
+	SortSupport gm_sortkeys;	/* array of length gm_nkeys */
 	struct ParallelExecutorInfo *pei;
-	int			nreaders;
-	int			nworkers_launched;
-	struct TupleQueueReader **reader;
-	TupleDesc	tupDesc;
-	TupleTableSlot **gm_slots;
+	/* all remaining fields are reinitialized during a rescan: */
+	int			nworkers_launched;	/* original number of workers */
+	int			nreaders;		/* number of active workers */
+	TupleTableSlot **gm_slots;	/* array with nreaders+1 entries */
+	struct TupleQueueReader **reader;	/* array with nreaders active entries */
+	struct GMReaderTupleBuffer *gm_tuple_buffers;	/* nreaders tuple buffers */
 	struct binaryheap *gm_heap; /* binary heap of slot indices */
-	bool		gm_initialized; /* gather merge initilized ? */
-	bool		need_to_scan_locally;
-	int			gm_nkeys;
-	SortSupport gm_sortkeys;	/* array of length ms_nkeys */
-	struct GMReaderTupleBuffer *gm_tuple_buffers;	/* tuple buffer per reader */
 } GatherMergeState;
 
 /* ----------------
