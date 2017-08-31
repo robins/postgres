@@ -1381,7 +1381,7 @@ describeOneTableDetails(const char *schemaname,
 	bool		printTableInitialized = false;
 	int			i;
 	char	   *view_def = NULL;
-	char	   *headers[11];
+	char	   *headers[16];
 	char	  **seq_values = NULL;
 	char	  **ptr;
 	PQExpBufferData title;
@@ -1502,20 +1502,6 @@ describeOneTableDetails(const char *schemaname,
 	}
 	else if (pset.sversion >= 80200)
 	{
-		if (IS_REDSHIFT) {
-			printfPQExpBuffer(&buf,
-				"SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
-				"c.relhastriggers, false, false, c.relhasoids, "
-				"%s, c.reltablespace\n"
-				"FROM pg_catalog.pg_class c\n "
-				"LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)\n"
-				"WHERE c.oid = '%s';",
-				(verbose ?
-				 "pg_catalog.array_to_string(c.reloptions || "
-				 "array(select 'toast.' || x from pg_catalog.unnest(tc.reloptions) x), ', ')\n"
-				 : "''"),
-				oid);
-		} else {
 		printfPQExpBuffer(&buf,
 						  "SELECT relchecks, relkind, relhasindex, relhasrules, "
 						  "reltriggers <> 0, false, false, relhasoids, "
@@ -1524,7 +1510,6 @@ describeOneTableDetails(const char *schemaname,
 						  (verbose ?
 						   "pg_catalog.array_to_string(reloptions, E', ')" : "''"),
 						  oid);
-		}
 	}
 	else if (pset.sversion >= 80000)
 	{
@@ -1634,11 +1619,24 @@ describeOneTableDetails(const char *schemaname,
 							 "  pg_catalog.pg_options_to_table(attfdwoptions)), ', ') || ')' END AS attfdwoptions");
 	else
 		appendPQExpBufferStr(&buf, ",\n  NULL AS attfdwoptions");
-	if (IS_REDSHIFT)
+	if (IS_REDSHIFT) {
 		appendPQExpBufferStr(&buf, ",\n  (SELECT format_encoding(attencodingtype) FROM pg_catalog.pg_attribute att \n"
-							"   WHERE att.attrelid = a.attrelid AND att.attnum = a.attnum) AS attcompression");
-	else
+			"   WHERE att.attrelid = a.attrelid AND att.attnum = a.attnum) AS attcompression");
+		appendPQExpBufferStr(&buf, ",\n  (SELECT attisdistkey FROM pg_catalog.pg_attribute att \n"
+			"   WHERE att.attrelid = a.attrelid AND att.attnum = a.attnum) AS attisdistkey");
+		appendPQExpBufferStr(&buf, ",\n  (SELECT ABS(attsortkeyord) FROM pg_catalog.pg_attribute att \n"
+			"   WHERE att.attrelid = a.attrelid AND att.attnum = a.attnum) AS attsortkeyord");
+		appendPQExpBufferStr(&buf, ",\n  (SELECT attispreloaded FROM pg_catalog.pg_attribute att \n"
+			"   WHERE att.attrelid = a.attrelid AND att.attnum = a.attnum) AS attispreloaded");
+		appendPQExpBufferStr(&buf, ",\n  (SELECT CASE WHEN attencrypttype = 0 THEN 'none' ELSE attencrypttype::TEXT END FROM pg_catalog.pg_attribute att \n"
+			"   WHERE att.attrelid = a.attrelid AND att.attnum = a.attnum) AS attencrypttype");
+	} else {
 		appendPQExpBufferStr(&buf, ",\n  NULL AS attcompression");
+		appendPQExpBufferStr(&buf, ",\n  NULL AS attisdistkey");
+		appendPQExpBufferStr(&buf, ",\n  NULL AS attsortkeyord");
+		appendPQExpBufferStr(&buf, ",\n  NULL AS attispreloaded");
+		appendPQExpBufferStr(&buf, ",\n  NULL AS attencrypttype");
+	}
 
 	if (verbose)
 	{
@@ -1739,8 +1737,13 @@ describeOneTableDetails(const char *schemaname,
 	headers[1] = gettext_noop("Type");
 	cols = 2;
 
-	if (IS_REDSHIFT && (tableinfo.relkind == RELKIND_RELATION))
+	if (IS_REDSHIFT && tableinfo.relkind == RELKIND_RELATION) {
 		headers[cols++] = gettext_noop("Encoding");
+		headers[cols++] = gettext_noop("DistKey");
+		headers[cols++] = gettext_noop("SortKey");
+		headers[cols++] = gettext_noop("Preload");
+		headers[cols++] = gettext_noop("Encryption");
+	}
 
 	if (tableinfo.relkind == RELKIND_RELATION ||
 		tableinfo.relkind == RELKIND_VIEW ||
@@ -1823,8 +1826,13 @@ describeOneTableDetails(const char *schemaname,
 			char	   *default_str = "";
 
 			/* Column-Compression Type (For engines that support Column-Compression) */
-			if (IS_REDSHIFT && tableinfo.relkind == RELKIND_RELATION)
-			printTableAddCell(&cont, PQgetvalue(res, i, 9), false, false);
+			if (IS_REDSHIFT && tableinfo.relkind == RELKIND_RELATION) {
+				printTableAddCell(&cont, PQgetvalue(res, i, 9), false, false);
+				printTableAddCell(&cont, PQgetvalue(res, i, 10), false, false);
+				printTableAddCell(&cont, PQgetvalue(res, i, 11), false, false);
+				printTableAddCell(&cont, PQgetvalue(res, i, 12), false, false);
+				printTableAddCell(&cont, PQgetvalue(res, i, 13), false, false);
+			}
 
 			printTableAddCell(&cont, PQgetvalue(res, i, 5), false, false);
 
@@ -1858,7 +1866,7 @@ describeOneTableDetails(const char *schemaname,
 		/* Storage and Description */
 		if (verbose)
 		{
-			int			firstvcol = 10;
+			int			firstvcol = 14;
 			char	   *storage = PQgetvalue(res, i, firstvcol);
 
 			/* these strings are literal in our syntax, so not translated. */
