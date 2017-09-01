@@ -1403,6 +1403,7 @@ describeOneTableDetails(const char *schemaname,
 		char	   *reloftype;
 		char		relpersistence;
 		char		relreplident;
+		char		hassortkey;
 	}			tableinfo;
 	bool		show_column_details = false;
 	bool		retval;
@@ -1513,12 +1514,26 @@ describeOneTableDetails(const char *schemaname,
 	}
 	else if (pset.sversion >= 80000)
 	{
+
+		if (IS_REDSHIFT) {
+			printfPQExpBuffer(&buf,
+				"SELECT relchecks, relkind, relhasindex, relhasrules, "
+				"reltriggers <> 0, false, false, relhasoids, "
+				"%s, reltablespace, (SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = oid AND attsortkeyord <> 0))) as relhassortkey \n"
+				"FROM pg_catalog.pg_class WHERE oid = '%s';",
+				(verbose ?
+				 "pg_catalog.array_to_string(reloptions, E', ')" : "''"),
+				oid);
+		}
+		else
+		{
 		printfPQExpBuffer(&buf,
 						  "SELECT relchecks, relkind, relhasindex, relhasrules, "
 						  "reltriggers <> 0, false, false, relhasoids, "
 						  "'', reltablespace\n"
 						  "FROM pg_catalog.pg_class WHERE oid = '%s';",
 						  oid);
+		}
 	}
 	else
 	{
@@ -1554,6 +1569,9 @@ describeOneTableDetails(const char *schemaname,
 		pg_strdup(PQgetvalue(res, 0, 8)) : NULL;
 	tableinfo.tablespace = (pset.sversion >= 80000) ?
 		atooid(PQgetvalue(res, 0, 9)) : 0;
+/*	tableinfo.hassortkey = (IS_REDSHIFT)?
+		(strcmp(PQgetvalue(res, 0, 11), "t") == 0) : '0';
+	*/
 	tableinfo.reloftype = (pset.sversion >= 90000 &&
 						   strcmp(PQgetvalue(res, 0, 10), "") != 0) ?
 		pg_strdup(PQgetvalue(res, 0, 10)) : NULL;
@@ -2124,8 +2142,9 @@ describeOneTableDetails(const char *schemaname,
 		int			tuples = 0;
 
 		/* print indexes */
-		if (tableinfo.hasindex)
+		if (tableinfo.hasindex || tableinfo.hassortkey)
 		{
+			if (tableinfo.hasindex) {
 			printfPQExpBuffer(&buf,
 							  "SELECT c2.relname, i.indisprimary, i.indisunique, i.indisclustered, ");
 			if (pset.sversion >= 80200)
@@ -2146,16 +2165,64 @@ describeOneTableDetails(const char *schemaname,
 			else
 				appendPQExpBufferStr(&buf, ", false AS indisreplident");
 			if (pset.sversion >= 80000)
-				appendPQExpBufferStr(&buf, ", c2.reltablespace");
+				appendPQExpBufferStr(&buf, ", c2.reltablespace,");
+
+			/* Redshift specific Columns */
+			appendPQExpBufferStr(&buf, "FALSE as indisinterleaved, ");
+			appendPQExpBufferStr(&buf, "FALSE as indiscompound ");
+
 			appendPQExpBufferStr(&buf,
 								 "\nFROM pg_catalog.pg_class c, pg_catalog.pg_class c2, pg_catalog.pg_index i\n");
 			if (pset.sversion >= 90000)
 				appendPQExpBufferStr(&buf,
 									 "  LEFT JOIN pg_catalog.pg_constraint con ON (conrelid = i.indrelid AND conindid = i.indexrelid AND contype IN ('p','u','x'))\n");
 			appendPQExpBuffer(&buf,
-							  "WHERE c.oid = '%s' AND c.oid = i.indrelid AND i.indexrelid = c2.oid\n"
-							  "ORDER BY i.indisprimary DESC, i.indisunique DESC, c2.relname;",
-							  oid);
+							  "WHERE c.oid = '%s' AND c.oid = i.indrelid AND i.indexrelid = c2.oid\n", oid);
+			}
+
+			if (tableinfo.hasindex && tableinfo.hassortkey) {
+				appendPQExpBufferStr(&buf, "  UNION ALL ");
+			}
+
+			if (tableinfo.hassortkey) {
+
+			appendPQExpBufferStr(&buf,
+									"  SELECT                                                                                             ");
+			appendPQExpBuffer(&buf,
+										"  (SELECT CASE WHEN (SELECT MIN(attsortkeyord) FROM pg_attribute WHERE attrelid = '%s') <0 										", oid);
+			appendPQExpBufferStr(&buf,
+											"			THEN 'INTERLEAVED SORTKEY' ELSE 'COMPOUND SORTKEY' END) AS relname, 																				"
+									"		 FALSE AS indisprimary, FALSE AS indisunique, FALSE AS indisclustered, TRUE AS indisvalid,                  "
+									"		(WITH x AS                                                                                                  "
+									"			( SELECT row_number() OVER () AS r, trim(attname) AS nm                                                   "
+									"       FROM pg_attribute                                                                                       ");
+			appendPQExpBuffer(&buf,
+									"       WHERE attrelid = '%s' AND attsortkeyord <> 0 ORDER BY ABS(attsortkeyord))																", oid);
+			appendPQExpBufferStr(&buf,
+									"			SELECT                                                                                                    "
+									"				MAX(CASE WHEN r = 1 THEN nm ELSE '' END) ||                                                             "
+									"				MAX(CASE WHEN r = 2 THEN (',' || nm) ELSE '' END) ||                                                    "
+									"				MAX(CASE WHEN r = 3 THEN (',' || nm) ELSE '' END) ||                                                    "
+									"				MAX(CASE WHEN r = 4 THEN (',' || nm) ELSE '' END) ||                                                    "
+									"				MAX(CASE WHEN r = 5 THEN (',' || nm) ELSE '' END) ||                                                    "
+									"				MAX(CASE WHEN r = 6 THEN (',' || nm) ELSE '' END) ||                                                    "
+									"				MAX(CASE WHEN r = 7 THEN (',' || nm) ELSE '' END) ||                                                    "
+									"				MAX(CASE WHEN r = 8 THEN (',' || nm) ELSE '' END) ||                                                    "
+									"				MAX(CASE WHEN r = 9 THEN (',' || nm) ELSE '' END) ||                                                    "
+									"				MAX(CASE WHEN r =10 THEN (',' || nm) ELSE '' END) AS t                                                  "
+									"			FROM x),                                                                                                  "
+									"	NULL AS constraintdef, NULL AS contype, FALSE AS condeferrable, FALSE AS condeferred,                         "
+									" FALSE AS indisreplident, NULL AS reltablespace,                                                               ");
+			appendPQExpBuffer(&buf,
+										"	((SELECT MIN(attsortkeyord) FROM pg_attribute WHERE attrelid = '%s') < 0)::BOOLEAN AS indisinterleaved,      ", oid);
+			appendPQExpBuffer(&buf,
+											"	((SELECT MIN(attsortkeyord) FROM pg_attribute WHERE attrelid = '%s') > 0)::BOOLEAN AS indiscompound          ", oid);
+
+			appendPQExpBuffer(&buf,
+									" FROM (SELECT '%s' AS oid) c																																										", oid);
+
+
+			appendPQExpBufferStr(&buf, "ORDER BY indisprimary DESC, indisunique DESC, relname;");
 			result = PSQLexec(buf.data);
 			if (!result)
 				goto error_return;
@@ -2225,6 +2292,15 @@ describeOneTableDetails(const char *schemaname,
 						add_tablespace_footer(&cont, RELKIND_INDEX,
 											  atooid(PQgetvalue(result, i, 11)),
 											  false);
+/*
+					/ * Print SORTKEY details (Redshift specific) * /
+					if (IS_REDSHIFT)
+					add_tablespace_footer(&cont, RELKIND_INDEX,
+											atooid(PQgetvalue(result, i, 11)),
+											false);
+
+												12 indisinterleaved
+*/
 				}
 			}
 			PQclear(result);
