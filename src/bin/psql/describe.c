@@ -1519,7 +1519,7 @@ describeOneTableDetails(const char *schemaname,
 			printfPQExpBuffer(&buf,
 				"SELECT relchecks, relkind, relhasindex, relhasrules, "
 				"reltriggers <> 0, false, false, relhasoids, "
-				"%s, reltablespace, (SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = oid AND attsortkeyord <> 0))) as relhassortkey \n"
+				"%s, reltablespace, (SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = oid AND attsortkeyord <> 0)) as relhassortkey \n"
 				"FROM pg_catalog.pg_class WHERE oid = '%s';",
 				(verbose ?
 				 "pg_catalog.array_to_string(reloptions, E', ')" : "''"),
@@ -1569,9 +1569,8 @@ describeOneTableDetails(const char *schemaname,
 		pg_strdup(PQgetvalue(res, 0, 8)) : NULL;
 	tableinfo.tablespace = (pset.sversion >= 80000) ?
 		atooid(PQgetvalue(res, 0, 9)) : 0;
-/*	tableinfo.hassortkey = (IS_REDSHIFT)?
-		(strcmp(PQgetvalue(res, 0, 11), "t") == 0) : '0';
-	*/
+  tableinfo.hassortkey = (IS_REDSHIFT)?
+		(strcmp(PQgetvalue(res, 0, 10), "t") == 0) : '0';
 	tableinfo.reloftype = (pset.sversion >= 90000 &&
 						   strcmp(PQgetvalue(res, 0, 10), "") != 0) ?
 		pg_strdup(PQgetvalue(res, 0, 10)) : NULL;
@@ -2142,7 +2141,7 @@ describeOneTableDetails(const char *schemaname,
 		int			tuples = 0;
 
 		/* print indexes */
-		if (tableinfo.hasindex || tableinfo.hassortkey)
+		if ((tableinfo.hasindex) || (tableinfo.hassortkey))
 		{
 			if (tableinfo.hasindex) {
 			printfPQExpBuffer(&buf,
@@ -2187,12 +2186,8 @@ describeOneTableDetails(const char *schemaname,
 			if (tableinfo.hassortkey) {
 
 			appendPQExpBufferStr(&buf,
-									"  SELECT                                                                                             ");
-			appendPQExpBuffer(&buf,
-										"  (SELECT CASE WHEN (SELECT MIN(attsortkeyord) FROM pg_attribute WHERE attrelid = '%s') <0 										", oid);
-			appendPQExpBufferStr(&buf,
-											"			THEN 'INTERLEAVED SORTKEY' ELSE 'COMPOUND SORTKEY' END) AS relname, 																				"
-									"		 FALSE AS indisprimary, FALSE AS indisunique, FALSE AS indisclustered, TRUE AS indisvalid,                  "
+									"  SELECT                                                                                                       "
+									"  	NULL AS relname, FALSE AS indisprimary, FALSE AS indisunique, FALSE AS indisclustered, TRUE AS indisvalid,  "
 									"		(WITH x AS                                                                                                  "
 									"			( SELECT row_number() OVER () AS r, trim(attname) AS nm                                                   "
 									"       FROM pg_attribute                                                                                       ");
@@ -2200,7 +2195,7 @@ describeOneTableDetails(const char *schemaname,
 									"       WHERE attrelid = '%s' AND attsortkeyord <> 0 ORDER BY ABS(attsortkeyord))																", oid);
 			appendPQExpBufferStr(&buf,
 									"			SELECT                                                                                                    "
-									"				MAX(CASE WHEN r = 1 THEN nm ELSE '' END) ||                                                             "
+									"'(' || MAX(CASE WHEN r = 1 THEN nm ELSE '' END) ||                                                             "
 									"				MAX(CASE WHEN r = 2 THEN (',' || nm) ELSE '' END) ||                                                    "
 									"				MAX(CASE WHEN r = 3 THEN (',' || nm) ELSE '' END) ||                                                    "
 									"				MAX(CASE WHEN r = 4 THEN (',' || nm) ELSE '' END) ||                                                    "
@@ -2209,18 +2204,18 @@ describeOneTableDetails(const char *schemaname,
 									"				MAX(CASE WHEN r = 7 THEN (',' || nm) ELSE '' END) ||                                                    "
 									"				MAX(CASE WHEN r = 8 THEN (',' || nm) ELSE '' END) ||                                                    "
 									"				MAX(CASE WHEN r = 9 THEN (',' || nm) ELSE '' END) ||                                                    "
-									"				MAX(CASE WHEN r =10 THEN (',' || nm) ELSE '' END) AS t                                                  "
+									"				MAX(CASE WHEN r =10 THEN (',' || nm) ELSE '' END) || ')' AS t                                           "
 									"			FROM x),                                                                                                  "
 									"	NULL AS constraintdef, NULL AS contype, FALSE AS condeferrable, FALSE AS condeferred,                         "
 									" FALSE AS indisreplident, NULL AS reltablespace,                                                               ");
 			appendPQExpBuffer(&buf,
 										"	((SELECT MIN(attsortkeyord) FROM pg_attribute WHERE attrelid = '%s') < 0)::BOOLEAN AS indisinterleaved,      ", oid);
 			appendPQExpBuffer(&buf,
-											"	((SELECT MIN(attsortkeyord) FROM pg_attribute WHERE attrelid = '%s') > 0)::BOOLEAN AS indiscompound          ", oid);
+											"	((SELECT MIN(attsortkeyord) FROM pg_attribute WHERE attrelid = '%s' AND attsortkeyord > 0) > 0)::BOOLEAN AS indiscompound          ", oid);
 
 			appendPQExpBuffer(&buf,
 									" FROM (SELECT '%s' AS oid) c																																										", oid);
-
+			}
 
 			appendPQExpBufferStr(&buf, "ORDER BY indisprimary DESC, indisunique DESC, relname;");
 			result = PSQLexec(buf.data);
@@ -2235,8 +2230,11 @@ describeOneTableDetails(const char *schemaname,
 				for (i = 0; i < tuples; i++)
 				{
 					/* untranslated index name */
-					printfPQExpBuffer(&buf, "    \"%s\"",
-									  PQgetvalue(result, i, 0));
+					if (!IS_REDSHIFT) 
+						printfPQExpBuffer(&buf, "    \"%s\"",
+										PQgetvalue(result, i, 0));
+					else
+						resetPQExpBuffer(&buf);
 
 					/* If exclusion constraint, print the constraintdef */
 					if (strcmp(PQgetvalue(result, i, 7), "x") == 0)
@@ -2250,7 +2248,7 @@ describeOneTableDetails(const char *schemaname,
 						const char *usingpos;
 
 						/* Label as primary key or unique (but not both) */
-						if (strcmp(PQgetvalue(result, i, 1), "t") == 0)
+						if (strcmp(PQgetvalue(result, i, 1), "t") == 0) 
 							appendPQExpBufferStr(&buf, " PRIMARY KEY,");
 						else if (strcmp(PQgetvalue(result, i, 2), "t") == 0)
 						{
@@ -2259,6 +2257,19 @@ describeOneTableDetails(const char *schemaname,
 							else
 								appendPQExpBufferStr(&buf, " UNIQUE,");
 						}
+						else if (IS_REDSHIFT)
+						{
+							if (strcmp(PQgetvalue(result, i, 12), "t") == 0)
+								appendPQExpBufferStr(&buf, " INTERLEAVED SORTKEY");
+							else if (strcmp(PQgetvalue(result, i, 13), "t") == 0)
+								appendPQExpBufferStr(&buf, " COMPOUND SORTKEY");
+							else
+							{
+								//psql_error("\nUnable to ascertain Redshift SORTKEY type (%d)\n", *PQgetvalue(result, i, 12));
+								psql_error("\nUnable to ascertain Redshift SORTKEY type\n");
+								goto error_return;
+							}
+						}	
 
 						/* Everything after "USING" is echoed verbatim */
 						indexdef = PQgetvalue(result, i, 5);
@@ -2292,15 +2303,6 @@ describeOneTableDetails(const char *schemaname,
 						add_tablespace_footer(&cont, RELKIND_INDEX,
 											  atooid(PQgetvalue(result, i, 11)),
 											  false);
-/*
-					/ * Print SORTKEY details (Redshift specific) * /
-					if (IS_REDSHIFT)
-					add_tablespace_footer(&cont, RELKIND_INDEX,
-											atooid(PQgetvalue(result, i, 11)),
-											false);
-
-												12 indisinterleaved
-*/
 				}
 			}
 			PQclear(result);
