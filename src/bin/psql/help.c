@@ -128,6 +128,7 @@ usage(unsigned short int pager)
 	env = getenv("PGHOST");
 	fprintf(output, _("  -h, --host=HOSTNAME      database server host or socket directory (default: \"%s\")\n"),
 			env ? env : _("local socket"));
+	fprintf(output, _("  -I, --aws-iam-redshift   use temporary database credentials from AWS IAM Service\n"));
 	/* Display default port */
 	env = getenv("PGPORT");
 	fprintf(output, _("  -p, --port=PORT          database server port (default: \"%s\")\n"),
