@@ -768,7 +768,7 @@ process_psqlrc_file(char *filename)
 static void
 showVersion(void)
 {
-	puts("psql (Amazon Redshift) " PG_VERSION);
+	puts("psql (Supports PostgreSQL & Amazon Redshift) " PG_VERSION);
 }
 
 
