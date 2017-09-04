@@ -70,11 +70,11 @@ typedef enum
 	hctl_ignoreboth = hctl_ignorespace | hctl_ignoredups
 } HistControl;
 
-enum credential_source
+enum credential_sources
 {
-	DEFAULT
+	DEFAULT,
 	AWS_IAM_REDSHIFT
-}
+};
 
 enum trivalue
 {
@@ -107,7 +107,6 @@ typedef struct _psqlSettings
 								 * on startup) */
 	enum trivalue getPassword;	/* prompt the user for a username and password */
 	enum credential_sources credential_source;	/* source of database credentials */
-	bool	aws_iam_redshift;	/* request username / password from AWS IAM */
 	FILE	   *cur_cmd_source; /* describe the status of the current main
 								 * loop */
 	bool		cur_cmd_interactive;

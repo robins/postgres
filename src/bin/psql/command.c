@@ -3077,13 +3077,6 @@ do_connect(enum trivalue reuse_previous_specification,
 		connstr.data = NULL;
 
 	/*
-	 * If the user asked psql to request username / password from AWS IAM
-	 */
-	if (pset.aws_iam_redshift) {
-		
-	}
-	
-	/*
 	 * If the user asked to be prompted for a password, ask for one now. If
 	 * not, use the password from the old connection, provided the username
 	 * etc have not changed. Otherwise, try to connect without a password
@@ -3095,7 +3088,15 @@ do_connect(enum trivalue reuse_previous_specification,
 	 */
 	if (pset.getPassword == TRI_YES)
 	{
-		password = prompt_for_password(user);
+		if (pset.credential_source == AWS_IAM_REDSHIFT)
+			request_password_from_external_source();
+		else if (pset.credential_source == DEFAULT)
+			password = prompt_for_password(user);
+		else
+		{
+			fprintf(stderr, _("getPassword enabled but Source unclear. Exiting.\n"));
+			exit(EXIT_FAILURE);
+		}
 	}
 	else if (o_conn && keep_password)
 	{

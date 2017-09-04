@@ -89,6 +89,37 @@ static void EstablishVariableSpace(void);
 
 #define NOPAGER		0
 
+
+
+/*
+ * request_password_from_external_source
+ *
+ * Generalized function to fetch usernames and passwords from external source.
+ * For now works only in Linux.
+ */
+ void
+ request_password_from_external_source()
+ {
+	 FILE *fp;
+	 char path[1035];
+
+	 /* Open the command for reading. */
+	 fp = popen("aws redshift get-cluster-credentials --db-user redshift2 --cluster-identifier redshift2", "r");
+	 if (fp == NULL) {
+		 printf("Failed to run command\n" );
+		 exit(1);
+	 }
+
+	 /* Read the output a line at a time - output it. */
+	 while (fgets(path, sizeof(path)-1, fp) != NULL) {
+		 printf("%s", path);
+	 }
+
+	 /* close */
+	 pclose(fp);
+ }
+
+
 /*
  *
  * main
@@ -484,7 +515,7 @@ parse_psql_options(int argc, char *argv[], struct adhoc_opts *options)
 
 	memset(options, 0, sizeof *options);
 
-	while ((c = getopt_long(argc, argv, "aAbc:d:eEf:F:h:HlL:no:p:P:qR:sStT:U:v:VwWxXz?01",
+	while ((c = getopt_long(argc, argv, "aAbc:d:eEf:F:h:HIlL:no:p:P:qR:sStT:U:v:VwWxXz?01",
 							long_options, &optindex)) != -1)
 	{
 		switch (c)
@@ -533,7 +564,7 @@ parse_psql_options(int argc, char *argv[], struct adhoc_opts *options)
 				pset.popt.topt.format = PRINT_HTML;
 				break;
 			case 'I':
-				pset.credential_source = DEFAULT;
+				pset.credential_source = AWS_IAM_REDSHIFT;
 				pset.getPassword = TRI_YES;
 				break;
 			case 'l':
