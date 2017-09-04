@@ -157,7 +157,8 @@ main(int argc, char *argv[])
 	pset.notty = (!isatty(fileno(stdin)) || !isatty(fileno(stdout)));
 
 	pset.getPassword = TRI_DEFAULT;
-
+	pset.credential_source = DEFAULT;
+	
 	EstablishVariableSpace();
 
 	SetVariable(pset.vars, "VERSION", PG_VERSION_STR);
@@ -206,8 +207,21 @@ main(int argc, char *argv[])
 
 	if (pset.getPassword == TRI_YES)
 	{
-		simple_prompt(password_prompt, password, sizeof(password), false);
-		have_password = true;
+		if (pset.credential_source == AWS_IAM_REDSHIFT)
+		{
+			request_password_from_external_source();
+			have_password = true;
+		}
+		else if (pset.credential_source == DEFAULT)
+		{
+			simple_prompt(password_prompt, password, sizeof(password), false);
+			have_password = true;
+		}
+		else
+		{
+			fprintf(stderr, _("getPassword enabled but Source unclear. Exiting.\n"));
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	/* loop until we have a password if requested by backend */
@@ -245,10 +259,21 @@ main(int argc, char *argv[])
 			!have_password &&
 			pset.getPassword != TRI_NO)
 		{
-			PQfinish(pset.db);
-			simple_prompt(password_prompt, password, sizeof(password), false);
-			have_password = true;
-			new_pass = true;
+			if (pset.credential_source == AWS_IAM_REDSHIFT)
+			{
+				PQfinish(pset.db);
+				request_password_from_external_source();
+//				simple_prompt(password_prompt, password, sizeof(password), false);
+				have_password = true;
+				new_pass = true;
+			}
+			else
+			{
+				PQfinish(pset.db);
+				simple_prompt(password_prompt, password, sizeof(password), false);
+				have_password = true;
+				new_pass = true;
+			}
 		}
 	} while (new_pass);
 
@@ -417,6 +442,7 @@ parse_psql_options(int argc, char *argv[], struct adhoc_opts *options)
 	{
 		{"echo-all", no_argument, NULL, 'a'},
 		{"no-align", no_argument, NULL, 'A'},
+		{"aws-iam-redshift", no_argument, NULL, 'I'},
 		{"command", required_argument, NULL, 'c'},
 		{"dbname", required_argument, NULL, 'd'},
 		{"echo-queries", no_argument, NULL, 'e'},
@@ -505,6 +531,10 @@ parse_psql_options(int argc, char *argv[], struct adhoc_opts *options)
 				break;
 			case 'H':
 				pset.popt.topt.format = PRINT_HTML;
+				break;
+			case 'I':
+				pset.credential_source = DEFAULT;
+				pset.getPassword = TRI_YES;
 				break;
 			case 'l':
 				options->list_dbs = true;

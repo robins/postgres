@@ -3077,6 +3077,13 @@ do_connect(enum trivalue reuse_previous_specification,
 		connstr.data = NULL;
 
 	/*
+	 * If the user asked psql to request username / password from AWS IAM
+	 */
+	if (pset.aws_iam_redshift) {
+		
+	}
+	
+	/*
 	 * If the user asked to be prompted for a password, ask for one now. If
 	 * not, use the password from the old connection, provided the username
 	 * etc have not changed. Otherwise, try to connect without a password
