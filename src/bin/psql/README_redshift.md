@@ -4,16 +4,6 @@ NOTE: This branch is maintained as a personal effort and is not sponsored / supp
 
 See Support level of all Postgres forks: Here(https://github.com/robins/postgres/blob/redshift/src/bin/psql/README.md)
 
-Support Legend | Description
-:-------------:| -----------
-Native | All combinations supported by Native psql
-Unsupported | Not (yet)supported
-Partial | Only some combinations supported
-**Yes** | Supported by (only) this branch (not Native)
-Complete | All combinations supported
-
-
-
 Parameters | Supported State
 :---------:|:--------------:
 analyze_threshold_percent | Unsupported
@@ -146,4 +136,10 @@ VACUUM REINDEX | **Yes**
 VACUUM TO | **Yes**
 
 
-
+Support Legend | Description
+:-------------:| -----------
+Native | All combinations supported by Native psql
+Unsupported | Not (yet)supported
+Partial | Only some combinations supported
+**Yes** | Supported by (only) this branch (not Native)
+Complete | All combinations supported
