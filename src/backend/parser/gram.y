@@ -575,7 +575,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <str>			part_strategy
 %type <partelem>	part_elem
 %type <list>		part_params
-%type <partboundspec> ForValues
+%type <partboundspec> PartitionBoundSpec
 %type <node>		partbound_datum PartitionRangeDatum
 %type <list>		partbound_datum_list range_datum_list
 
@@ -1980,7 +1980,7 @@ alter_table_cmds:
 
 partition_cmd:
 			/* ALTER TABLE <name> ATTACH PARTITION <table_name> FOR VALUES */
-			ATTACH PARTITION qualified_name ForValues
+			ATTACH PARTITION qualified_name PartitionBoundSpec
 				{
 					AlterTableCmd *n = makeNode(AlterTableCmd);
 					PartitionCmd *cmd = makeNode(PartitionCmd);
@@ -2075,6 +2075,22 @@ alter_table_cmd:
 					AlterTableCmd *n = makeNode(AlterTableCmd);
 					n->subtype = AT_SetStatistics;
 					n->name = $3;
+					n->def = (Node *) makeInteger($6);
+					$$ = (Node *)n;
+				}
+			/* ALTER TABLE <name> ALTER [COLUMN] <colnum> SET STATISTICS <SignedIconst> */
+			| ALTER opt_column Iconst SET STATISTICS SignedIconst
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+
+					if ($3 <= 0 || $3 > PG_INT16_MAX)
+						ereport(ERROR,
+								(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								 errmsg("column number must be in range from 1 to %d", PG_INT16_MAX),
+								 parser_errposition(@3)));
+
+					n->subtype = AT_SetStatistics;
+					n->num = (int16) $3;
 					n->def = (Node *) makeInteger($6);
 					$$ = (Node *)n;
 				}
@@ -2619,13 +2635,14 @@ alter_identity_column_option:
 				}
 		;
 
-ForValues:
+PartitionBoundSpec:
 			/* a LIST partition */
 			FOR VALUES IN_P '(' partbound_datum_list ')'
 				{
 					PartitionBoundSpec *n = makeNode(PartitionBoundSpec);
 
 					n->strategy = PARTITION_STRATEGY_LIST;
+					n->is_default = false;
 					n->listdatums = $5;
 					n->location = @3;
 
@@ -2638,9 +2655,21 @@ ForValues:
 					PartitionBoundSpec *n = makeNode(PartitionBoundSpec);
 
 					n->strategy = PARTITION_STRATEGY_RANGE;
+					n->is_default = false;
 					n->lowerdatums = $5;
 					n->upperdatums = $9;
 					n->location = @3;
+
+					$$ = n;
+				}
+
+			/* a DEFAULT partition */
+			| DEFAULT
+				{
+					PartitionBoundSpec *n = makeNode(PartitionBoundSpec);
+
+					n->is_default = true;
+					n->location = @1;
 
 					$$ = n;
 				}
@@ -3114,7 +3143,7 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					$$ = (Node *)n;
 				}
 		| CREATE OptTemp TABLE qualified_name PARTITION OF qualified_name
-			OptTypedTableElementList ForValues OptPartitionSpec OptWith
+			OptTypedTableElementList PartitionBoundSpec OptPartitionSpec OptWith
 			OnCommitOption OptTableSpace
 				{
 					CreateStmt *n = makeNode(CreateStmt);
@@ -3133,7 +3162,7 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					$$ = (Node *)n;
 				}
 		| CREATE OptTemp TABLE IF_P NOT EXISTS qualified_name PARTITION OF
-			qualified_name OptTypedTableElementList ForValues OptPartitionSpec
+			qualified_name OptTypedTableElementList PartitionBoundSpec OptPartitionSpec
 			OptWith OnCommitOption OptTableSpace
 				{
 					CreateStmt *n = makeNode(CreateStmt);
@@ -4848,7 +4877,7 @@ CreateForeignTableStmt:
 					$$ = (Node *) n;
 				}
 		| CREATE FOREIGN TABLE qualified_name
-			PARTITION OF qualified_name OptTypedTableElementList ForValues
+			PARTITION OF qualified_name OptTypedTableElementList PartitionBoundSpec
 			SERVER name create_generic_options
 				{
 					CreateForeignTableStmt *n = makeNode(CreateForeignTableStmt);
@@ -4869,7 +4898,7 @@ CreateForeignTableStmt:
 					$$ = (Node *) n;
 				}
 		| CREATE FOREIGN TABLE IF_P NOT EXISTS qualified_name
-			PARTITION OF qualified_name OptTypedTableElementList ForValues
+			PARTITION OF qualified_name OptTypedTableElementList PartitionBoundSpec
 			SERVER name create_generic_options
 				{
 					CreateForeignTableStmt *n = makeNode(CreateForeignTableStmt);

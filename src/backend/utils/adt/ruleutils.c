@@ -1750,7 +1750,7 @@ pg_get_partition_constraintdef(PG_FUNCTION_ARGS)
 
 	constr_expr = get_partition_qual_relid(relationId);
 
-	/* Quick exit if not a partition */
+	/* Quick exit if no partition constraint */
 	if (constr_expr == NULL)
 		PG_RETURN_NULL();
 
@@ -6846,8 +6846,8 @@ get_name_for_var_field(Var *var, int fieldno,
 		case RTE_NAMEDTUPLESTORE:
 
 			/*
-			 * This case should not occur: a column of a table or values list
-			 * shouldn't have type RECORD.  Fall through and fail (most
+			 * This case should not occur: a column of a table, values list,
+			 * or ENR shouldn't have type RECORD.  Fall through and fail (most
 			 * likely) at the bottom.
 			 */
 			break;
@@ -8698,6 +8698,12 @@ get_rule_expr(Node *node, deparse_context *context,
 				PartitionBoundSpec *spec = (PartitionBoundSpec *) node;
 				ListCell   *cell;
 				char	   *sep;
+
+				if (spec->is_default)
+				{
+					appendStringInfoString(buf, "DEFAULT");
+					break;
+				}
 
 				switch (spec->strategy)
 				{

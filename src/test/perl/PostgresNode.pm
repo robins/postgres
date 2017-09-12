@@ -86,6 +86,7 @@ use Config;
 use Cwd;
 use Exporter 'import';
 use File::Basename;
+use File::Path qw(rmtree);
 use File::Spec;
 use File::Temp ();
 use IPC::Run;
@@ -100,7 +101,7 @@ our @EXPORT = qw(
   get_new_node
 );
 
-our ($test_localhost, $test_pghost, $last_port_assigned, @all_nodes);
+our ($test_localhost, $test_pghost, $last_port_assigned, @all_nodes, $died);
 
 # Windows path to virtual file system root
 
@@ -149,11 +150,14 @@ sub new
 	my $self = {
 		_port    => $pgport,
 		_host    => $pghost,
-		_basedir => TestLib::tempdir("data_" . $name),
+		_basedir => "$TestLib::tmp_check/t_${testname}_${name}_data",
 		_name    => $name,
 		_logfile => "$TestLib::log_path/${testname}_${name}.log" };
 
 	bless $self, $class;
+	mkdir $self->{_basedir}
+	  or
+	  BAIL_OUT("could not create data directory \"$self->{_basedir}\": $!");
 	$self->dump_info;
 
 	return $self;
@@ -928,9 +932,23 @@ sub get_new_node
 	return $node;
 }
 
+# Retain the errno on die() if set, else assume a generic errno of 1.
+# This will instruct the END handler on how to handle artifacts left
+# behind from tests.
+$SIG{__DIE__} = sub {
+	if ($!)
+	{
+		$died = $!;
+	}
+	else
+	{
+		$died = 1;
+	}
+};
+
 # Automatically shut down any still-running nodes when the test script exits.
 # Note that this just stops the postmasters (in the same order the nodes were
-# created in).  Temporary PGDATA directories are deleted, in an unspecified
+# created in).  Any temporary directories are deleted, in an unspecified
 # order, later when the File::Temp objects are destroyed.
 END
 {
@@ -941,6 +959,13 @@ END
 	foreach my $node (@all_nodes)
 	{
 		$node->teardown_node;
+
+		# skip clean if we are requested to retain the basedir
+		next if defined $ENV{'PG_TEST_NOCLEAN'};
+
+		# clean basedir on clean test invocation
+		$node->clean_node
+		  if TestLib::all_tests_passing() && !defined $died && !$exit_code;
 	}
 
 	$? = $exit_code;
@@ -959,6 +984,22 @@ sub teardown_node
 	my $self = shift;
 
 	$self->stop('immediate');
+
+}
+
+=pod
+
+=item $node->clean_node()
+
+Remove the base directory of the node if the node has been stopped.
+
+=cut
+
+sub clean_node
+{
+	my $self = shift;
+
+	rmtree $self->{_basedir} unless defined $self->{_pid};
 }
 
 =pod
@@ -1284,9 +1325,9 @@ sub command_ok
 
 =pod
 
-=item $node->command_fails(...) - TestLib::command_fails with our PGPORT
+=item $node->command_fails(...)
 
-See command_ok(...)
+TestLib::command_fails with our PGPORT. See command_ok(...)
 
 =cut
 
@@ -1314,6 +1355,23 @@ sub command_like
 	local $ENV{PGPORT} = $self->port;
 
 	TestLib::command_like(@_);
+}
+
+=pod
+
+=item $node->command_checks_all(...)
+
+TestLib::command_checks_all with our PGPORT. See command_ok(...)
+
+=cut
+
+sub command_checks_all
+{
+	my $self = shift;
+
+	local $ENV{PGPORT} = $self->port;
+
+	TestLib::command_checks_all(@_);
 }
 
 =pod

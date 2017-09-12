@@ -5265,6 +5265,18 @@ readRecoveryCommandFile(void)
 		{
 			recoveryTarget = RECOVERY_TARGET_TIME;
 
+			if (strcmp(item->value, "epoch") == 0 ||
+				strcmp(item->value, "infinity") == 0 ||
+				strcmp(item->value, "-infinity") == 0 ||
+				strcmp(item->value, "now") == 0 ||
+				strcmp(item->value, "today") == 0 ||
+				strcmp(item->value, "tomorrow") == 0 ||
+				strcmp(item->value, "yesterday") == 0)
+				ereport(FATAL,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("recovery_target_time is not a valid timestamp: \"%s\"",
+								item->value)));
+
 			/*
 			 * Convert the time string given by the user to TimestampTz form.
 			 */
@@ -8646,7 +8658,7 @@ CreateCheckPoint(int flags)
 			LWLockRelease(CheckpointLock);
 			END_CRIT_SECTION();
 			ereport(DEBUG1,
-					(errmsg("checkpoint skipped due to an idle system")));
+					(errmsg("checkpoint skipped because system is idle")));
 			return;
 		}
 	}

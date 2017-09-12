@@ -797,6 +797,7 @@ typedef struct PartitionBoundSpec
 	NodeTag		type;
 
 	char		strategy;		/* see PARTITION_STRATEGY codes above */
+	bool		is_default;		/* is it a default partition bound? */
 
 	/* Partitioning info for LIST strategy: */
 	List	   *listdatums;		/* List of Consts (or A_Consts in raw tree) */
@@ -1025,6 +1026,11 @@ typedef struct RangeTblEntry
 	 * from the catalogs if 'relid' was supplied, but we'd still need these
 	 * for TupleDesc-based ENRs, so we might as well always store the type
 	 * info here).
+	 *
+	 * For ENRs only, we have to consider the possibility of dropped columns.
+	 * A dropped column is included in these lists, but it will have zeroes in
+	 * all three lists (as well as an empty-string entry in eref).  Testing
+	 * for zero coltype is the standard way to detect a dropped column.
 	 */
 	List	   *coltypes;		/* OID list of column type OIDs */
 	List	   *coltypmods;		/* integer list of column typmods */
@@ -1772,6 +1778,8 @@ typedef struct AlterTableCmd	/* one subcommand of an ALTER TABLE */
 	AlterTableType subtype;		/* Type of table alteration to apply */
 	char	   *name;			/* column, constraint, or trigger to act on,
 								 * or tablespace */
+	int16		num;			/* attribute number for columns referenced
+								 * by number */
 	RoleSpec   *newowner;
 	Node	   *def;			/* definition of new column, index,
 								 * constraint, or parent table */

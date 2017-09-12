@@ -3848,7 +3848,7 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
   <para>
    The catalog <structname>pg_inherits</> records information about
    table inheritance hierarchies.  There is one entry for each direct
-   child table in the database.  (Indirect inheritance can be determined
+   parent-child table relationship in the database.  (Indirect inheritance can be determined
    by following chains of entries.)
   </para>
 
@@ -4736,6 +4736,17 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
       <entry><type>int2</type></entry>
       <entry></entry>
       <entry>The number of columns in partition key</entry>
+     </row>
+
+     <row>
+      <entry><structfield>partdefid</structfield></entry>
+      <entry><type>oid</type></entry>
+      <entry><literal><link linkend="catalog-pg-class"><structname>pg_class</structname></link>.oid</literal></entry>
+      <entry>
+       The OID of the <structname>pg_class</> entry for the default partition
+       of this partitioned table, or zero if this partitioned table does not
+       have a default partition.
+     </entry>
      </row>
 
      <row>
@@ -6442,7 +6453,7 @@ SCRAM-SHA-256$<replaceable>&lt;iteration count&gt;</>:<replaceable>&lt;salt&gt;<
       <entry><type>char[]</type></entry>
       <entry></entry>
       <entry>
-        An array containing codes for the enabled statistic types;
+        An array containing codes for the enabled statistic kinds;
         valid values are:
         <literal>d</literal> for n-distinct statistics,
         <literal>f</literal> for functional dependency statistics
