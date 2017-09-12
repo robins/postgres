@@ -13,8 +13,10 @@ Complete | All combinations supported
 
 SQL Commands | Supported State
 :----------- |:--------------:
-ABORT | Native
-ALTER TABLE | Partial
-ALTER TABLE ADD COLUMN | **Yes**
-ALTER TABLE (Similarly Many Variants) | Unsupported
-ALTER USER | Complete
+ALTER STREAM | Unsupported
+CREATE CONTINUOUS TRANSFORM | Unsupported
+CREATE CONTINUOUS VIEW | Unsupported
+CREATE STREAM | Unsupported
+DROP CONTINUOUS TRANSFORM | Unsupported
+DROP CONTINUOUS VIEW | Unsupported
+DROP STREAM | Unsupported
