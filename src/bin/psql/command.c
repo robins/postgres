@@ -162,6 +162,10 @@ static void printSSLInfo(void);
 static bool printPsetInfo(const char *param, struct printQueryOpt *popt);
 static char *pset_value_string(const char *param, struct printQueryOpt *popt);
 
+static PGresult *exec_query(const char *query);
+static char *escape_string(const char *text);
+static char *get_guctype(const char *varname);
+
 #ifdef WIN32
 static void checkWin32Codepage(void);
 #endif
@@ -3220,7 +3224,15 @@ SyncVariables(void)
 	if (pset.sversion == 80002) {
 		pset.sengine = "redshift";
 	} else {
-		pset.sengine = "postgres";
+		/* Check whether a given GUC exists */
+		char	*guctype = get_guctype("continuous_queries_enabled");
+		if (guctype != NULL)
+			pset.sengine = "pipelinedb";
+		else
+			pset.sengine = "postgres";
+
+		if (guctype)
+			free(guctype);
 	}
 
 	SetVariable(pset.vars, "DBNAME", PQdb(pset.db));
@@ -3228,6 +3240,7 @@ SyncVariables(void)
 	SetVariable(pset.vars, "HOST", PQhost(pset.db));
 	SetVariable(pset.vars, "PORT", PQport(pset.db));
 	SetVariable(pset.vars, "ENCODING", pg_encoding_to_char(pset.encoding));
+	SetVariable(pset.vars, "ENGINE", PQdb(pset.db));
 
 	/* this bit should match connection_warnings(): */
 	/* Try to get full text form of version, might include "devel" etc */
@@ -3248,6 +3261,87 @@ SyncVariables(void)
 	PQsetErrorContextVisibility(pset.db, pset.show_context);
 }
 
+// XXX: Ideally the following 3 functions should be included from common definitions
+/*
+ * Execute a query and report any errors. This should be the preferred way of
+ * talking to the database in this file.
+ */
+ static PGresult *
+ exec_query(const char *query)
+ {
+	 PGresult   *result;
+ 
+	 if (query == NULL || !pset.db || PQstatus(pset.db) != CONNECTION_OK)
+		 return NULL;
+ 
+	 result = PQexec(pset.db, query);
+ 
+	 if (PQresultStatus(result) != PGRES_TUPLES_OK)
+	 {
+ #ifdef NOT_USED
+		 psql_error("tab completion query failed: %s\nQuery was:\n%s\n",
+						PQerrorMessage(pset.db), query);
+ #endif
+		 PQclear(result);
+		 result = NULL;
+	 }
+ 
+	 return result;
+ }
+ 
+/*
+ * escape_string - Escape argument for use as string literal.
+ *
+ * The returned value has to be freed.
+ */
+ static char *
+ escape_string(const char *text)
+ {
+	 size_t		text_length;
+	 char	   *result;
+ 
+	 text_length = strlen(text);
+ 
+	 result = pg_malloc(text_length * 2 + 1);
+	 PQescapeStringConn(pset.db, result, text, text_length, NULL);
+ 
+	 return result;
+ }
+ 
+/*
+ * Look up the type for the GUC variable with the passed name.
+ *
+ * Returns NULL if the variable is unknown. Otherwise the returned string,
+ * containing the type, has to be freed.
+ */
+ static char *
+ get_guctype(const char *varname)
+ {
+	 PQExpBufferData query_buffer;
+	 char	   *e_varname;
+	 PGresult   *result;
+	 char	   *guctype = NULL;
+ 
+	 e_varname = escape_string(varname);
+ 
+	 initPQExpBuffer(&query_buffer);
+	 appendPQExpBuffer(&query_buffer,
+						 "SELECT vartype FROM pg_catalog.pg_settings "
+						 "WHERE pg_catalog.lower(name) = pg_catalog.lower('%s')",
+						 e_varname);
+ 
+	 result = exec_query(query_buffer.data);
+	 termPQExpBuffer(&query_buffer);
+	 free(e_varname);
+ 
+	 if (PQresultStatus(result) == PGRES_TUPLES_OK && PQntuples(result) > 0)
+		 guctype = pg_strdup(PQgetvalue(result, 0, 0));
+ 
+	 PQclear(result);
+ 
+	 return guctype;
+ }
+ 
 /*
  * UnsyncVariables
  *

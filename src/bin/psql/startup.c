@@ -771,7 +771,7 @@ process_psqlrc_file(char *filename)
 static void
 showVersion(void)
 {
-	puts("psql (Amazon Redshift) " PG_VERSION);
+	puts("psql (PostgreSQL / Amazon Redshift / PipelineDB) " PG_VERSION);
 }
 
 

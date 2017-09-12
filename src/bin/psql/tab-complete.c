@@ -1082,6 +1082,8 @@ static const pgsql_thing_t words_after_create[] = {
 	 * to be used only by pg_dump.
 	 */
 	{"CONFIGURATION", Query_for_list_of_ts_configurations, NULL, THING_NO_SHOW},
+	{"CONTINUOUS TRANSFORM", NULL, NULL, THING_NO_ALTER},
+	{"CONTINUOUS VIEW", NULL, NULL, THING_NO_ALTER},
 	{"CONVERSION", "SELECT pg_catalog.quote_ident(conname) FROM pg_catalog.pg_conversion WHERE substring(pg_catalog.quote_ident(conname),1,%d)='%s'"},
 	{"DATABASE", Query_for_list_of_databases},
 	{"DEFAULT PRIVILEGES", NULL, NULL, THING_NO_CREATE | THING_NO_DROP},
@@ -1116,6 +1118,7 @@ static const pgsql_thing_t words_after_create[] = {
 	{"SEQUENCE", NULL, &Query_for_list_of_sequences},
 	{"SERVER", Query_for_list_of_servers},
 	{"STATISTICS", NULL, &Query_for_list_of_statistics},
+	{"STREAM", NULL, NULL},
 	{"SUBSCRIPTION", Query_for_list_of_subscriptions},
 	{"SYSTEM", NULL, NULL, THING_NO_CREATE | THING_NO_DROP},
 	{"TABLE", NULL, &Query_for_list_of_tables},
@@ -1595,6 +1598,9 @@ psql_completion(const char *text, int start, int end)
 	 Any change here should probably be replicated elsewhere since
 	 #define for various SQLs (in this script) employ there own string-compare */
 #define IS_REDSHIFT strncmp(pset.sengine, "redshift", 8) == 0
+
+/* Flag to check if server is a PipelineDB Engine*/
+#define IS_PIPELINEDB strncmp(pset.sengine, "pipelinedb", 10) == 0
 
 	/* Clear a few things. */
 	completion_charp = NULL;
@@ -2969,6 +2975,10 @@ psql_completion(const char *text, int start, int end)
 	/* Complete CREATE EVENT TRIGGER <name> ON with event_type */
 	else if (Matches5("CREATE", "EVENT", "TRIGGER", MatchAny, "ON"))
 		COMPLETE_WITH_LIST3("ddl_command_start", "ddl_command_end", "sql_drop");
+
+/* CREATE CONTINUOUS TRANSFORM / VIEW */
+	else if ((IS_PIPELINEDB) && (Matches2("CREATE|DROP", "CONTINUOUS")))
+		COMPLETE_WITH_LIST2("TRANSFORM", "VIEW");
 
 /* DEALLOCATE */
 	else if (Matches1("DEALLOCATE"))
