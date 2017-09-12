@@ -2314,7 +2314,7 @@ populate_array_report_expected_array(PopulateArrayContext *ctx, int ndim)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
 					 errmsg("expected json array"),
-					 errhint("see the value of key \"%s\"", ctx->colname)));
+					 errhint("See the value of key \"%s\".", ctx->colname)));
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
@@ -2336,13 +2336,13 @@ populate_array_report_expected_array(PopulateArrayContext *ctx, int ndim)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
 					 errmsg("expected json array"),
-					 errhint("see the array element %s of key \"%s\"",
+					 errhint("See the array element %s of key \"%s\".",
 							 indices.data, ctx->colname)));
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
 					 errmsg("expected json array"),
-					 errhint("see the array element %s",
+					 errhint("See the array element %s.",
 							 indices.data)));
 	}
 }
@@ -4860,7 +4860,7 @@ iterate_string_values_scalar(void *state, char *token, JsonTokenType tokentype)
 	IterateJsonStringValuesState *_state = (IterateJsonStringValuesState *) state;
 
 	if (tokentype == JSON_TOKEN_STRING)
-		(*_state->action) (_state->action_state, token, strlen(token));
+		_state->action(_state->action_state, token, strlen(token));
 }
 
 /*
@@ -5011,7 +5011,7 @@ transform_string_values_scalar(void *state, char *token, JsonTokenType tokentype
 
 	if (tokentype == JSON_TOKEN_STRING)
 	{
-		text	   *out = (*_state->action) (_state->action_state, token, strlen(token));
+		text	   *out = _state->action(_state->action_state, token, strlen(token));
 
 		escape_json(_state->strval, text_to_cstring(out));
 	}
