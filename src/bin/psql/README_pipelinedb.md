@@ -2,6 +2,8 @@ This document shows the current state of psql's auto-complete support for Pipeli
 
 Reference: http://docs.pipelinedb.com/
 
+See Support level of all Postgres forks: Here(https://github.com/robins/postgres/blob/redshift/src/bin/psql/README.md)
+
 Support Legend | Description
 :-------------:| -----------
 Native | All combinations supported by Native psql
