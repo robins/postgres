@@ -13,10 +13,10 @@ Complete | All combinations supported
 
 SQL Commands | Supported State
 :----------- |:--------------:
-ALTER STREAM | Unsupported
-CREATE CONTINUOUS TRANSFORM | Unsupported
-CREATE CONTINUOUS VIEW | Unsupported
-CREATE STREAM | Unsupported
-DROP CONTINUOUS TRANSFORM | Unsupported
-DROP CONTINUOUS VIEW | Unsupported
-DROP STREAM | Unsupported
+ALTER STREAM | Partial
+CREATE CONTINUOUS TRANSFORM | Partial
+CREATE CONTINUOUS VIEW | Partial
+CREATE STREAM | Partial
+DROP CONTINUOUS TRANSFORM | Partial
+DROP CONTINUOUS VIEW | Partial
+DROP STREAM | Partial
