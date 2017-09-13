@@ -3115,11 +3115,9 @@ connection_warnings(bool in_startup)
 		if (pset.sversion != client_ver)
 		{
 			const char *server_version;
-			const char *server_engine;
 
 			/* Try to get full text form, might include "devel" etc */
 			server_version = PQparameterStatus(pset.db, "server_version");
-			server_engine = PQparameterStatus(pset.db, "server_engine");
 
 			/* Otherwise fall back on pset.sversion */
 			if (!server_version)
@@ -3129,8 +3127,8 @@ connection_warnings(bool in_startup)
 				server_version = sverbuf;
 			}
 
-			printf(_("%s (%s, server %s, engine %s)\n"),
-				   pset.progname, PG_VERSION, server_version, server_engine);
+			printf(_("%s (client-version:%s, server-version:%s, engine:%s)\n"),
+				   pset.progname, PG_VERSION, server_version, pset.sengine);
 		}
 		/* For version match, only print psql banner on startup. */
 		else if (in_startup)
@@ -3219,7 +3217,7 @@ SyncVariables(void)
 	char		vbuf[32];
 	const char *server_version;
 	const char *server_engine;
-	const char *guctype;
+	char *guctype;
 
 	/* get stuff from connection */
 	pset.encoding = PQclientEncoding(pset.db);
@@ -3240,6 +3238,8 @@ SyncVariables(void)
 			server_engine = "postgres";
 	}
 
+	pset.sengine = server_engine;
+
 	if (guctype)
 		free(guctype);
 
@@ -3248,7 +3248,6 @@ SyncVariables(void)
 	SetVariable(pset.vars, "HOST", PQhost(pset.db));
 	SetVariable(pset.vars, "PORT", PQport(pset.db));
 	SetVariable(pset.vars, "ENCODING", pg_encoding_to_char(pset.encoding));
-	SetVariable(pset.vars, "ENGINE", PQdb(pset.db));
 
 	/* this bit should match connection_warnings(): */
 	/* Try to get full text form of version, might include "devel" etc */
