@@ -713,7 +713,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 " SELECT 'ZST' "
 
 #define Query_for_list_of_cursors \
-((strncmp(pset.sengine, "redshift", 8) == 0) ? \
+((strncmp(server_engine, "redshift", 8) == 0) ? \
 		" SELECT trim(name) FROM stv_active_cursors ORDER BY 1" : \
 		" SELECT trim(name) FROM pg_cursors ORDER BY 1" )
 
@@ -782,7 +782,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 " WHERE substring(name,1,%d)='%s'"
 
 #define Query_for_list_of_pids \
-((strncmp(pset.sengine, "redshift", 8) == 0) ? \
+((strncmp(server_engine, "redshift", 8) == 0) ? \
 	"SELECT procpid || ' (user->' || usename || '; database->' || datname || ')' FROM pg_stat_activity ORDER BY datname, usename" : \
 	"SELECT process || ' (user->' || usename || '; database->' || datname || ')' FROM pg_stat_activity ORDER BY datname, usename")
 
@@ -1594,13 +1594,13 @@ psql_completion(const char *text, int start, int end)
 	rl_completion_append_character = ' ';
 #endif
 
-/* Flag to check if server is a Redshift Engine.
+/* Flag to set server_engine appropriately
 	 Any change here should probably be replicated elsewhere since
 	 #define for various SQLs (in this script) employ there own string-compare */
-#define IS_REDSHIFT strncmp(pset.sengine, "redshift", 8) == 0
-
-/* Flag to check if server is a PipelineDB Engine*/
-#define IS_PIPELINEDB strncmp(pset.sengine, "pipelinedb", 10) == 0
+	const char *server_engine;
+	server_engine = PQparameterStatus(pset.db, "server_engine");
+	#define IS_REDSHIFT ((strncmp(server_engine, "redshift", 8) == 0) ? 1 : 0)
+	#define IS_PIPELINEDB ((strncmp(server_engine, "pipelinedb", 10) == 0) ? 1 : 0)
 
 	/* Clear a few things. */
 	completion_charp = NULL;

@@ -26,8 +26,13 @@
 #include "settings.h"
 #include "variables.h"
 
-/* Flag to check if server is a Redshift Engine */
-#define IS_REDSHIFT strncmp(pset.sengine, "redshift", 8) == 0
+/* Flag to check if server is a Redshift Engine * /
+const char *server_engine;
+server_engine = PQparameterStatus(pset.db, "server_engine");
+#define IS_REDSHIFT ((strncmp(server_engine, "redshift", 8) == 0) ? 1 : 0)
+#define IS_PIPELINEDB ((strncmp(server_engine, "pipelinedb", 10) == 0) ? 1 : 0)
+*/
+#define IS_REDSHIFT 1
 
 static bool describeOneTableDetails(const char *schemaname,
 						const char *relationname,

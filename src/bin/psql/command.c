@@ -3115,9 +3115,12 @@ connection_warnings(bool in_startup)
 		if (pset.sversion != client_ver)
 		{
 			const char *server_version;
+			const char *server_engine;
 
 			/* Try to get full text form, might include "devel" etc */
 			server_version = PQparameterStatus(pset.db, "server_version");
+			server_engine = PQparameterStatus(pset.db, "server_engine");
+
 			/* Otherwise fall back on pset.sversion */
 			if (!server_version)
 			{
@@ -3126,8 +3129,8 @@ connection_warnings(bool in_startup)
 				server_version = sverbuf;
 			}
 
-			printf(_("%s (%s, server %s)\n"),
-				   pset.progname, PG_VERSION, server_version);
+			printf(_("%s (%s, server %s, engine %s)\n"),
+				   pset.progname, PG_VERSION, server_version, server_engine);
 		}
 		/* For version match, only print psql banner on startup. */
 		else if (in_startup)
@@ -3215,25 +3218,30 @@ SyncVariables(void)
 {
 	char		vbuf[32];
 	const char *server_version;
+	const char *server_engine;
+	const char *guctype;
 
 	/* get stuff from connection */
 	pset.encoding = PQclientEncoding(pset.db);
 	pset.popt.topt.encoding = pset.encoding;
 	pset.sversion = PQserverVersion(pset.db);
 
-	if (pset.sversion == 80002) {
-		pset.sengine = "redshift";
-	} else {
-		/* Check whether a given GUC exists */
-		char	*guctype = get_guctype("continuous_queries_enabled");
-		if (guctype != NULL)
-			pset.sengine = "pipelinedb";
-		else
-			pset.sengine = "postgres";
+	/* Check whether a given GUC exists */
+	guctype = get_guctype("continuous_queries_enabled");
+	if (guctype != NULL)
+		server_engine = "pipelinedb";
+	else
+	{
+		guctype = get_guctype("wlm_query_slot_count");
 
-		if (guctype)
-			free(guctype);
+		if (guctype != NULL)
+			server_engine = "redshift";
+		else
+			server_engine = "postgres";
 	}
+
+	if (guctype)
+		free(guctype);
 
 	SetVariable(pset.vars, "DBNAME", PQdb(pset.db));
 	SetVariable(pset.vars, "USER", PQuser(pset.db));
@@ -3252,6 +3260,7 @@ SyncVariables(void)
 		server_version = vbuf;
 	}
 	SetVariable(pset.vars, "SERVER_VERSION_NAME", server_version);
+	SetVariable(pset.vars, "SERVER_ENGINE", server_engine);
 
 	snprintf(vbuf, sizeof(vbuf), "%d", pset.sversion);
 	SetVariable(pset.vars, "SERVER_VERSION_NUM", vbuf);
