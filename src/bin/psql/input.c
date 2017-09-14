@@ -16,6 +16,7 @@
 #include "input.h"
 #include "settings.h"
 #include "tab-complete.h"
+#include "tab-complete-redshift.h"
 #include "common.h"
 
 #ifndef WIN32
@@ -354,7 +355,13 @@ initializeInput(int flags)
 		useReadline = true;
 
 		/* these two things must be done in this order: */
-		initialize_readline();
+
+		if (strncmp(pset.sengine, "redshift", 8) == 0)
+			initialize_readline_redshift();
+		else if (strncmp(pset.sengine, "pipelinedb", 10) == 0)
+		;//	initialize_readline_pipelinedb();
+		else
+			initialize_readline();
 		rl_initialize();
 
 		useHistory = true;
