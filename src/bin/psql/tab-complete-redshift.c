@@ -1591,7 +1591,6 @@ psql_completion(const char *text, int start, int end)
 	 Any change here should probably be replicated elsewhere since
 	 #define for various SQLs (in this script) employ there own string-compare */
 	#define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
-	#define IS_PIPELINEDB (strncmp(pset.sengine, "pipelinedb", 10) == 0)
 
 	/* Clear a few things. */
 	completion_charp = NULL;
@@ -2966,10 +2965,6 @@ psql_completion(const char *text, int start, int end)
 	/* Complete CREATE EVENT TRIGGER <name> ON with event_type */
 	else if (Matches5("CREATE", "EVENT", "TRIGGER", MatchAny, "ON"))
 		COMPLETE_WITH_LIST3("ddl_command_start", "ddl_command_end", "sql_drop");
-
-/* CREATE CONTINUOUS TRANSFORM / VIEW */
-	else if ((IS_PIPELINEDB) && (Matches2("CREATE|DROP", "CONTINUOUS")))
-		COMPLETE_WITH_LIST2("TRANSFORM", "VIEW");
 
 /* DEALLOCATE */
 	else if (Matches1("DEALLOCATE"))

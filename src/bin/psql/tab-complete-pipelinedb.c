@@ -1999,36 +1999,6 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST(list_ALTER2);
 	}
 
-	/* ALTER TABLE xxx ADD */
-	else if (IS_REDSHIFT && Matches4("ALTER", "TABLE", MatchAny, "ADD"))
-		COMPLETE_WITH_LIST2("COLUMN", "PARTITION");
-
-	else if (IS_REDSHIFT && HeadMatches6("ALTER", "TABLE", MatchAny, "ADD", MatchAny, MatchAny))
-		{
-			if (TailMatches2("COLUMN", MatchAny))
-				COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
-			else
-			{
-				if (TailMatches2("DEFAULT", MatchAny))
-					COMPLETE_WITH_LIST3("ENCODE", "NOT NULL", "NULL");
-				else if (TailMatches1("ENCODE"))
-					COMPLETE_WITH_QUERY(Query_for_list_of_column_compressions);
-				else if (TailMatches2("ENCODE", MatchAny))
-					COMPLETE_WITH_LIST3("DEFAULT", "NOT NULL", "NULL");
-				else if (TailMatches1("NULL"))
-					COMPLETE_WITH_LIST2("ENCODE", "DEFAULT");
-				else if (TailMatches1("NOT"))
-					COMPLETE_WITH_CONST("NULL");
-				else
-					if (!TailMatches1("DEFAULT"))
-						COMPLETE_WITH_LIST4("DEFAULT", "ENCODE", "NOT NULL", "NULL");
-			}
-		}
-
-		else if (IS_REDSHIFT && HeadMatches5("ALTER", "TABLE", MatchAny, "ADD", MatchAny) &&
-				(!TailMatches1("COLUMN")))
-			COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_datatypes, NULL);
-
 	/* ALTER TABLE xxx ENABLE */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "ENABLE"))
 		COMPLETE_WITH_LIST5("ALWAYS", "REPLICA", "ROW LEVEL SECURITY", "RULE",
@@ -2325,9 +2295,6 @@ psql_completion(const char *text, int start, int end)
 		completion_info_charp = prev2_wd;
 		COMPLETE_WITH_QUERY(Query_for_index_of_table);
 	}
-/* CANCEL */
-	else if (IS_REDSHIFT && Matches1("CANCEL"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_pids);
 
 /* CLOSE */
 	else if (Matches1("CLOSE"))
@@ -2413,11 +2380,6 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST5("HEADER", "QUOTE", "ESCAPE", "FORCE QUOTE",
 							"FORCE NOT NULL");
 
-	/* COPY FROM REGION */
-	else if (IS_REDSHIFT && HeadMatches2("COPY", MatchAny) && TailMatches1("REGION"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
-
-
 	/* CREATE ACCESS METHOD */
 	/* Complete "CREATE ACCESS METHOD <name>" */
 	else if (Matches4("CREATE", "ACCESS", "METHOD", MatchAny))
@@ -2476,61 +2438,6 @@ psql_completion(const char *text, int start, int end)
 	{
 		completion_info_charp = prev2_wd;
 		COMPLETE_WITH_QUERY(Query_for_list_of_available_extension_versions);
-	}
-
-	else if (IS_REDSHIFT && (Matches2("CREATE", "EXTERNAL")))
-		COMPLETE_WITH_LIST2("SCHEMA", "TABLE");
-
-			/* CREATE EXTERNAL SCHEMA */
-	else if (IS_REDSHIFT && (Matches3("CREATE", "EXTERNAL", "SCHEMA"))) {
-		if (Matches2("CREATE", "EXTERNAL"))
-			COMPLETE_WITH_LIST2("SCHEMA", "TABLE");
-		else if (Matches3("CREATE", "EXTERNAL", "SCHEMA"))
-			COMPLETE_WITH_QUERY(Query_for_list_of_external_schemas
-												" UNION ALL SELECT 'IF NOT EXISTS'");
-		else if (
-					(Matches7("CREATE", "EXTERNAL", "SCHEMA", "IF", "NOT", "EXISTS", MatchAnyExcept("FROM"))) ||
-					(Matches4("CREATE", "EXTERNAL", "SCHEMA", MatchAnyExcept("FROM")))
-				)
-			COMPLETE_WITH_CONST("FROM");
-		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches1("FROM"))
-			COMPLETE_WITH_LIST2("DATA CATALOG", "HIVE METASTORE");
-		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") &&
-							(TailMatches2("DATA", "CATALOG") || TailMatches2("HIVE", "METASTORE"))
-						)
-			COMPLETE_WITH_CONST("DATABASE");
-		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("DATABASE", MatchAny))
-			COMPLETE_WITH_LIST4("REGION", "URI", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
-		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches1("REGION"))
-			COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
-		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("REGION", MatchAny))
-			COMPLETE_WITH_LIST3("URI", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
-		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("URI", MatchAny))
-			COMPLETE_WITH_LIST3("PORT", "IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
-		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("PORT", MatchAny))
-			COMPLETE_WITH_LIST2("IAM_ROLE", "CREATE EXTERNAL DATABASE IF NOT EXISTS");
-		else if (HeadMatches3("CREATE", "EXTERNAL", "SCHEMA") && TailMatches2("IAM_ROLE", MatchAny))
-			COMPLETE_WITH_CONST("CREATE EXTERNAL DATABASE IF NOT EXISTS");
-	}
-
-	/* CREATE EXTERNAL TABLE */
-	else if (IS_REDSHIFT && (Matches3("CREATE", "EXTERNAL", "TABLE"))) {
-		if (Matches3("CREATE", "EXTERNAL", "TABLE"))
-			COMPLETE_WITH_QUERY(Query_for_list_of_external_schemas);
-		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("PARTITIONED"))
-			COMPLETE_WITH_CONST("BY (");
-		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("ROW"))
-			COMPLETE_WITH_LIST2("FORMAT", "DELIMITED");
-		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches3("ROW", "FORMAT", "DELIMITED"))
-			COMPLETE_WITH_LIST2("FIELDS TERMINATED BY", "LINES TERMINATED BY");
-		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches3("ROW", "FORMAT", "DELIMITED"))
-			COMPLETE_WITH_LIST2("FIELDS TERMINATED BY", "LINES TERMINATED BY");
-		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches2("STORED", "AS"))
-			COMPLETE_WITH_LIST5("PARQUET", "RCFILE", "SEQUENCEFILE", "TEXTFILE", "ORC");
-		else if ((HeadMatches3("CREATE", "EXTERNAL", "TABLE")) && TailMatches1("PROPERTIES"))
-			COMPLETE_WITH_CONST("('numRows'='");
-		else if (HeadMatches4("CREATE", "EXTERNAL", "TABLE", MatchAny))
-			COMPLETE_WITH_LIST5("PARTITIONED BY (", "ROW FORMAT DELIMITED", "STORED AS", "LOCATION", "TABLE PROPERTIES ('numRows'='");
 	}
 
 	/* CREATE FOREIGN */
