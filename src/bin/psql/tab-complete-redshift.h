@@ -5,8 +5,8 @@
  *
  * src/bin/psql/tab-complete-redshift.h
  */
-#ifndef TAB_COMPLETE_H
-#define TAB_COMPLETE_H
+#ifndef TAB_COMPLETE_REDSHIFT_H
+#define TAB_COMPLETE_REDSHIFT_H
 
 #include "pqexpbuffer.h"
 

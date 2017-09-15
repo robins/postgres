@@ -64,13 +64,6 @@ extern char *filename_completion_function();
 #define WORD_BREAKS		"\t\n@$><=;|&{() "
 
 /*
- * Since readline doesn't let us pass any state through to the tab completion
- * callback, we have to use this global variable to let get_previous_words()
- * get at the previous lines of the current command.  Ick.
- */
-PQExpBuffer tab_completion_query_buf = NULL;
-
-/*
  * This struct is used to define "schema queries", which are custom-built
  * to obtain possibly-schema-qualified names of database objects.  There is
  * enough similarity in the structure that we don't want to repeat it each
