@@ -17,6 +17,7 @@
 #include "settings.h"
 #include "tab-complete.h"
 #include "tab-complete-redshift.h"
+#include "tab-complete-pipelinedb.h"
 #include "common.h"
 
 #ifndef WIN32
@@ -34,7 +35,6 @@ static bool useHistory;
 static char *psql_history;
 
 static int	history_lines_added;
-
 
 /*
  *	Preserve newlines in saved queries by mapping '\n' to NL_IN_HISTORY
@@ -359,7 +359,7 @@ initializeInput(int flags)
 		if (strncmp(pset.sengine, "redshift", 8) == 0)
 			initialize_readline_redshift();
 		else if (strncmp(pset.sengine, "pipelinedb", 10) == 0)
-		;//	initialize_readline_pipelinedb();
+			initialize_readline_pipelinedb();
 		else
 			initialize_readline();
 		rl_initialize();
