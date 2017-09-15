@@ -314,6 +314,18 @@ do { \
 	COMPLETE_WITH_LIST(list); \
 } while (0)
 
+#define COMPLETE_WITH_LIST11(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11) \
+do { \
+	static const char *const list[] = { s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, NULL }; \
+	COMPLETE_WITH_LIST(list); \
+} while (0)
+
+#define COMPLETE_WITH_LIST12(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12) \
+do { \
+	static const char *const list[] = { s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, NULL }; \
+	COMPLETE_WITH_LIST(list); \
+} while (0)
+
 /*
  * Likewise for COMPLETE_WITH_LIST_CS.
  */
@@ -1426,6 +1438,63 @@ psql_completion(const char *text, int start, int end)
 	 word_matches(p2, previous_words[previous_words_count - 2]) && \
 	 word_matches(p3, previous_words[previous_words_count - 3]))
 
+	 #define HeadMatches4(p1, p2, p3, p4) \
+	 (previous_words_count >= 4 && \
+		 word_matches(p1, previous_words[previous_words_count - 1]) && \
+		 word_matches(p2, previous_words[previous_words_count - 2]) && \
+		 word_matches(p3, previous_words[previous_words_count - 3]) && \
+		 word_matches(p4, previous_words[previous_words_count - 4]))
+ 
+ #define HeadMatches5(p1, p2, p3, p4, p5) \
+	 (previous_words_count >= 5 && \
+		 word_matches(p1, previous_words[previous_words_count - 1]) && \
+		 word_matches(p2, previous_words[previous_words_count - 2]) && \
+		 word_matches(p3, previous_words[previous_words_count - 3]) && \
+		 word_matches(p4, previous_words[previous_words_count - 4]) && \
+		 word_matches(p5, previous_words[previous_words_count - 5]))
+ 
+ #define HeadMatches6(p1, p2, p3, p4, p5, p6) \
+	 (previous_words_count >= 6 && \
+		 word_matches(p1, previous_words[previous_words_count - 1]) && \
+		 word_matches(p2, previous_words[previous_words_count - 2]) && \
+		 word_matches(p3, previous_words[previous_words_count - 3]) && \
+		 word_matches(p4, previous_words[previous_words_count - 4]) && \
+		 word_matches(p5, previous_words[previous_words_count - 5]) && \
+		 word_matches(p6, previous_words[previous_words_count - 6]))
+ 
+ #define HeadMatches7(p1, p2, p3, p4, p5, p6, p7) \
+	 (previous_words_count >= 7 && \
+		 word_matches(p1, previous_words[previous_words_count - 1]) && \
+		 word_matches(p2, previous_words[previous_words_count - 2]) && \
+		 word_matches(p3, previous_words[previous_words_count - 3]) && \
+		 word_matches(p4, previous_words[previous_words_count - 4]) && \
+		 word_matches(p5, previous_words[previous_words_count - 5]) && \
+		 word_matches(p6, previous_words[previous_words_count - 6]) && \
+		 word_matches(p7, previous_words[previous_words_count - 7]))
+ 
+ #define HeadMatches8(p1, p2, p3, p4, p5, p6, p7, p8) \
+ (previous_words_count >= 8 && \
+	 word_matches(p1, previous_words[previous_words_count - 1]) && \
+	 word_matches(p2, previous_words[previous_words_count - 2]) && \
+	 word_matches(p3, previous_words[previous_words_count - 3]) && \
+	 word_matches(p4, previous_words[previous_words_count - 4]) && \
+	 word_matches(p5, previous_words[previous_words_count - 5]) && \
+	 word_matches(p6, previous_words[previous_words_count - 6]) && \
+	 word_matches(p7, previous_words[previous_words_count - 7]) && \
+	 word_matches(p8, previous_words[previous_words_count - 8]))
+ 
+ #define HeadMatches9(p1, p2, p3, p4, p5, p6, p7, p8, p9) \
+ (previous_words_count >= 9 && \
+	 word_matches(p1, previous_words[previous_words_count - 1]) && \
+	 word_matches(p2, previous_words[previous_words_count - 2]) && \
+	 word_matches(p3, previous_words[previous_words_count - 3]) && \
+	 word_matches(p4, previous_words[previous_words_count - 4]) && \
+	 word_matches(p5, previous_words[previous_words_count - 5]) && \
+	 word_matches(p6, previous_words[previous_words_count - 6]) && \
+	 word_matches(p7, previous_words[previous_words_count - 7]) && \
+	 word_matches(p8, previous_words[previous_words_count - 8]) && \
+	 word_matches(p9, previous_words[previous_words_count - 9]))
+
 						/* Known command-starting keywords. */
 	static const char *const sql_commands[] = {
 		"ABORT", "ALTER", "ANALYZE", "BEGIN", "CHECKPOINT", "CLOSE", "CLUSTER",
@@ -1954,7 +2023,7 @@ psql_completion(const char *text, int start, int end)
 
 	/* If we have ALTER TABLE <sth> DROP, provide COLUMN or CONSTRAINT */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "DROP"))
-		COMPLETE_WITH_LIST3("COLUMN", "CONSTRAINT");
+		COMPLETE_WITH_LIST2("COLUMN", "CONSTRAINT");
 	/* If we have ALTER TABLE <sth> DROP COLUMN, provide list of columns */
 	else if (Matches5("ALTER", "TABLE", MatchAny, "DROP", "COLUMN"))
 		COMPLETE_WITH_ATTR(prev3_wd, "");
@@ -1997,7 +2066,7 @@ psql_completion(const char *text, int start, int end)
 	}
 	/* If we have ALTER TABLE <sth> SET, provide list of attributes and '(' */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "SET"))
-		COMPLETE_WITH_LIST10("(", "LOGGED", "SCHEMA", "TABLESPACE", "UNLOGGED",		
+		COMPLETE_WITH_LIST7("(", "LOGGED", "SCHEMA", "TABLESPACE", "UNLOGGED",		
 							"WITH", "WITHOUT");
 
 	/*

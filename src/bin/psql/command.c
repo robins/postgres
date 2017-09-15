@@ -43,6 +43,11 @@
 #include "settings.h"
 #include "variables.h"
 
+/* Macro to easily identify which Engine (type) are we speaking to
+	 Any change here should probably be replicated elsewhere since
+	 #define for various SQLs (in this script) employ there own string-compare */
+	 #define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
+
 /*
  * Editable database object types.
  */
@@ -860,7 +865,10 @@ exec_command_d(PsqlScanState scan_state, bool active_branch, const char *cmd)
 				switch (cmd[2])
 				{
 					case 's':
-						success = listForeignServers(pattern, show_verbose);
+						if (IS_REDSHIFT)
+							success = listExternalSchemasInRedshift(pattern, show_verbose);
+						else
+							success = listForeignServers(pattern, show_verbose);
 						break;
 					case 'u':
 						success = listUserMappings(pattern, show_verbose);
@@ -869,7 +877,10 @@ exec_command_d(PsqlScanState scan_state, bool active_branch, const char *cmd)
 						success = listForeignDataWrappers(pattern, show_verbose);
 						break;
 					case 't':
-						success = listForeignTables(pattern, show_verbose);
+						if (IS_REDSHIFT)
+							success = listExternalTablesInRedshift(pattern, show_verbose);
+						else
+							success = listForeignTables(pattern, show_verbose);
 						break;
 					default:
 						status = PSQL_CMD_UNKNOWN;

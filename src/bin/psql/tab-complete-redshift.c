@@ -3708,10 +3708,6 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches1("START"))
 		COMPLETE_WITH_CONST("TRANSACTION");
 
-/* TABLE, but not TABLE embedded in other commands */
-	else if (Matches1("TABLE"))
-		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_relations, NULL);
-
 /* TABLESAMPLE */
 	else if (TailMatches1("TABLESAMPLE"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_tablesample_methods);
@@ -3935,7 +3931,9 @@ psql_completion(const char *text, int start, int end)
 	else if (TailMatchesCS1("\\dD*"))
 		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_domains, NULL);
 	else if (TailMatchesCS1("\\des*"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_servers);
+		COMPLETE_WITH_QUERY(Query_for_list_of_external_schemas);
+	else if (TailMatchesCS1("\\det*"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_external_tables);
 	else if (TailMatchesCS1("\\deu*"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_user_mappings);
 	else if (TailMatchesCS1("\\dew*"))
