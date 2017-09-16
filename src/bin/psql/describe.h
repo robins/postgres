@@ -84,11 +84,17 @@ extern bool listForeignDataWrappers(const char *pattern, bool verbose);
 /* \des */
 extern bool listForeignServers(const char *pattern, bool verbose);
 
+/* \des in Redshift*/
+extern bool listExternalSchemasInRedshift(const char *pattern, bool verbose);
+
 /* \deu */
 extern bool listUserMappings(const char *pattern, bool verbose);
 
 /* \det */
 extern bool listForeignTables(const char *pattern, bool verbose);
+
+/* \det in Redshift*/
+extern bool listExternalTablesInRedshift(const char *pattern, bool verbose);
 
 /* \dL */
 extern bool listLanguages(const char *pattern, bool verbose, bool showSystem);

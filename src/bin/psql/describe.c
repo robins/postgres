@@ -27,7 +27,8 @@
 #include "variables.h"
 
 /* Flag to check if server is a Redshift Engine */
-#define IS_REDSHIFT strncmp(pset.sengine, "redshift", 8) == 0
+#define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
+#define IS_PIPELINEDB (strncmp(pset.sengine, "pipelinedb", 10) == 0)
 
 static bool describeOneTableDetails(const char *schemaname,
 						const char *relationname,
@@ -4815,53 +4816,53 @@ listForeignServers(const char *pattern, bool verbose)
 		char		sverbuf[32];
 
 		psql_error("The server (version %s) does not support foreign servers.\n",
-				   formatPGVersionNumber(pset.sversion, false,
-										 sverbuf, sizeof(sverbuf)));
+					formatPGVersionNumber(pset.sversion, false,
+										sverbuf, sizeof(sverbuf)));
 		return true;
 	}
 
 	initPQExpBuffer(&buf);
 	printfPQExpBuffer(&buf,
-					  "SELECT s.srvname AS \"%s\",\n"
-					  "  pg_catalog.pg_get_userbyid(s.srvowner) AS \"%s\",\n"
-					  "  f.fdwname AS \"%s\"",
-					  gettext_noop("Name"),
-					  gettext_noop("Owner"),
-					  gettext_noop("Foreign-data wrapper"));
+						"SELECT s.srvname AS \"%s\",\n"
+						"  pg_catalog.pg_get_userbyid(s.srvowner) AS \"%s\",\n"
+						"  f.fdwname AS \"%s\"",
+						gettext_noop("Name"),
+						gettext_noop("Owner"),
+						gettext_noop("Foreign-data wrapper"));
 
 	if (verbose)
 	{
 		appendPQExpBufferStr(&buf, ",\n  ");
 		printACLColumn(&buf, "s.srvacl");
 		appendPQExpBuffer(&buf,
-						  ",\n"
-						  "  s.srvtype AS \"%s\",\n"
-						  "  s.srvversion AS \"%s\",\n"
-						  "  CASE WHEN srvoptions IS NULL THEN '' ELSE "
-						  "  '(' || pg_catalog.array_to_string(ARRAY(SELECT "
-						  "  pg_catalog.quote_ident(option_name) ||  ' ' || "
-						  "  pg_catalog.quote_literal(option_value)  FROM "
-						  "  pg_catalog.pg_options_to_table(srvoptions)),  ', ') || ')' "
-						  "  END AS \"%s\",\n"
-						  "  d.description AS \"%s\"",
-						  gettext_noop("Type"),
-						  gettext_noop("Version"),
-						  gettext_noop("FDW options"),
-						  gettext_noop("Description"));
+							",\n"
+							"  s.srvtype AS \"%s\",\n"
+							"  s.srvversion AS \"%s\",\n"
+							"  CASE WHEN srvoptions IS NULL THEN '' ELSE "
+							"  '(' || pg_catalog.array_to_string(ARRAY(SELECT "
+							"  pg_catalog.quote_ident(option_name) ||  ' ' || "
+							"  pg_catalog.quote_literal(option_value)  FROM "
+							"  pg_catalog.pg_options_to_table(srvoptions)),  ', ') || ')' "
+							"  END AS \"%s\",\n"
+							"  d.description AS \"%s\"",
+							gettext_noop("Type"),
+							gettext_noop("Version"),
+							gettext_noop("FDW options"),
+							gettext_noop("Description"));
 	}
 
 	appendPQExpBufferStr(&buf,
-						 "\nFROM pg_catalog.pg_foreign_server s\n"
-						 "     JOIN pg_catalog.pg_foreign_data_wrapper f ON f.oid=s.srvfdw\n");
+						"\nFROM pg_catalog.pg_foreign_server s\n"
+						"     JOIN pg_catalog.pg_foreign_data_wrapper f ON f.oid=s.srvfdw\n");
 
 	if (verbose)
 		appendPQExpBufferStr(&buf,
-							 "LEFT JOIN pg_catalog.pg_description d\n       "
-							 "ON d.classoid = s.tableoid AND d.objoid = s.oid "
-							 "AND d.objsubid = 0\n");
+							"LEFT JOIN pg_catalog.pg_description d\n       "
+							"ON d.classoid = s.tableoid AND d.objoid = s.oid "
+							"AND d.objsubid = 0\n");
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
-						  NULL, "s.srvname", NULL, NULL);
+							NULL, "s.srvname", NULL, NULL);
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
@@ -4880,6 +4881,50 @@ listForeignServers(const char *pattern, bool verbose)
 	return true;
 }
 
+/*
+ * \des
+ *
+ * Describes external schemas (in Redshift).
+ */
+ bool
+ listExternalSchemasInRedshift(const char *pattern, bool verbose)
+ {
+	 PQExpBufferData buf;
+	 PGresult   *res;
+	 printQueryOpt myopt = pset.popt;
+ 
+	 initPQExpBuffer(&buf);
+	 printfPQExpBuffer(&buf,
+						 "SELECT trim(schemaname) AS \"%s\",\n"
+						 "  trim(pg_catalog.pg_get_userbyid(esowner)) AS \"%s\",\n"
+						 "  trim(databasename) AS \"%s\"\n",
+						 gettext_noop("Schema"),
+						 gettext_noop("Owner"),
+						 gettext_noop("External Database"));
+ 
+	 appendPQExpBufferStr(&buf,
+							"\nFROM SVV_EXTERNAL_SCHEMAS\n");
+ 
+	 processSQLNamePattern(pset.db, &buf, pattern, false, false,
+							 NULL, NULL, "tablename", NULL);
+ 
+	 appendPQExpBufferStr(&buf, "ORDER BY 2;");
+ 
+	 res = PSQLexec(buf.data);
+	 termPQExpBuffer(&buf);
+	 if (!res)
+		 return false;
+ 
+	 myopt.nullPrint = NULL;
+	 myopt.title = _("List of external schemas");
+	 myopt.translate_header = true;
+ 
+	 printQuery(res, &myopt, pset.queryFout, false, pset.logfile);
+ 
+	 PQclear(res);
+	 return true;
+ }
+ 
 /*
  * \deu
  *
@@ -4946,78 +4991,127 @@ listUserMappings(const char *pattern, bool verbose)
  *
  * Describes foreign tables.
  */
-bool
-listForeignTables(const char *pattern, bool verbose)
-{
-	PQExpBufferData buf;
-	PGresult   *res;
-	printQueryOpt myopt = pset.popt;
-
-	if (pset.sversion < 90100)
-	{
-		char		sverbuf[32];
-
-		psql_error("The server (version %s) does not support foreign tables.\n",
-				   formatPGVersionNumber(pset.sversion, false,
-										 sverbuf, sizeof(sverbuf)));
-		return true;
-	}
-
-	initPQExpBuffer(&buf);
-	printfPQExpBuffer(&buf,
-					  "SELECT n.nspname AS \"%s\",\n"
-					  "  c.relname AS \"%s\",\n"
-					  "  s.srvname AS \"%s\"",
-					  gettext_noop("Schema"),
-					  gettext_noop("Table"),
-					  gettext_noop("Server"));
-
-	if (verbose)
-		appendPQExpBuffer(&buf,
-						  ",\n CASE WHEN ftoptions IS NULL THEN '' ELSE "
-						  "  '(' || pg_catalog.array_to_string(ARRAY(SELECT "
-						  "  pg_catalog.quote_ident(option_name) ||  ' ' || "
-						  "  pg_catalog.quote_literal(option_value)  FROM "
-						  "  pg_catalog.pg_options_to_table(ftoptions)),  ', ') || ')' "
-						  "  END AS \"%s\",\n"
-						  "  d.description AS \"%s\"",
-						  gettext_noop("FDW options"),
-						  gettext_noop("Description"));
-
-	appendPQExpBufferStr(&buf,
-						 "\nFROM pg_catalog.pg_foreign_table ft\n"
-						 "  INNER JOIN pg_catalog.pg_class c"
-						 " ON c.oid = ft.ftrelid\n"
-						 "  INNER JOIN pg_catalog.pg_namespace n"
-						 " ON n.oid = c.relnamespace\n"
-						 "  INNER JOIN pg_catalog.pg_foreign_server s"
-						 " ON s.oid = ft.ftserver\n");
-	if (verbose)
-		appendPQExpBufferStr(&buf,
-							 "   LEFT JOIN pg_catalog.pg_description d\n"
-							 "          ON d.classoid = c.tableoid AND "
-							 "d.objoid = c.oid AND d.objsubid = 0\n");
-
-	processSQLNamePattern(pset.db, &buf, pattern, false, false,
-						  "n.nspname", "c.relname", NULL,
-						  "pg_catalog.pg_table_is_visible(c.oid)");
-
-	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
-
-	res = PSQLexec(buf.data);
-	termPQExpBuffer(&buf);
-	if (!res)
-		return false;
-
-	myopt.nullPrint = NULL;
-	myopt.title = _("List of foreign tables");
-	myopt.translate_header = true;
-
-	printQuery(res, &myopt, pset.queryFout, false, pset.logfile);
-
-	PQclear(res);
-	return true;
-}
+ bool
+ listForeignTables(const char *pattern, bool verbose)
+ {
+	 PQExpBufferData buf;
+	 PGresult   *res;
+	 printQueryOpt myopt = pset.popt;
+ 
+	 if (pset.sversion < 90100)
+	 {
+		 char		sverbuf[32];
+ 
+		 psql_error("The server (version %s) does not support foreign tables.\n",
+						formatPGVersionNumber(pset.sversion, false,
+											sverbuf, sizeof(sverbuf)));
+		 return true;
+	 }
+ 
+	 initPQExpBuffer(&buf);
+	 printfPQExpBuffer(&buf,
+						 "SELECT n.nspname AS \"%s\",\n"
+						 "  c.relname AS \"%s\",\n"
+						 "  s.srvname AS \"%s\"",
+						 gettext_noop("Schema"),
+						 gettext_noop("Table"),
+						 gettext_noop("Server"));
+ 
+	 if (verbose)
+		 appendPQExpBuffer(&buf,
+							 ",\n CASE WHEN ftoptions IS NULL THEN '' ELSE "
+							 "  '(' || pg_catalog.array_to_string(ARRAY(SELECT "
+							 "  pg_catalog.quote_ident(option_name) ||  ' ' || "
+							 "  pg_catalog.quote_literal(option_value)  FROM "
+							 "  pg_catalog.pg_options_to_table(ftoptions)),  ', ') || ')' "
+							 "  END AS \"%s\",\n"
+							 "  d.description AS \"%s\"",
+							 gettext_noop("FDW options"),
+							 gettext_noop("Description"));
+ 
+	 appendPQExpBufferStr(&buf,
+							"\nFROM pg_catalog.pg_foreign_table ft\n"
+							"  INNER JOIN pg_catalog.pg_class c"
+							" ON c.oid = ft.ftrelid\n"
+							"  INNER JOIN pg_catalog.pg_namespace n"
+							" ON n.oid = c.relnamespace\n"
+							"  INNER JOIN pg_catalog.pg_foreign_server s"
+							" ON s.oid = ft.ftserver\n");
+	 if (verbose)
+		 appendPQExpBufferStr(&buf,
+								"   LEFT JOIN pg_catalog.pg_description d\n"
+								"          ON d.classoid = c.tableoid AND "
+								"d.objoid = c.oid AND d.objsubid = 0\n");
+ 
+	 processSQLNamePattern(pset.db, &buf, pattern, false, false,
+							 "n.nspname", "c.relname", NULL,
+							 "pg_catalog.pg_table_is_visible(c.oid)");
+ 
+	 appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
+ 
+	 res = PSQLexec(buf.data);
+	 termPQExpBuffer(&buf);
+	 if (!res)
+		 return false;
+ 
+	 myopt.nullPrint = NULL;
+	 myopt.title = _("List of foreign tables");
+	 myopt.translate_header = true;
+ 
+	 printQuery(res, &myopt, pset.queryFout, false, pset.logfile);
+ 
+	 PQclear(res);
+	 return true;
+ }
+ 
+/*
+ * \det
+ *
+ * Describes external tables (in Redshift).
+ */
+ bool
+ listExternalTablesInRedshift(const char *pattern, bool verbose)
+ {
+	 PQExpBufferData buf;
+	 PGresult   *res;
+	 printQueryOpt myopt = pset.popt;
+ 
+	 initPQExpBuffer(&buf);
+	 printfPQExpBuffer(&buf,
+						 "SELECT trim(et.schemaname) AS \"%s\",\n"
+						 "  trim(et.tablename) AS \"%s\",\n"
+						 "  '%s' AS \"%s\","
+						 "  (SELECT trim(usename) FROM pg_user where usesysid = es.esowner) AS \"%s\"",
+						 gettext_noop("Schema"),
+						 gettext_noop("Table"),
+						 gettext_noop("External Table"),
+						 gettext_noop("Type"),
+						 gettext_noop("Owner"));
+ 
+	 appendPQExpBufferStr(&buf,
+							"\nFROM SVV_EXTERNAL_TABLES et\n"
+							"  JOIN SVV_EXTERNAL_SCHEMAS es\n"
+							"  ON es.schemaname = et.schemaname\n");
+ 
+	 processSQLNamePattern(pset.db, &buf, pattern, false, false,
+							 "schemaname", "tablename", NULL, NULL);
+ 
+	 appendPQExpBufferStr(&buf, " ORDER BY 1, 2;");
+ 
+	 res = PSQLexec(buf.data);
+	 termPQExpBuffer(&buf);
+	 if (!res)
+		 return false;
+ 
+	 myopt.nullPrint = NULL;
+	 myopt.title = _("List of external tables");
+	 myopt.translate_header = true;
+ 
+	 printQuery(res, &myopt, pset.queryFout, false, pset.logfile);
+ 
+	 PQclear(res);
+	 return true;
+ }
 
 /*
  * \dx

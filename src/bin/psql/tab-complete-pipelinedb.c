@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2000-2017, PostgreSQL Global Development Group
  *
- * src/bin/psql/tab-complete.c
+ * src/bin/psql/tab-complete-pipelinedb.c
  */
 
 /*----------------------------------------------------------------------
@@ -33,7 +33,7 @@
  */
 
 #include "postgres_fe.h"
-#include "tab-complete.h"
+#include "tab-complete-pipelinedb.h"
 #include "input.h"
 
 /* If we don't have this, we might as well forget about the whole thing: */
@@ -62,13 +62,6 @@ extern char *filename_completion_function();
 
 /* word break characters */
 #define WORD_BREAKS		"\t\n@$><=;|&{() "
-
-/*
- * Since readline doesn't let us pass any state through to the tab completion
- * callback, we have to use this global variable to let get_previous_words()
- * get at the previous lines of the current command.  Ick.
- */
-PQExpBuffer tab_completion_query_buf = NULL;
 
 /*
  * This struct is used to define "schema queries", which are custom-built
@@ -682,6 +675,36 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "   AND (pg_catalog.quote_ident(nspname)='%s' "\
 "        OR '\"' || nspname || '\"' ='%s') "
 
+#define Query_for_list_of_aws_regions \
+"SELECT '''ap-northeast-1''' UNION ALL "\
+"SELECT '''ap-northeast-2''' UNION ALL "\
+"SELECT '''ap-south-1''' UNION ALL "\
+"SELECT '''ap-southeast-1''' UNION ALL "\
+"SELECT '''ap-southeast-2''' UNION ALL "\
+"SELECT '''ca-central-1''' UNION ALL "\
+"SELECT '''eu-central-1''' UNION ALL "\
+"SELECT '''eu-west-1''' UNION ALL "\
+"SELECT '''eu-west-2''' UNION ALL "\
+"SELECT '''sa-east-1''' UNION ALL "\
+"SELECT '''us-east-1''' UNION ALL "\
+"SELECT '''us-east-2''' UNION ALL "\
+"SELECT '''us-west-1''' UNION ALL "\
+"SELECT '''us-west-2''' "
+
+#define Query_for_list_of_column_compressions \
+" SELECT 'BYTEDICT' UNION ALL "\
+" SELECT 'DELTA' UNION ALL "\
+" SELECT 'DELTA32K' UNION ALL "\
+" SELECT 'LZO' UNION ALL "\
+" SELECT 'MOSTLY8' UNION ALL "\
+" SELECT 'MOSTLY16' UNION ALL "\
+" SELECT 'MOSTLY32' UNION ALL "\
+" SELECT 'RAW' UNION ALL "\
+" SELECT 'RUNLENGTH' UNION ALL "\
+" SELECT 'TEXT255' UNION ALL "\
+" SELECT 'TEXT32K' UNION ALL "\
+" SELECT 'ZST' "
+
 #define Query_for_list_of_cursors \
 " SELECT trim(name) FROM pg_cursors ORDER BY 1"
 
@@ -733,6 +756,14 @@ static const SchemaQuery Query_for_list_of_statistics = {
 #define Query_for_list_of_schemas \
 "SELECT pg_catalog.quote_ident(nspname) FROM pg_catalog.pg_namespace "\
 " WHERE substring(pg_catalog.quote_ident(nspname),1,%d)='%s'"
+
+#define Query_for_list_of_external_schemas \
+"SELECT pg_catalog.quote_ident(schemaname) FROM SVV_EXTERNAL_SCHEMAS "\
+" WHERE substring(pg_catalog.quote_ident(schemaname),1,%d)='%s'"
+
+#define Query_for_list_of_external_tables \
+"SELECT pg_catalog.quote_ident(tablename) FROM SVV_EXTERNAL_TABLES "\
+" WHERE substring(pg_catalog.quote_ident(tablename),1,%d)='%s'"
 
 #define Query_for_list_of_alter_system_set_vars \
 "SELECT name FROM "\
@@ -1040,6 +1071,8 @@ static const pgsql_thing_t words_after_create[] = {
 	 * to be used only by pg_dump.
 	 */
 	{"CONFIGURATION", Query_for_list_of_ts_configurations, NULL, THING_NO_SHOW},
+	{"CONTINUOUS TRANSFORM", NULL, NULL, THING_NO_ALTER},
+	{"CONTINUOUS VIEW", NULL, NULL, THING_NO_ALTER},
 	{"CONVERSION", "SELECT pg_catalog.quote_ident(conname) FROM pg_catalog.pg_conversion WHERE substring(pg_catalog.quote_ident(conname),1,%d)='%s'"},
 	{"DATABASE", Query_for_list_of_databases},
 	{"DEFAULT PRIVILEGES", NULL, NULL, THING_NO_CREATE | THING_NO_DROP},
@@ -1047,6 +1080,8 @@ static const pgsql_thing_t words_after_create[] = {
 	{"DOMAIN", NULL, &Query_for_list_of_domains},
 	{"EVENT TRIGGER", NULL, NULL},
 	{"EXTENSION", Query_for_list_of_extensions},
+	{"EXTERNAL SCHEMA", Query_for_list_of_external_schemas},
+	{"EXTERNAL TABLE", Query_for_list_of_external_tables},
 	{"FOREIGN DATA WRAPPER", NULL, NULL},
 	{"FOREIGN TABLE", NULL, NULL},
 	{"FUNCTION", NULL, &Query_for_list_of_functions},
@@ -1072,6 +1107,7 @@ static const pgsql_thing_t words_after_create[] = {
 	{"SEQUENCE", NULL, &Query_for_list_of_sequences},
 	{"SERVER", Query_for_list_of_servers},
 	{"STATISTICS", NULL, &Query_for_list_of_statistics},
+	{"STREAM", NULL, NULL},
 	{"SUBSCRIPTION", Query_for_list_of_subscriptions},
 	{"SYSTEM", NULL, NULL, THING_NO_CREATE | THING_NO_DROP},
 	{"TABLE", NULL, &Query_for_list_of_tables},
@@ -1132,7 +1168,7 @@ static char *dequote_file_name(char *text, char quote_char);
  * Initialize the readline library for our purposes.
  */
 void
-initialize_readline(void)
+initialize_readline_pipelinedb(void)
 {
 	rl_readline_name = (char *) pset.progname;
 	rl_attempted_completion_function = psql_completion;
@@ -1438,66 +1474,66 @@ psql_completion(const char *text, int start, int end)
 	 word_matches(p2, previous_words[previous_words_count - 2]) && \
 	 word_matches(p3, previous_words[previous_words_count - 3]))
 
-	 #define HeadMatches4(p1, p2, p3, p4) \
-	 (previous_words_count >= 4 && \
-		 word_matches(p1, previous_words[previous_words_count - 1]) && \
-		 word_matches(p2, previous_words[previous_words_count - 2]) && \
-		 word_matches(p3, previous_words[previous_words_count - 3]) && \
-		 word_matches(p4, previous_words[previous_words_count - 4]))
- 
- #define HeadMatches5(p1, p2, p3, p4, p5) \
-	 (previous_words_count >= 5 && \
-		 word_matches(p1, previous_words[previous_words_count - 1]) && \
-		 word_matches(p2, previous_words[previous_words_count - 2]) && \
-		 word_matches(p3, previous_words[previous_words_count - 3]) && \
-		 word_matches(p4, previous_words[previous_words_count - 4]) && \
-		 word_matches(p5, previous_words[previous_words_count - 5]))
- 
- #define HeadMatches6(p1, p2, p3, p4, p5, p6) \
-	 (previous_words_count >= 6 && \
-		 word_matches(p1, previous_words[previous_words_count - 1]) && \
-		 word_matches(p2, previous_words[previous_words_count - 2]) && \
-		 word_matches(p3, previous_words[previous_words_count - 3]) && \
-		 word_matches(p4, previous_words[previous_words_count - 4]) && \
-		 word_matches(p5, previous_words[previous_words_count - 5]) && \
-		 word_matches(p6, previous_words[previous_words_count - 6]))
- 
- #define HeadMatches7(p1, p2, p3, p4, p5, p6, p7) \
-	 (previous_words_count >= 7 && \
-		 word_matches(p1, previous_words[previous_words_count - 1]) && \
-		 word_matches(p2, previous_words[previous_words_count - 2]) && \
-		 word_matches(p3, previous_words[previous_words_count - 3]) && \
-		 word_matches(p4, previous_words[previous_words_count - 4]) && \
-		 word_matches(p5, previous_words[previous_words_count - 5]) && \
-		 word_matches(p6, previous_words[previous_words_count - 6]) && \
-		 word_matches(p7, previous_words[previous_words_count - 7]))
- 
- #define HeadMatches8(p1, p2, p3, p4, p5, p6, p7, p8) \
- (previous_words_count >= 8 && \
-	 word_matches(p1, previous_words[previous_words_count - 1]) && \
-	 word_matches(p2, previous_words[previous_words_count - 2]) && \
-	 word_matches(p3, previous_words[previous_words_count - 3]) && \
-	 word_matches(p4, previous_words[previous_words_count - 4]) && \
-	 word_matches(p5, previous_words[previous_words_count - 5]) && \
-	 word_matches(p6, previous_words[previous_words_count - 6]) && \
-	 word_matches(p7, previous_words[previous_words_count - 7]) && \
-	 word_matches(p8, previous_words[previous_words_count - 8]))
- 
- #define HeadMatches9(p1, p2, p3, p4, p5, p6, p7, p8, p9) \
- (previous_words_count >= 9 && \
-	 word_matches(p1, previous_words[previous_words_count - 1]) && \
-	 word_matches(p2, previous_words[previous_words_count - 2]) && \
-	 word_matches(p3, previous_words[previous_words_count - 3]) && \
-	 word_matches(p4, previous_words[previous_words_count - 4]) && \
-	 word_matches(p5, previous_words[previous_words_count - 5]) && \
-	 word_matches(p6, previous_words[previous_words_count - 6]) && \
-	 word_matches(p7, previous_words[previous_words_count - 7]) && \
-	 word_matches(p8, previous_words[previous_words_count - 8]) && \
-	 word_matches(p9, previous_words[previous_words_count - 9]))
+#define HeadMatches4(p1, p2, p3, p4) \
+	(previous_words_count >= 4 && \
+		word_matches(p1, previous_words[previous_words_count - 1]) && \
+		word_matches(p2, previous_words[previous_words_count - 2]) && \
+		word_matches(p3, previous_words[previous_words_count - 3]) && \
+		word_matches(p4, previous_words[previous_words_count - 4]))
+
+#define HeadMatches5(p1, p2, p3, p4, p5) \
+	(previous_words_count >= 5 && \
+		word_matches(p1, previous_words[previous_words_count - 1]) && \
+		word_matches(p2, previous_words[previous_words_count - 2]) && \
+		word_matches(p3, previous_words[previous_words_count - 3]) && \
+		word_matches(p4, previous_words[previous_words_count - 4]) && \
+		word_matches(p5, previous_words[previous_words_count - 5]))
+
+#define HeadMatches6(p1, p2, p3, p4, p5, p6) \
+	(previous_words_count >= 6 && \
+		word_matches(p1, previous_words[previous_words_count - 1]) && \
+		word_matches(p2, previous_words[previous_words_count - 2]) && \
+		word_matches(p3, previous_words[previous_words_count - 3]) && \
+		word_matches(p4, previous_words[previous_words_count - 4]) && \
+		word_matches(p5, previous_words[previous_words_count - 5]) && \
+		word_matches(p6, previous_words[previous_words_count - 6]))
+
+#define HeadMatches7(p1, p2, p3, p4, p5, p6, p7) \
+	(previous_words_count >= 7 && \
+		word_matches(p1, previous_words[previous_words_count - 1]) && \
+		word_matches(p2, previous_words[previous_words_count - 2]) && \
+		word_matches(p3, previous_words[previous_words_count - 3]) && \
+		word_matches(p4, previous_words[previous_words_count - 4]) && \
+		word_matches(p5, previous_words[previous_words_count - 5]) && \
+		word_matches(p6, previous_words[previous_words_count - 6]) && \
+		word_matches(p7, previous_words[previous_words_count - 7]))
+
+#define HeadMatches8(p1, p2, p3, p4, p5, p6, p7, p8) \
+(previous_words_count >= 8 && \
+	word_matches(p1, previous_words[previous_words_count - 1]) && \
+	word_matches(p2, previous_words[previous_words_count - 2]) && \
+	word_matches(p3, previous_words[previous_words_count - 3]) && \
+	word_matches(p4, previous_words[previous_words_count - 4]) && \
+	word_matches(p5, previous_words[previous_words_count - 5]) && \
+	word_matches(p6, previous_words[previous_words_count - 6]) && \
+	word_matches(p7, previous_words[previous_words_count - 7]) && \
+	word_matches(p8, previous_words[previous_words_count - 8]))
+
+#define HeadMatches9(p1, p2, p3, p4, p5, p6, p7, p8, p9) \
+(previous_words_count >= 9 && \
+	word_matches(p1, previous_words[previous_words_count - 1]) && \
+	word_matches(p2, previous_words[previous_words_count - 2]) && \
+	word_matches(p3, previous_words[previous_words_count - 3]) && \
+	word_matches(p4, previous_words[previous_words_count - 4]) && \
+	word_matches(p5, previous_words[previous_words_count - 5]) && \
+	word_matches(p6, previous_words[previous_words_count - 6]) && \
+	word_matches(p7, previous_words[previous_words_count - 7]) && \
+	word_matches(p8, previous_words[previous_words_count - 8]) && \
+	word_matches(p9, previous_words[previous_words_count - 9]))
 
 						/* Known command-starting keywords. */
 	static const char *const sql_commands[] = {
-		"ABORT", "ALTER", "ANALYZE", "BEGIN", "CHECKPOINT", "CLOSE", "CLUSTER",
+		"ABORT", "ALTER", "ANALYZE", "BEGIN", "CANCEL", "CHECKPOINT", "CLOSE", "CLUSTER",
 		"COMMENT", "COMMIT", "COPY", "CREATE", "DEALLOCATE", "DECLARE",
 		"DELETE FROM", "DISCARD", "DO", "DROP", "END", "EXECUTE", "EXPLAIN",
 		"FETCH", "GRANT", "IMPORT", "INSERT", "LISTEN", "LOAD", "LOCK",
@@ -1505,7 +1541,7 @@ psql_completion(const char *text, int start, int end)
 		"REASSIGN", "REFRESH MATERIALIZED VIEW", "REINDEX", "RELEASE",
 		"RESET", "REVOKE", "ROLLBACK",
 		"SAVEPOINT", "SECURITY LABEL", "SELECT", "SET", "SHOW", "START",
-		"TABLE", "TRUNCATE", "UNLISTEN", "UPDATE", "VACUUM", "VALUES", "WITH",
+		"TABLE", "TRUNCATE", "UNLISTEN", "UNLOAD", "UPDATE", "VACUUM", "VALUES", "WITH",
 		NULL
 	};
 
@@ -1546,6 +1582,11 @@ psql_completion(const char *text, int start, int end)
 #ifdef HAVE_RL_COMPLETION_APPEND_CHARACTER
 	rl_completion_append_character = ' ';
 #endif
+
+/* Macro to easily identify which Engine (type) are we speaking to
+	 Any change here should probably be replicated elsewhere since
+	 #define for various SQLs (in this script) employ there own string-compare */
+	#define IS_PIPELINEDB (strncmp(pset.sengine, "pipelinedb", 10) == 0)
 
 	/* Clear a few things. */
 	completion_charp = NULL;
@@ -1770,9 +1811,9 @@ psql_completion(const char *text, int start, int end)
 			 !TailMatches2("USER", "MAPPING"))
 	{
 		static const char *const list_ALTERUSER[] =
-		{"BYPASSRLS", "CONNECTION LIMIT", "CREATEDB", "CREATEROLE",
+		{"BYPASSRLS", "CONNECTION LIMIT", "CREATEDB", "CREATEROLE", "CREATEUSER",
 			"ENCRYPTED PASSWORD", "INHERIT", "LOGIN", "NOBYPASSRLS",
-			"NOCREATEDB", "NOCREATEROLE", "NOINHERIT",
+			"NOCREATEDB", "NOCREATEROLE", "NOCREATEUSER", "NOINHERIT",
 			"NOLOGIN", "NOREPLICATION", "NOSUPERUSER", "PASSWORD", "RENAME TO",
 			"REPLICATION", "RESET", "SET", "SUPERUSER",
 		"VALID UNTIL", "WITH", NULL};
@@ -1950,13 +1991,14 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches3("ALTER", "TABLE", MatchAny))
 	{
 		static const char *const list_ALTER2[] =
-		{"ADD", "ALTER", "CLUSTER ON", "DISABLE", "DROP", "ENABLE", "INHERIT",
+		{"ADD", "ALTER", "APPEND FROM", "CLUSTER ON", "DISABLE", "DROP", "ENABLE", "INHERIT",
 			"NO INHERIT", "RENAME", "RESET", "OWNER TO", "SET",
 			"VALIDATE CONSTRAINT", "REPLICA IDENTITY", "ATTACH PARTITION",
 		"DETACH PARTITION", NULL};
 
 		COMPLETE_WITH_LIST(list_ALTER2);
 	}
+
 	/* ALTER TABLE xxx ENABLE */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "ENABLE"))
 		COMPLETE_WITH_LIST5("ALWAYS", "REPLICA", "ROW LEVEL SECURITY", "RULE",
@@ -2023,7 +2065,7 @@ psql_completion(const char *text, int start, int end)
 
 	/* If we have ALTER TABLE <sth> DROP, provide COLUMN or CONSTRAINT */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "DROP"))
-		COMPLETE_WITH_LIST2("COLUMN", "CONSTRAINT");
+		COMPLETE_WITH_LIST3("COLUMN", "CONSTRAINT", "PARTITION");
 	/* If we have ALTER TABLE <sth> DROP COLUMN, provide list of columns */
 	else if (Matches5("ALTER", "TABLE", MatchAny, "DROP", "COLUMN"))
 		COMPLETE_WITH_ATTR(prev3_wd, "");
@@ -2066,7 +2108,7 @@ psql_completion(const char *text, int start, int end)
 	}
 	/* If we have ALTER TABLE <sth> SET, provide list of attributes and '(' */
 	else if (Matches4("ALTER", "TABLE", MatchAny, "SET"))
-		COMPLETE_WITH_LIST7("(", "LOGGED", "SCHEMA", "TABLESPACE", "UNLOGGED",		
+		COMPLETE_WITH_LIST10("(", "LOGGED", "LOCATION", "FILE FORMAT", "TABLE PROPERTIES", "SCHEMA", "TABLESPACE", "UNLOGGED",
 							"WITH", "WITHOUT");
 
 	/*
@@ -2459,6 +2501,22 @@ psql_completion(const char *text, int start, int end)
 			 !TailMatches4("FOR", MatchAny, MatchAny, MatchAny))
 		COMPLETE_WITH_CONST("(");
 
+/* CREATE LIBRARY */
+	else if (Matches2("CREATE", "LIBRARY"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_libraries);
+	else if (Matches4("CREATE", "OR", "REPLACE", "LIBRARY"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_libraries);
+	else if (Matches5("CREATE", "OR", "REPLACE", "LIBRARY", MatchAny))
+		COMPLETE_WITH_CONST("LANGUAGE plpythonu FROM");
+	else if (Matches1("CREATE") && TailMatches5("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny))
+		COMPLETE_WITH_CONST("AUTHORIZATION");
+	else if (Matches1("CREATE") && TailMatches6("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION"))
+		COMPLETE_WITH_CONST("REGION");
+	else if (Matches1("CREATE") && TailMatches7("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION", "REGION"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
+	else if (Matches1("CREATE") && TailMatches8("LIBRARY", "LANGUAGE", "plpythonu", "FROM", MatchAny, "AUTHORIZATION", "REGION", "AS"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_aws_regions);
+
 	// XXX See if you can add Regions here!?
 
 	/* CREATE POLICY */
@@ -2811,6 +2869,10 @@ psql_completion(const char *text, int start, int end)
 	else if (Matches5("CREATE", "EVENT", "TRIGGER", MatchAny, "ON"))
 		COMPLETE_WITH_LIST3("ddl_command_start", "ddl_command_end", "sql_drop");
 
+/* CREATE CONTINUOUS TRANSFORM / VIEW */
+	else if ((IS_PIPELINEDB) && (Matches2("CREATE|DROP", "CONTINUOUS")))
+		COMPLETE_WITH_LIST2("TRANSFORM", "VIEW");
+
 /* DEALLOCATE */
 	else if (Matches1("DEALLOCATE"))
 		COMPLETE_WITH_QUERY(Query_for_list_of_prepared_statements " UNION SELECT 'PREPARE'");
@@ -2883,6 +2945,10 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
 	else if (Matches4("DROP", "INDEX", "CONCURRENTLY", MatchAny))
 		COMPLETE_WITH_LIST2("CASCADE", "RESTRICT");
+
+	/* DROP LIBRARY */
+	else if (Matches2("DROP", "LIBRARY"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_libraries);
 
 	/* DROP MATERIALIZED VIEW */
 	else if (Matches2("DROP", "MATERIALIZED"))
@@ -3013,21 +3079,18 @@ psql_completion(const char *text, int start, int end)
 			 Matches3("EXPLAIN", "ANALYZE", "VERBOSE"))
 		COMPLETE_WITH_LIST5("SELECT", "INSERT", "DELETE", "UPDATE", "DECLARE");
 
-	/* FETCH && MOVE */
-		/* Complete FETCH with one of FORWARD, BACKWARD, RELATIVE */
-		else if (Matches1("FETCH|MOVE"))
-			COMPLETE_WITH_LIST4("ABSOLUTE", "BACKWARD", "FORWARD", "RELATIVE");
-		/* Complete FETCH <sth> with one of ALL, NEXT, PRIOR */
-		else if (Matches2("FETCH|MOVE", MatchAny))
-			COMPLETE_WITH_LIST3("ALL", "NEXT", "PRIOR");
-
-	/*
-	* Complete FETCH <sth1> <sth2> with "FROM" or "IN". These are equivalent,
-	* but we may as well tab-complete both: perhaps some users prefer one
-	* variant or the other.
-	*/
-	else if (Matches3("FETCH|MOVE", MatchAny, MatchAny))
-				COMPLETE_WITH_LIST2("FROM", "IN");
+/* FETCH */
+	/* Experiment with removing Postgres compliant and keeping only Redshift */
+	else if (Matches1("FETCH"))
+		COMPLETE_WITH_LIST4("ALL", "FORWARD", "FROM", "NEXT");
+	else if (Matches2("FETCH", "FORWARD"))
+		COMPLETE_WITH_LIST2("ALL", "FROM");
+	else if (Matches2("FETCH", "NEXT|ALL"))
+		COMPLETE_WITH_CONST("FROM");
+	else if (Matches3("FETCH", "FORWARD", MatchAnyExcept("FROM")))
+		COMPLETE_WITH_CONST("FROM");
+	else if (HeadMatches1("FETCH") && TailMatches1("FROM"))
+		COMPLETE_WITH_QUERY(Query_for_list_of_cursors);
 
 /* FOREIGN DATA WRAPPER */
 	/* applies in ALTER/DROP FDW and in CREATE SERVER */
@@ -3077,7 +3140,8 @@ psql_completion(const char *text, int start, int end)
 								" UNION SELECT 'TEMPORARY'"
 								" UNION SELECT 'EXECUTE'"
 								" UNION SELECT 'USAGE'"
-								" UNION SELECT 'ALL'");
+								" UNION SELECT 'ALL'"
+								" UNION SELECT 'GRANT OPTION FOR'");
 	}
 
 	/*

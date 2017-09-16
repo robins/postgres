@@ -43,6 +43,11 @@
 #include "settings.h"
 #include "variables.h"
 
+/* Macro to easily identify which Engine (type) are we speaking to
+	 Any change here should probably be replicated elsewhere since
+	 #define for various SQLs (in this script) employ there own string-compare */
+	 #define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
+
 /*
  * Editable database object types.
  */
@@ -161,6 +166,10 @@ static void minimal_error_message(PGresult *res);
 static void printSSLInfo(void);
 static bool printPsetInfo(const char *param, struct printQueryOpt *popt);
 static char *pset_value_string(const char *param, struct printQueryOpt *popt);
+
+static PGresult *exec_query(const char *query);
+static char *escape_string(const char *text);
+static char *get_guctype(const char *varname);
 
 #ifdef WIN32
 static void checkWin32Codepage(void);
@@ -856,7 +865,10 @@ exec_command_d(PsqlScanState scan_state, bool active_branch, const char *cmd)
 				switch (cmd[2])
 				{
 					case 's':
-						success = listForeignServers(pattern, show_verbose);
+						if (IS_REDSHIFT)
+							success = listExternalSchemasInRedshift(pattern, show_verbose);
+						else
+							success = listForeignServers(pattern, show_verbose);
 						break;
 					case 'u':
 						success = listUserMappings(pattern, show_verbose);
@@ -865,7 +877,10 @@ exec_command_d(PsqlScanState scan_state, bool active_branch, const char *cmd)
 						success = listForeignDataWrappers(pattern, show_verbose);
 						break;
 					case 't':
-						success = listForeignTables(pattern, show_verbose);
+						if (IS_REDSHIFT)
+							success = listExternalTablesInRedshift(pattern, show_verbose);
+						else
+							success = listForeignTables(pattern, show_verbose);
 						break;
 					default:
 						status = PSQL_CMD_UNKNOWN;
@@ -3122,6 +3137,7 @@ connection_warnings(bool in_startup)
 
 			/* Try to get full text form, might include "devel" etc */
 			server_version = PQparameterStatus(pset.db, "server_version");
+
 			/* Otherwise fall back on pset.sversion */
 			if (!server_version)
 			{
@@ -3130,8 +3146,8 @@ connection_warnings(bool in_startup)
 				server_version = sverbuf;
 			}
 
-			printf(_("%s (%s, server %s)\n"),
-				   pset.progname, PG_VERSION, server_version);
+			printf(_("%s (client-version:%s, server-version:%s, engine:%s)\n"),
+				   pset.progname, PG_VERSION, server_version, pset.sengine);
 		}
 		/* For version match, only print psql banner on startup. */
 		else if (in_startup)
@@ -3219,17 +3235,32 @@ SyncVariables(void)
 {
 	char		vbuf[32];
 	const char *server_version;
+	const char *server_engine;
+	char *guctype;
 
 	/* get stuff from connection */
 	pset.encoding = PQclientEncoding(pset.db);
 	pset.popt.topt.encoding = pset.encoding;
 	pset.sversion = PQserverVersion(pset.db);
 
-	if (pset.sversion == 80002) {
-		pset.sengine = "redshift";
-	} else {
-		pset.sengine = "postgres";
+	/* Check whether a given GUC exists */
+	guctype = get_guctype("continuous_queries_enabled");
+	if (guctype != NULL)
+		server_engine = "pipelinedb";
+	else
+	{
+		guctype = get_guctype("wlm_query_slot_count");
+
+		if (guctype != NULL)
+			server_engine = "redshift";
+		else
+			server_engine = "postgres";
 	}
+
+	pset.sengine = server_engine;
+
+	if (guctype)
+		free(guctype);
 
 	SetVariable(pset.vars, "DBNAME", PQdb(pset.db));
 	SetVariable(pset.vars, "USER", PQuser(pset.db));
@@ -3247,6 +3278,7 @@ SyncVariables(void)
 		server_version = vbuf;
 	}
 	SetVariable(pset.vars, "SERVER_VERSION_NAME", server_version);
+	SetVariable(pset.vars, "SERVER_ENGINE", server_engine);
 
 	snprintf(vbuf, sizeof(vbuf), "%d", pset.sversion);
 	SetVariable(pset.vars, "SERVER_VERSION_NUM", vbuf);
@@ -3256,6 +3288,87 @@ SyncVariables(void)
 	PQsetErrorContextVisibility(pset.db, pset.show_context);
 }
 
+// XXX: Ideally the following 3 functions should be included from common definitions
+/*
+ * Execute a query and report any errors. This should be the preferred way of
+ * talking to the database in this file.
+ */
+ static PGresult *
+ exec_query(const char *query)
+ {
+	 PGresult   *result;
+ 
+	 if (query == NULL || !pset.db || PQstatus(pset.db) != CONNECTION_OK)
+		 return NULL;
+ 
+	 result = PQexec(pset.db, query);
+ 
+	 if (PQresultStatus(result) != PGRES_TUPLES_OK)
+	 {
+ #ifdef NOT_USED
+		 psql_error("tab completion query failed: %s\nQuery was:\n%s\n",
+						PQerrorMessage(pset.db), query);
+ #endif
+		 PQclear(result);
+		 result = NULL;
+	 }
+ 
+	 return result;
+ }
+ 
+/*
+ * escape_string - Escape argument for use as string literal.
+ *
+ * The returned value has to be freed.
+ */
+ static char *
+ escape_string(const char *text)
+ {
+	 size_t		text_length;
+	 char	   *result;
+ 
+	 text_length = strlen(text);
+ 
+	 result = pg_malloc(text_length * 2 + 1);
+	 PQescapeStringConn(pset.db, result, text, text_length, NULL);
+ 
+	 return result;
+ }
+ 
+/*
+ * Look up the type for the GUC variable with the passed name.
+ *
+ * Returns NULL if the variable is unknown. Otherwise the returned string,
+ * containing the type, has to be freed.
+ */
+ static char *
+ get_guctype(const char *varname)
+ {
+	 PQExpBufferData query_buffer;
+	 char	   *e_varname;
+	 PGresult   *result;
+	 char	   *guctype = NULL;
+ 
+	 e_varname = escape_string(varname);
+ 
+	 initPQExpBuffer(&query_buffer);
+	 appendPQExpBuffer(&query_buffer,
+						 "SELECT vartype FROM pg_catalog.pg_settings "
+						 "WHERE pg_catalog.lower(name) = pg_catalog.lower('%s')",
+						 e_varname);
+ 
+	 result = exec_query(query_buffer.data);
+	 termPQExpBuffer(&query_buffer);
+	 free(e_varname);
+ 
+	 if (PQresultStatus(result) == PGRES_TUPLES_OK && PQntuples(result) > 0)
+		 guctype = pg_strdup(PQgetvalue(result, 0, 0));
+ 
+	 PQclear(result);
+ 
+	 return guctype;
+ }
+ 
 /*
  * UnsyncVariables
  *
