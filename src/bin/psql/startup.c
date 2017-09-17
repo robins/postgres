@@ -214,8 +214,14 @@ main(int argc, char *argv[])
 	{
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
 		{
-			request_password_from_external_source(password);
-			have_password = true;
+			if (request_password_from_external_source(&options.username, password))
+			{
+				have_password = true;
+			}
+			else
+			{
+				printf("Unable to fetch Username / Password from IAM");
+			}
 		}
 		else if (pset.credential_source == DEFAULT)
 		{
@@ -267,9 +273,15 @@ main(int argc, char *argv[])
 			if (pset.credential_source == AWS_IAM_REDSHIFT)
 			{
 				PQfinish(pset.db);
-				request_password_from_external_source(password);
-				have_password = true;
-				new_pass = true;
+				if (request_password_from_external_source(&options.username, password))
+				{
+					have_password = true;
+					new_pass = true;
+				}
+				else
+				{
+					printf("Unable to fetch new Username / Password from IAM");
+				}
 			}
 			else
 			{

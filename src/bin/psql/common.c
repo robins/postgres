@@ -132,8 +132,8 @@ setQFout(const char *fname)
  * Generalized function to fetch usernames and passwords from external source.
  * For now works only in Linux.
  */
-char *
-request_password_from_external_source(char *password)
+bool 
+request_password_from_external_source(char *username, char *password)
 {
 	//	 FILE *fp;
 		// char path[1035];
@@ -150,6 +150,10 @@ request_password_from_external_source(char *password)
 
 	int i;
 	int r;
+	char *new_username;
+	char *new_password;
+	bool found_password = false;
+	bool found_username = false;
 	jsmn_parser p;
 	jsmntok_t t[128]; /* We expect no more than 128 tokens */
 
@@ -157,40 +161,61 @@ request_password_from_external_source(char *password)
 	r = jsmn_parse(&p, JSON_STRING, strlen(JSON_STRING), t, sizeof(t)/sizeof(t[0]));
 	if (r < 0) {
 		printf("Failed to parse JSON: %d\n", r);
-		return;
+		return false;
 	}
 
 
 	/* Assume the top-level element is an object */
 	if (r < 1 || t[0].type != JSMN_OBJECT) {
 		printf("Object expected\n");
-		return;
+		return false;
 	}
 
+	/*
+		buffer = (char *) pg_malloc(maxlength + 1);
+	while (fgets(buffer, maxlength + 1, infile) != NULL && n < nlines)
+		result[n++] = pg_strdup(buffer);
+
+	*/
 	/* Loop over all keys of the root object */
 	for (i = 1; i < r; i++) {
+		printf("\n0000000000 r=%d i=%d : ", r, i);
 		if (jsoneq(JSON_STRING, &t[i], "DbUser") == 0) {
-			/* We may use strndup() to fetch string value */
-			printf("- Username: %.*s\n", t[i+1].end-t[i+1].start,
-					JSON_STRING + t[i+1].start);
+			printf("\n1111111");
+			new_username = pg_malloc(t[i+1].end-t[i+1].start + 2);
+			StrNCpy(new_username, JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start + 1);
+			printf("- Username: %s\n", new_username);
+			found_username = true;
 			i++;
 		} else if (jsoneq(JSON_STRING, &t[i], "DbPassword") == 0) {
-			/* We may additionally check if the value is either "true" or "false" */
-			printf("- Password: %.*s\n", t[i+1].end-t[i+1].start,
-					JSON_STRING + t[i+1].start);
-			StrNCpy(password, JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start + 1);
+			printf("\n22222222");
+			new_password = pg_malloc(t[i+1].end-t[i+1].start + 2);
+			StrNCpy(new_password, JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start + 1);
+			printf("- Password: %s", new_password);
+			found_password = true;
 			i++;
 		} else if (jsoneq(JSON_STRING, &t[i], "Expiration") == 0) {
-			/* We may want to do strtol() here to get numeric value */
+			printf("\n333333");
 			printf("- Expiration: %.*s\n", t[i+1].end-t[i+1].start,
 					JSON_STRING + t[i+1].start);
+			printf("\n333333-end1");
 			i++;
+			printf("\n333333-end2");
 		} else {
+			printf("\n44444444");
 			printf("Unexpected key: %.*s\n", t[i].end-t[i].start,
 					JSON_STRING + t[i].start);
+		} 
+		if (found_username && found_password)
+		{
+			free(username);
+			username = pg_strdup(new_username);
+			password = new_password;
+			return true;
 		}
 	}
-	return;
+	printf("fetched all params");
+	return false;
 
 	/* Read the output a line at a time - output it. * /
 	while (fgets(path, sizeof(path)-1, fp) != NULL) {
