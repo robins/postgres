@@ -25,8 +25,6 @@
 #include "fe_utils/print.h"
 #include "settings.h"
 
-
-
 /*
  * Global psql options
  */
@@ -88,37 +86,6 @@ static void showVersion(void);
 static void EstablishVariableSpace(void);
 
 #define NOPAGER		0
-
-
-
-/*
- * request_password_from_external_source
- *
- * Generalized function to fetch usernames and passwords from external source.
- * For now works only in Linux.
- */
- void
- request_password_from_external_source()
- {
-	 FILE *fp;
-	 char path[1035];
-
-	 /* Open the command for reading. */
-	 fp = popen("aws redshift get-cluster-credentials --db-user redshift2 --cluster-identifier redshift2", "r");
-	 if (fp == NULL) {
-		 printf("Failed to run command\n" );
-		 exit(1);
-	 }
-
-	 /* Read the output a line at a time - output it. */
-	 while (fgets(path, sizeof(path)-1, fp) != NULL) {
-		 printf("%s", path);
-	 }
-
-	 /* close */
-	 pclose(fp);
- }
-
 
 /*
  *
@@ -247,7 +214,7 @@ main(int argc, char *argv[])
 	{
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
 		{
-			request_password_from_external_source();
+			request_password_from_external_source(password);
 			have_password = true;
 		}
 		else if (pset.credential_source == DEFAULT)
@@ -300,8 +267,7 @@ main(int argc, char *argv[])
 			if (pset.credential_source == AWS_IAM_REDSHIFT)
 			{
 				PQfinish(pset.db);
-				request_password_from_external_source();
-//				simple_prompt(password_prompt, password, sizeof(password), false);
+				request_password_from_external_source(password);
 				have_password = true;
 				new_pass = true;
 			}

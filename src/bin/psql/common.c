@@ -28,11 +28,25 @@
 #include "crosstabview.h"
 #include "fe_utils/mbprint.h"
 
+#include "jsmn.h"
 
 static bool DescribeQuery(const char *query, double *elapsed_msec);
 static bool ExecQueryUsingCursor(const char *query, double *elapsed_msec);
 static bool command_no_begin(const char *query);
 static bool is_select_command(const char *query);
+
+
+static const char *JSON_STRING =
+"{\"DbUser\": \"IAM:tempdel\", \"DbPassword\": \"tempdel\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
+
+
+static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
+	if (tok->type == JSMN_STRING && (int) strlen(s) == tok->end - tok->start &&
+			strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
+		return 0;
+	}
+	return -1;
+}
 
 
 /*
@@ -108,6 +122,83 @@ setQFout(const char *fname)
 	restore_sigpipe_trap();
 
 	return true;
+}
+
+
+
+/*
+ * request_password_from_external_source
+ *
+ * Generalized function to fetch usernames and passwords from external source.
+ * For now works only in Linux.
+ */
+char *
+request_password_from_external_source(char *password)
+{
+	//	 FILE *fp;
+		// char path[1035];
+
+		/* Open the command for reading. * /
+		fp = popen("aws redshift get-cluster-credentials --db-user redshift2 --cluster-identifier redshift2", "r");
+		if (fp == NULL) {
+			printf("Failed to run command\n" );
+			exit(1);
+		}
+	*/
+
+	printf("\n===Enter Function===\n");
+
+	int i;
+	int r;
+	jsmn_parser p;
+	jsmntok_t t[128]; /* We expect no more than 128 tokens */
+
+	jsmn_init(&p);
+	r = jsmn_parse(&p, JSON_STRING, strlen(JSON_STRING), t, sizeof(t)/sizeof(t[0]));
+	if (r < 0) {
+		printf("Failed to parse JSON: %d\n", r);
+		return;
+	}
+
+
+	/* Assume the top-level element is an object */
+	if (r < 1 || t[0].type != JSMN_OBJECT) {
+		printf("Object expected\n");
+		return;
+	}
+
+	/* Loop over all keys of the root object */
+	for (i = 1; i < r; i++) {
+		if (jsoneq(JSON_STRING, &t[i], "DbUser") == 0) {
+			/* We may use strndup() to fetch string value */
+			printf("- Username: %.*s\n", t[i+1].end-t[i+1].start,
+					JSON_STRING + t[i+1].start);
+			i++;
+		} else if (jsoneq(JSON_STRING, &t[i], "DbPassword") == 0) {
+			/* We may additionally check if the value is either "true" or "false" */
+			printf("- Password: %.*s\n", t[i+1].end-t[i+1].start,
+					JSON_STRING + t[i+1].start);
+			StrNCpy(password, JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start + 1);
+			i++;
+		} else if (jsoneq(JSON_STRING, &t[i], "Expiration") == 0) {
+			/* We may want to do strtol() here to get numeric value */
+			printf("- Expiration: %.*s\n", t[i+1].end-t[i+1].start,
+					JSON_STRING + t[i+1].start);
+			i++;
+		} else {
+			printf("Unexpected key: %.*s\n", t[i].end-t[i].start,
+					JSON_STRING + t[i].start);
+		}
+	}
+	return;
+
+	/* Read the output a line at a time - output it. * /
+	while (fgets(path, sizeof(path)-1, fp) != NULL) {
+		printf("%s", path);
+	}
+
+	/ * close * /
+	pclose(fp); */
 }
 
 

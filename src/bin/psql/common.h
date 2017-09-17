@@ -46,4 +46,6 @@ extern void expand_tilde(char **filename);
 
 extern bool recognized_connection_string(const char *connstr);
 
+extern char *request_password_from_external_source(char *password);
+
 #endif							/* COMMON_H */

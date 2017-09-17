@@ -2976,7 +2976,7 @@ do_connect(enum trivalue reuse_previous_specification,
 	if (pset.getPassword == TRI_YES)
 	{
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
-			request_password_from_external_source();
+			request_password_from_external_source(password);
 		else if (pset.credential_source == DEFAULT)
 			password = prompt_for_password(user);
 		else
