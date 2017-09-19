@@ -37,7 +37,7 @@ static bool is_select_command(const char *query);
 
 
 static const char *JSON_STRING =
-"{\"DbUser\": \"IAM:tempdel\", \"DbPassword\": \"tempdel\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
+"{\"DbUser\": \"tempdel\", \"DbPassword\": \"tempdel\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
 
 
 static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
@@ -146,16 +146,16 @@ request_password_from_external_source(char *username, char *password)
 		}
 	*/
 
-	printf("\n===Enter Function===\n");
-
 	int i;
 	int r;
-	char *new_username;
-	char *new_password;
+	char *new_username = NULL;
+	char *new_password = NULL;
 	bool found_password = false;
 	bool found_username = false;
 	jsmn_parser p;
 	jsmntok_t t[128]; /* We expect no more than 128 tokens */
+
+	printf("\n===Enter Function===\n");
 
 	jsmn_init(&p);
 	r = jsmn_parse(&p, JSON_STRING, strlen(JSON_STRING), t, sizeof(t)/sizeof(t[0]));
@@ -195,26 +195,30 @@ request_password_from_external_source(char *username, char *password)
 			found_password = true;
 			i++;
 		} else if (jsoneq(JSON_STRING, &t[i], "Expiration") == 0) {
-			printf("\n333333");
+			printf("\n333333b");
 			printf("- Expiration: %.*s\n", t[i+1].end-t[i+1].start,
 					JSON_STRING + t[i+1].start);
-			printf("\n333333-end1");
 			i++;
-			printf("\n333333-end2");
+			printf("\n333333e");
 		} else {
 			printf("\n44444444");
 			printf("Unexpected key: %.*s\n", t[i].end-t[i].start,
 					JSON_STRING + t[i].start);
 		} 
-		if (found_username && found_password)
-		{
-			free(username);
-			username = pg_strdup(new_username);
-			password = new_password;
-			return true;
-		}
 	}
 	printf("fetched all params");
+	if (found_username && found_password)
+	{
+		free(username);
+		username = pg_strdup(new_username);
+//		password = pg_strdup(new_password);
+		printf("Found username: %s, Password: %s\n", new_username, new_password);
+//		snprintf(password, sizeof(new_password), "%s", new_password);
+		password = pg_strdup(new_password);
+//sprintf(password, "%s", new_password);
+		printf("Found username: %s, Password: %s\n", username, password);
+		return true;
+	}
 	return false;
 
 	/* Read the output a line at a time - output it. * /
