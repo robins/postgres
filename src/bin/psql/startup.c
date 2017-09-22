@@ -99,6 +99,7 @@ main(int argc, char *argv[])
 	int			successResult;
 	bool		have_password = false;
 	char		password[100];
+	char		*new_password = NULL;
 	char	   *password_prompt = NULL;
 	bool		new_pass;
 
@@ -215,19 +216,18 @@ main(int argc, char *argv[])
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
 		{
 			printf("Entry1");
-			char *fetch_password = NULL;
-			if (request_password_from_external_source(options.username, fetch_password))
+			if (request_password_from_external_source(options.username, &new_password))
 			{
-				printf("Username: %s, Password: %s\n", options.username, fetch_password);
-				sprintf(password, "%s", fetch_password);
+				printf("Username: %s, Password: %s\n", options.username, new_password);
+				sprintf(password, "%s", new_password);
 				have_password = true;
 			}
 			else
 			{
 				printf("Unable to fetch Username / Password from IAM");
 			}
-			if (fetch_password)
-				free(fetch_password);
+			if (new_password)
+				free(new_password);
 		}
 		else if (pset.credential_source == DEFAULT)
 		{
@@ -280,8 +280,9 @@ main(int argc, char *argv[])
 			{
 				PQfinish(pset.db);
 				printf("Entry2");
-				if (request_password_from_external_source(options.username, password))
+				if (request_password_from_external_source(options.username, &new_password))
 				{
+					sprintf(password, "%s", new_password);
 					have_password = true;
 					new_pass = true;
 				}
@@ -289,6 +290,8 @@ main(int argc, char *argv[])
 				{
 					printf("Unable to fetch new Username / Password from IAM");
 				}
+				if (new_password)
+					free(new_password);
 			}
 			else
 			{

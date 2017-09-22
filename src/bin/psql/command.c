@@ -2888,6 +2888,7 @@ do_connect(enum trivalue reuse_previous_specification,
 	PGconn	   *o_conn = pset.db,
 			   *n_conn;
 	char	   *password = NULL;
+	char		*new_password = NULL;
 	bool		keep_password;
 	bool		has_connection_string;
 	bool		reuse_previous;
@@ -2978,7 +2979,17 @@ do_connect(enum trivalue reuse_previous_specification,
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
 		{
 			printf("Entry3");
-			request_password_from_external_source(user, password);
+			if (request_password_from_external_source(user, &new_password))
+			{
+				printf("Username: %s, Password: %s, Len: %d \n", user, new_password, strlen(new_password));
+				sprintf(password, "%s", new_password);
+				password[strlen(new_password)]='\0';
+				printf("Username: %s, Password: %s\n", user, password);
+			}
+			else
+			{
+				password[0] = '\0';
+			}
 		}
 		else if (pset.credential_source == DEFAULT)
 			password = prompt_for_password(user);

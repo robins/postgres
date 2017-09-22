@@ -133,7 +133,7 @@ setQFout(const char *fname)
  * For now works only in Linux.
  */
 bool 
-request_password_from_external_source(char *username, char *password)
+request_password_from_external_source(char *username, char **password)
 {
 	//	 FILE *fp;
 		// char path[1035];
@@ -214,9 +214,9 @@ request_password_from_external_source(char *username, char *password)
 //		password = pg_strdup(new_password);
 		printf("Found username: %s, Password: %s\n", new_username, new_password);
 //		snprintf(password, sizeof(new_password), "%s", new_password);
-		password = pg_strdup(new_password);
+		*password = pg_strdup(new_password);
 //sprintf(password, "%s", new_password);
-		printf("Found username: %s, Password: %s\n", username, password);
+		printf("Found username: %s, Password: %s\n", username, *password);
 		return true;
 	}
 	return false;
