@@ -215,8 +215,8 @@ main(int argc, char *argv[])
 	{
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
 		{
-			printf("Entry1");
-			if (request_password_from_external_source(options.username, &new_password))
+			printf("Entry1\n");
+			if (request_password_from_external_source(&(options.username), &new_password))
 			{
 				printf("Username: %s, Password: %s\n", options.username, new_password);
 				sprintf(password, "%s", new_password);
@@ -266,6 +266,8 @@ main(int argc, char *argv[])
 		keywords[7] = NULL;
 		values[7] = NULL;
 
+		printf("269: Username: %s, Password: %s, PasswordLen: %d, Database: %s \n", values[2], values[3], strlen(values[3]), values[4]);
+		
 		new_pass = false;
 		pset.db = PQconnectdbParams(keywords, values, true);
 		free(keywords);
@@ -279,8 +281,8 @@ main(int argc, char *argv[])
 			if (pset.credential_source == AWS_IAM_REDSHIFT)
 			{
 				PQfinish(pset.db);
-				printf("Entry2");
-				if (request_password_from_external_source(options.username, &new_password))
+				printf("Entry2\n");
+				if (request_password_from_external_source(&(options.username), &new_password))
 				{
 					sprintf(password, "%s", new_password);
 					have_password = true;

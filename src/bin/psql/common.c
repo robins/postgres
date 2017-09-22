@@ -37,7 +37,8 @@ static bool is_select_command(const char *query);
 
 
 static const char *JSON_STRING =
-"{\"DbUser\": \"tempdel\", \"DbPassword\": \"tempdel\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
+//"{\"DbUser\": \"redshift2\", \"DbPassword\": \"Redshift2\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
+"{\"DbUser\": \"IAM:redshift2\", \"DbPassword\": \"BYYEjOoHP+CK08q05vZZHNaE1j0N4SCOkbaugGMQwlmBHSsVZkeZroJ+6EeeD8isYSphiZA==\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
 
 
 static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
@@ -133,7 +134,7 @@ setQFout(const char *fname)
  * For now works only in Linux.
  */
 bool 
-request_password_from_external_source(char *username, char **password)
+request_password_from_external_source(char **username, char **password)
 {
 	//	 FILE *fp;
 		// char path[1035];
@@ -179,44 +180,43 @@ request_password_from_external_source(char *username, char **password)
 	*/
 	/* Loop over all keys of the root object */
 	for (i = 1; i < r; i++) {
-		printf("\n0000000000 r=%d i=%d : ", r, i);
+		//printf("\n0000000000 r=%d i=%d : ", r, i);
 		if (jsoneq(JSON_STRING, &t[i], "DbUser") == 0) {
-			printf("\n1111111");
+			//printf("\n1111111");
 			new_username = pg_malloc(t[i+1].end-t[i+1].start + 2);
 			StrNCpy(new_username, JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start + 1);
-			printf("- Username: %s\n", new_username);
+			//printf("- Username: %s\n", new_username);
 			found_username = true;
 			i++;
 		} else if (jsoneq(JSON_STRING, &t[i], "DbPassword") == 0) {
-			printf("\n22222222");
+			//printf("\n22222222");
 			new_password = pg_malloc(t[i+1].end-t[i+1].start + 2);
 			StrNCpy(new_password, JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start + 1);
-			printf("- Password: %s", new_password);
+			//printf("- Password: %s", new_password);
 			found_password = true;
 			i++;
 		} else if (jsoneq(JSON_STRING, &t[i], "Expiration") == 0) {
-			printf("\n333333b");
+			//printf("\n333333b");
 			printf("- Expiration: %.*s\n", t[i+1].end-t[i+1].start,
 					JSON_STRING + t[i+1].start);
 			i++;
-			printf("\n333333e");
+			//printf("\n333333e");
 		} else {
-			printf("\n44444444");
+			//printf("\n44444444");
 			printf("Unexpected key: %.*s\n", t[i].end-t[i].start,
 					JSON_STRING + t[i].start);
 		} 
 	}
-	printf("fetched all params");
+	//printf("fetched all params");
 	if (found_username && found_password)
 	{
-		free(username);
-		username = pg_strdup(new_username);
+		*username = pg_strdup(new_username);
 //		password = pg_strdup(new_password);
-		printf("Found username: %s, Password: %s\n", new_username, new_password);
+		printf("PRE: Found username: %s, Password: %s\n", new_username, new_password);
 //		snprintf(password, sizeof(new_password), "%s", new_password);
 		*password = pg_strdup(new_password);
 //sprintf(password, "%s", new_password);
-		printf("Found username: %s, Password: %s\n", username, *password);
+		printf("POST: Found username: %s, Password: %s\n", *username, *password);
 		return true;
 	}
 	return false;

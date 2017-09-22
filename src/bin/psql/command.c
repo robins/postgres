@@ -2979,7 +2979,7 @@ do_connect(enum trivalue reuse_previous_specification,
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
 		{
 			printf("Entry3");
-			if (request_password_from_external_source(user, &new_password))
+			if (request_password_from_external_source(&user, &new_password))
 			{
 				printf("Username: %s, Password: %s, Len: %d \n", user, new_password, strlen(new_password));
 				sprintf(password, "%s", new_password);
@@ -3045,6 +3045,8 @@ do_connect(enum trivalue reuse_previous_specification,
 		keywords[++paramnum] = NULL;
 		values[paramnum] = NULL;
 
+		printf("3048: Username: %s, Password: %s, PasswordLen: %d, Database: %s \n", user, password, strlen(password), dbname);
+		
 		n_conn = PQconnectdbParams(keywords, values, true);
 
 		pg_free(keywords);
