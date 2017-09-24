@@ -24,7 +24,8 @@ override LDFLAGS := -L$(top_builddir)/src/fe_utils -lpgfeutils $(libpq_pgport) $
 OBJS=	command.o common.o conditional.o copy.o crosstabview.o \
 	describe.o help.o input.o large_obj.o mainloop.o \
 	prompt.o psqlscanslash.o sql_help.o startup.o stringutils.o \
-	tab-complete.o tabtab-complete-cockroachdb.o -complete-pipelinedb.o tab-complete-redshift.o variables.o \
+	tab-complete.o tab-complete-cockroachdb.o tab-complete-pipelinedb.o \
+	tab-complete-redshift.o variables.o \
 	$(WIN32RES)
 
 
