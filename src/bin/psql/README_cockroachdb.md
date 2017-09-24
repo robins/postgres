@@ -7,33 +7,33 @@ See Support level of all Postgres forks: [Here](https://github.com/robins/postgr
 
 SQL Commands | Supported State
 :----------- |:--------------:
-ADD COLUMN | Native
-ADD CONSTRAINT | Native
-ALTER COLUMN | Native
-ALTER TABLE | Native
-ALTER VIEW | Native
-CREATE DATABASE | Native
-CREATE INDEX | Native
-CREATE TABLE | Native
-CREATE TABLE AS | Native
-CREATE VIEW | Native
-DROP COLUMN | Native
-DROP CONSTRAINT | Native
-DROP DATABASE | Native
-DROP INDEX | Native
-DROP TABLE | Native
-DROP VIEW | Native
-RENAME COLUMN | Native
-RENAME DATABASE | Native
-RENAME INDEX | Native
-RENAME TABLE | Native
-SHOW COLUMNS | Native
-SHOW CONSTRAINTS | Native
-SHOW CREATE TABLE | Native
-SHOW CREATE VIEW | Native
-SHOW DATABASES | Native
-SHOW INDEX | Native
-SHOW TABLES | Native
+ADD COLUMN | Untested
+ADD CONSTRAINT | Untested
+ALTER COLUMN | Untested
+ALTER TABLE | Untested
+ALTER VIEW | Untested
+CREATE DATABASE | Untested
+CREATE INDEX | Untested
+CREATE TABLE | Untested
+CREATE TABLE AS | Untested
+CREATE VIEW | Untested
+DROP COLUMN | Untested
+DROP CONSTRAINT | Untested
+DROP DATABASE | Untested
+DROP INDEX | Untested
+DROP TABLE | Untested
+DROP VIEW | Untested
+RENAME COLUMN | Untested
+RENAME DATABASE | Untested
+RENAME INDEX | Untested
+RENAME TABLE | Untested
+SHOW COLUMNS | Untested
+SHOW CONSTRAINTS | Untested
+SHOW CREATE TABLE | Untested
+SHOW CREATE VIEW | Untested
+SHOW DATABASES | Untested
+SHOW INDEX | Untested
+SHOW TABLES | Untested
 
 
 Support Legend | Description
