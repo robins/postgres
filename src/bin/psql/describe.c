@@ -116,8 +116,8 @@ describeAggregates(const char *pattern, bool verbose, bool showSystem)
 							 "      AND n.nspname <> 'information_schema'\n");
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
-						  "n.nspname", "p.proname", NULL,
-						  "pg_catalog.pg_function_is_visible(p.oid)");
+							"n.nspname", "p.proname", NULL,
+							(!IS_COCKROACHDB?"pg_catalog.pg_function_is_visible(p.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 4;");
 
@@ -553,7 +553,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 
 	processSQLNamePattern(pset.db, &buf, pattern, have_where, false,
 						  "n.nspname", "p.proname", NULL,
-						  "pg_catalog.pg_function_is_visible(p.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_function_is_visible(p.oid)":NULL));
 
 	if (!showSystem && !pattern)
 		appendPQExpBufferStr(&buf, "      AND n.nspname <> 'pg_catalog'\n"
@@ -684,7 +684,7 @@ describeTypes(const char *pattern, bool verbose, bool showSystem)
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "t.typname",
 						  "pg_catalog.format_type(t.oid, NULL)",
-						  "pg_catalog.pg_type_is_visible(t.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(t.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -760,7 +760,7 @@ describeOperators(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern, true,
 						  "n.nspname", "o.oprname", NULL,
-						  "pg_catalog.pg_operator_is_visible(o.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_operator_is_visible(o.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 3, 4;");
 
@@ -982,9 +982,14 @@ permissionsList(const char *pattern)
 	 * point of view.  You can see 'em by explicit request though, eg with \z
 	 * pg_catalog.*
 	 */
-	processSQLNamePattern(pset.db, &buf, pattern, true, false,
-						  "n.nspname", "c.relname", NULL,
-						  "n.nspname !~ '^pg_' AND pg_catalog.pg_table_is_visible(c.oid)");
+	if (IS_COCKROACHDB)
+		processSQLNamePattern(pset.db, &buf, pattern, true, false,
+			"n.nspname", "c.relname", NULL,
+			"n.nspname !~ '^pg_' AND");
+	else
+		processSQLNamePattern(pset.db, &buf, pattern, true, false,
+			"n.nspname", "c.relname", NULL,
+			"n.nspname !~ '^pg_' AND pg_catalog.pg_table_is_visible(c.oid)");
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -1137,7 +1142,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern,
 						  false, "n.nspname", "pgc.conname", NULL,
-						  "pg_catalog.pg_table_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
 
 	/* Domain constraint descriptions */
 	appendPQExpBuffer(&buf,
@@ -1159,7 +1164,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern,
 						  false, "n.nspname", "pgc.conname", NULL,
-						  "pg_catalog.pg_type_is_visible(t.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(t.oid)":NULL));
 
 
 	/*
@@ -1187,7 +1192,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 		processSQLNamePattern(pset.db, &buf, pattern, true, false,
 							  "n.nspname", "o.opcname", NULL,
-							  "pg_catalog.pg_opclass_is_visible(o.oid)");
+							  (!IS_COCKROACHDB?"pg_catalog.pg_opclass_is_visible(o.oid)":NULL));
 	}
 
 	/*
@@ -1216,7 +1221,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 		processSQLNamePattern(pset.db, &buf, pattern, true, false,
 							  "n.nspname", "opf.opfname", NULL,
-							  "pg_catalog.pg_opfamily_is_visible(opf.oid)");
+							  (!IS_COCKROACHDB?"pg_catalog.pg_opfamily_is_visible(opf.oid)":NULL));
 	}
 
 	/* Rule descriptions (ignore rules for views) */
@@ -1258,7 +1263,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern, false,
 						  "n.nspname", "t.tgname", NULL,
-						  "pg_catalog.pg_table_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf,
 						 ") AS tt\n"
@@ -1314,7 +1319,7 @@ describeTableDetails(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern, false,
 						  "n.nspname", "c.relname", NULL,
-						  "pg_catalog.pg_table_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 2, 3;");
 
@@ -3541,7 +3546,7 @@ listTables(const char *tabtypes, const char *pattern, bool verbose, bool showSys
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "c.relname", NULL,
-						  "pg_catalog.pg_table_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1,2;");
 
@@ -3721,7 +3726,7 @@ listDomains(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "t.typname", NULL,
-						  "pg_catalog.pg_type_is_visible(t.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(t.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -3795,7 +3800,7 @@ listConversions(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "c.conname", NULL,
-						  "pg_catalog.pg_conversion_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_conversion_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -3953,14 +3958,14 @@ listCasts(const char *pattern, bool verbose)
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "ns.nspname", "ts.typname",
 						  "pg_catalog.format_type(ts.oid, NULL)",
-						  "pg_catalog.pg_type_is_visible(ts.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(ts.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, ") OR (true");
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "nt.nspname", "tt.typname",
 						  "pg_catalog.format_type(tt.oid, NULL)",
-						  "pg_catalog.pg_type_is_visible(tt.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(tt.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, ") )\nORDER BY 1, 2;");
 
@@ -4044,7 +4049,7 @@ listCollations(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "c.collname", NULL,
-						  "pg_catalog.pg_collation_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_collation_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4163,7 +4168,7 @@ listTSParsers(const char *pattern, bool verbose)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "p.prsname", NULL,
-						  "pg_catalog.pg_ts_parser_is_visible(p.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_parser_is_visible(p.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4204,7 +4209,7 @@ listTSParsersVerbose(const char *pattern)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "p.prsname", NULL,
-						  "pg_catalog.pg_ts_parser_is_visible(p.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_parser_is_visible(p.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4421,7 +4426,7 @@ listTSDictionaries(const char *pattern, bool verbose)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "d.dictname", NULL,
-						  "pg_catalog.pg_ts_dict_is_visible(d.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_dict_is_visible(d.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4492,7 +4497,7 @@ listTSTemplates(const char *pattern, bool verbose)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "t.tmplname", NULL,
-						  "pg_catalog.pg_ts_template_is_visible(t.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_template_is_visible(t.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4552,7 +4557,7 @@ listTSConfigs(const char *pattern, bool verbose)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "c.cfgname", NULL,
-						  "pg_catalog.pg_ts_config_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_config_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4594,7 +4599,7 @@ listTSConfigsVerbose(const char *pattern)
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "c.cfgname", NULL,
-						  "pg_catalog.pg_ts_config_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_config_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 3, 2;");
 
@@ -5046,7 +5051,7 @@ listUserMappings(const char *pattern, bool verbose)
  
 	 processSQLNamePattern(pset.db, &buf, pattern, false, false,
 							 "n.nspname", "c.relname", NULL,
-							 "pg_catalog.pg_table_is_visible(c.oid)");
+							 (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
  
 	 appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
  

@@ -96,7 +96,9 @@ typedef struct SchemaQuery
 
 	/*
 	 * Visibility condition --- which rows are visible without schema
-	 * qualification?  For example, "pg_catalog.pg_table_is_visible(c.oid)".
+	 * qualification?  For example, "pg_catalog.pg_table_is_visible(c.oid)"
+	 * However, in CockroachDB there are *no* xxx_is_visible() functions,
+	 * so setting all viscondition values (in Macros) to true by default
 	 */
 	const char *viscondition;
 
@@ -363,7 +365,7 @@ static const SchemaQuery Query_for_list_of_aggregates = {
 	/* selcondition */
 	"p.proisagg",
 	/* viscondition */
-	"pg_catalog.pg_function_is_visible(p.oid)",
+	"true",
 	/* namespace */
 	"p.pronamespace",
 	/* result */
@@ -381,7 +383,7 @@ static const SchemaQuery Query_for_list_of_datatypes = {
 	"     FROM pg_catalog.pg_class c WHERE c.oid = t.typrelid)) "
 	"AND t.typname !~ '^_'",
 	/* viscondition */
-	"pg_catalog.pg_type_is_visible(t.oid)",
+	"true",
 	/* namespace */
 	"t.typnamespace",
 	/* result */
@@ -396,7 +398,7 @@ static const SchemaQuery Query_for_list_of_domains = {
 	/* selcondition */
 	"t.typtype = 'd'",
 	/* viscondition */
-	"pg_catalog.pg_type_is_visible(t.oid)",
+	"true",
 	/* namespace */
 	"t.typnamespace",
 	/* result */
@@ -411,7 +413,7 @@ static const SchemaQuery Query_for_list_of_functions = {
 	/* selcondition */
 	NULL,
 	/* viscondition */
-	"pg_catalog.pg_function_is_visible(p.oid)",
+	"true",
 	/* namespace */
 	"p.pronamespace",
 	/* result */
@@ -426,7 +428,7 @@ static const SchemaQuery Query_for_list_of_indexes = {
 	/* selcondition */
 	"c.relkind IN (" CppAsString2(RELKIND_INDEX) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -441,7 +443,7 @@ static const SchemaQuery Query_for_list_of_sequences = {
 	/* selcondition */
 	"c.relkind IN (" CppAsString2(RELKIND_SEQUENCE) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -456,7 +458,7 @@ static const SchemaQuery Query_for_list_of_foreign_tables = {
 	/* selcondition */
 	"c.relkind IN (" CppAsString2(RELKIND_FOREIGN_TABLE) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -472,7 +474,7 @@ static const SchemaQuery Query_for_list_of_tables = {
 	"c.relkind IN (" CppAsString2(RELKIND_RELATION) ", "
 	CppAsString2(RELKIND_PARTITIONED_TABLE) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -487,7 +489,7 @@ static const SchemaQuery Query_for_list_of_partitioned_tables = {
 	/* selcondition */
 	"c.relkind IN (" CppAsString2(RELKIND_PARTITIONED_TABLE) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -502,7 +504,7 @@ static const SchemaQuery Query_for_list_of_constraints_with_schema = {
 	/* selcondition */
 	"c.conrelid <> 0",
 	/* viscondition */
-	"true",						/* there is no pg_constraint_is_visible */
+	"true",
 	/* namespace */
 	"c.connamespace",
 	/* result */
@@ -521,7 +523,7 @@ static const SchemaQuery Query_for_list_of_updatables = {
 	CppAsString2(RELKIND_VIEW) ", "
 	CppAsString2(RELKIND_PARTITIONED_TABLE) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -536,7 +538,7 @@ static const SchemaQuery Query_for_list_of_relations = {
 	/* selcondition */
 	NULL,
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -556,7 +558,7 @@ static const SchemaQuery Query_for_list_of_tsvmf = {
 	CppAsString2(RELKIND_FOREIGN_TABLE) ", "
 	CppAsString2(RELKIND_PARTITIONED_TABLE) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -573,7 +575,7 @@ static const SchemaQuery Query_for_list_of_tmf = {
 	CppAsString2(RELKIND_MATVIEW) ", "
 	CppAsString2(RELKIND_FOREIGN_TABLE) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -589,7 +591,7 @@ static const SchemaQuery Query_for_list_of_tm = {
 	"c.relkind IN (" CppAsString2(RELKIND_RELATION) ", "
 	CppAsString2(RELKIND_MATVIEW) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -604,7 +606,7 @@ static const SchemaQuery Query_for_list_of_views = {
 	/* selcondition */
 	"c.relkind IN (" CppAsString2(RELKIND_VIEW) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -619,7 +621,7 @@ static const SchemaQuery Query_for_list_of_matviews = {
 	/* selcondition */
 	"c.relkind IN (" CppAsString2(RELKIND_MATVIEW) ")",
 	/* viscondition */
-	"pg_catalog.pg_table_is_visible(c.oid)",
+	"true",
 	/* namespace */
 	"c.relnamespace",
 	/* result */
@@ -634,7 +636,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 	/* selcondition */
 	NULL,
 	/* viscondition */
-	"pg_catalog.pg_statistics_obj_is_visible(s.oid)",
+	"true",
 	/* namespace */
 	"s.stxnamespace",
 	/* result */
@@ -666,8 +668,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "   AND NOT a.attisdropped "\
 "   AND substring(pg_catalog.quote_ident(attname),1,%d)='%s' "\
 "   AND (pg_catalog.quote_ident(relname)='%s' "\
-"        OR '\"' || relname || '\"'='%s') "\
-"   AND pg_catalog.pg_table_is_visible(c.oid)"
+"        OR '\"' || relname || '\"'='%s') "
 
 #define Query_for_list_of_attributes_with_schema \
 "SELECT pg_catalog.quote_ident(attname) "\
@@ -691,8 +692,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 " WHERE t.oid = e.enumtypid "\
 "   AND substring(pg_catalog.quote_literal(enumlabel),1,%d)='%s' "\
 "   AND (pg_catalog.quote_ident(typname)='%s' "\
-"        OR '\"' || typname || '\"'='%s') "\
-"   AND pg_catalog.pg_type_is_visible(t.oid)"
+"        OR '\"' || typname || '\"'='%s') "
 
 #define Query_for_list_of_enum_values_with_schema \
 "SELECT pg_catalog.quote_literal(enumlabel) "\
@@ -787,8 +787,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "  FROM pg_catalog.pg_class c1, pg_catalog.pg_class c2, pg_catalog.pg_index i"\
 " WHERE c1.oid=i.indrelid and i.indexrelid=c2.oid"\
 "       and (%d = pg_catalog.length('%s'))"\
-"       and pg_catalog.quote_ident(c2.relname)='%s'"\
-"       and pg_catalog.pg_table_is_visible(c2.oid)"
+"       and pg_catalog.quote_ident(c2.relname)='%s'"
 
 /* the silly-looking length condition is just to eat up the current word */
 #define Query_for_index_of_table \
@@ -796,16 +795,14 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "  FROM pg_catalog.pg_class c1, pg_catalog.pg_class c2, pg_catalog.pg_index i"\
 " WHERE c1.oid=i.indrelid and i.indexrelid=c2.oid"\
 "       and (%d = pg_catalog.length('%s'))"\
-"       and pg_catalog.quote_ident(c1.relname)='%s'"\
-"       and pg_catalog.pg_table_is_visible(c2.oid)"
+"       and pg_catalog.quote_ident(c1.relname)='%s'"
 
 /* the silly-looking length condition is just to eat up the current word */
 #define Query_for_constraint_of_table \
 "SELECT pg_catalog.quote_ident(conname) "\
 "  FROM pg_catalog.pg_class c1, pg_catalog.pg_constraint con "\
 " WHERE c1.oid=conrelid and (%d = pg_catalog.length('%s'))"\
-"       and pg_catalog.quote_ident(c1.relname)='%s'"\
-"       and pg_catalog.pg_table_is_visible(c1.oid)"
+"       and pg_catalog.quote_ident(c1.relname)='%s'"
 
 #define Query_for_all_table_constraints \
 "SELECT pg_catalog.quote_ident(conname) "\
@@ -817,8 +814,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "SELECT pg_catalog.quote_ident(conname) "\
 "  FROM pg_catalog.pg_type t, pg_catalog.pg_constraint con "\
 " WHERE t.oid=contypid and (%d = pg_catalog.length('%s'))"\
-"       and pg_catalog.quote_ident(t.typname)='%s'"\
-"       and pg_catalog.pg_type_is_visible(t.oid)"
+"       and pg_catalog.quote_ident(t.typname)='%s'"
 
 /* the silly-looking length condition is just to eat up the current word */
 #define Query_for_list_of_tables_for_constraint \
@@ -834,8 +830,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "SELECT pg_catalog.quote_ident(rulename) "\
 "  FROM pg_catalog.pg_class c1, pg_catalog.pg_rewrite "\
 " WHERE c1.oid=ev_class and (%d = pg_catalog.length('%s'))"\
-"       and pg_catalog.quote_ident(c1.relname)='%s'"\
-"       and pg_catalog.pg_table_is_visible(c1.oid)"
+"       and pg_catalog.quote_ident(c1.relname)='%s'"
 
 /* the silly-looking length condition is just to eat up the current word */
 #define Query_for_list_of_tables_for_rule \
@@ -852,7 +847,6 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "  FROM pg_catalog.pg_class c1, pg_catalog.pg_trigger "\
 " WHERE c1.oid=tgrelid and (%d = pg_catalog.length('%s'))"\
 "       and pg_catalog.quote_ident(c1.relname)='%s'"\
-"       and pg_catalog.pg_table_is_visible(c1.oid)"\
 "       and not tgisinternal"
 
 /* the silly-looking length condition is just to eat up the current word */
@@ -923,8 +917,7 @@ static const SchemaQuery Query_for_list_of_statistics = {
 "  FROM pg_catalog.pg_proc "\
 " WHERE (%d = pg_catalog.length('%s'))"\
 "   AND (pg_catalog.quote_ident(proname)='%s'"\
-"        OR '\"' || proname || '\"'='%s') "\
-"   AND (pg_catalog.pg_function_is_visible(pg_proc.oid))"
+"        OR '\"' || proname || '\"'='%s') "
 
 /* the silly-looking length condition is just to eat up the current word */
 #define Query_for_list_of_arguments_with_schema \
@@ -1007,7 +1000,6 @@ static const SchemaQuery Query_for_list_of_statistics = {
 " WHERE c1.oid=i.inhparent and i.inhrelid=c2.oid"\
 "       and (%d = pg_catalog.length('%s'))"\
 "       and pg_catalog.quote_ident(c1.relname)='%s'"\
-"       and pg_catalog.pg_table_is_visible(c2.oid)"\
 "       and c2.relispartition = 'true'"
 
 /*
