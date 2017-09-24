@@ -2,7 +2,7 @@ This document shows the current state of psql's auto-complete support for Cockro
 
 Reference: https://www.cockroachlabs.com/docs/stable/sql-statements.html
 
-See Support level of all Postgres forks: [Here](https://github.com/robins/postgres/blob/redshift/src/bin/psql/README.md)
+See Support level of all Postgres forks: [Here](https://github.com/robins/postgres/blob/forks/src/bin/psql/README.md)
 
 
 SQL Commands | Supported State

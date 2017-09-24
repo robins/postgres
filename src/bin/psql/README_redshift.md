@@ -2,7 +2,7 @@ This document shows the current state of psql's auto-complete support for Amazon
 
 NOTE: This branch is maintained as a personal effort and is not sponsored / supported by my Employer or any other third-party. This is not officially supported / endorsed by Amazon in any way.
 
-See Support level of all Postgres forks: [Here](https://github.com/robins/postgres/blob/redshift/src/bin/psql/README.md)
+See Support level of all Postgres forks: [Here](https://github.com/robins/postgres/blob/forks/src/bin/psql/README.md)
 
 Parameters | Supported State
 :---------:|:--------------:
