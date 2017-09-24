@@ -3242,11 +3242,16 @@ SyncVariables(void)
 	else
 	{
 		guctype = get_guctype("wlm_query_slot_count");
-
 		if (guctype != NULL)
 			server_engine = "redshift";
 		else
-			server_engine = "postgres";
+		{
+			guctype = get_guctype("max_index_keys");
+			if (guctype != NULL)
+				server_engine = "cockroachdb";
+			else
+				server_engine = "postgres";
+		}
 	}
 
 	pset.sengine = server_engine;

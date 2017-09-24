@@ -27,6 +27,7 @@
 #include "variables.h"
 
 /* Flag to check if server is a Redshift Engine */
+#define IS_COCKROACHDB (strncmp(pset.sengine, "cockroachdb", 11) == 0)
 #define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
 #define IS_PIPELINEDB (strncmp(pset.sengine, "pipelinedb", 10) == 0)
 

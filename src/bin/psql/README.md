@@ -5,4 +5,5 @@ This documents the current state of psql's auto-complete support for various Pos
 Postgres Forks | Support Level | Description
 :-------------:| :-----------: | :----------
 Amazon Redshift | [Status](https://github.com/robins/postgres/blob/redshift/src/bin/psql/README_redshift.md) | Amazon Redshift was spin off of PostgreSQL (version 8.0.2)
+CockroachDB | [Status](https://github.com/robins/postgres/blob/redshift/src/bin/psql/README_cockroachdb.md) | Compatible with PostgreSQL (version 9.5.0)
 PipelineDB | [Status](https://github.com/robins/postgres/blob/redshift/src/bin/psql/README_pipelinedb.md) | Compatible with PostgreSQL (version 9.5)
