@@ -38,7 +38,7 @@ static bool is_select_command(const char *query);
 
 static const char *JSON_STRING =
 //"{\"DbUser\": \"redshift2\", \"DbPassword\": \"Redshift2\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
-"{\"DbUser\": \"IAM:redshift2\", \"DbPassword\": \"BYYEjOoHP+CK08q05vZZHNaE1j0N4SCOkbaugGMQwlmBHSsVZkeZroJ+6EeeD8isYSphiZA==\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
+"{\"DbUser\": \"IAM:redshift2\", \"DbPassword\": \"BIKXgrJ+KurOerMkFF/IZJyzqcUxjAcqWV2aPJBjkX6DdW8VZDOfI75/FEeeC3zGQQAO6oQ==\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
 
 
 static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
