@@ -1435,7 +1435,22 @@ describeOneTableDetails(const char *schemaname,
 	initPQExpBuffer(&tmpbuf);
 
 	/* Get general table info */
-	if (pset.sversion >= 90500)
+	if (IS_COCKROACHDB)
+	{
+		printfPQExpBuffer(&buf,
+						  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
+						  "c.relhastriggers, 'Not Supported Yet' AS relrowsecurity, 'Not Supported Yet' AS relforcerowsecurity, "
+						  "c.relhasoids, %s, c.reltablespace, "
+						  "'', 'Not Supported Yet' AS relpersistence, 'Not Supported Yet' AS relreplident\n"
+						  "FROM pg_catalog.pg_class c\n "
+						  "LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)\n"
+						  "WHERE c.oid = '%s'::OID;",
+						  (verbose ?
+						   "'Not Supported Yet'\n"
+						   : "''"),
+						  oid);
+	}
+	else if (pset.sversion >= 90500)
 	{
 		printfPQExpBuffer(&buf,
 						  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
@@ -1628,25 +1643,34 @@ describeOneTableDetails(const char *schemaname,
 	 * you are adding column(s) preceding to verbose-only columns.
 	 */
 	printfPQExpBuffer(&buf, "SELECT a.attname,");
-	appendPQExpBufferStr(&buf, "\n  pg_catalog.format_type(a.atttypid, a.atttypmod),"
-						 "\n  (SELECT substring(pg_catalog.pg_get_expr(d.adbin, d.adrelid) for 128)"
-						 "\n   FROM pg_catalog.pg_attrdef d"
-						 "\n   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),"
+	if (IS_COCKROACHDB)
+		appendPQExpBufferStr(&buf, "\n  pg_catalog.format_type(a.atttypid, a.atttypmod),"
+						 "\n  'Not Supported Yet',"
 						 "\n  a.attnotnull, a.attnum,");
-	if (pset.sversion >= 90100)
+	else
+		appendPQExpBufferStr(&buf, "\n  pg_catalog.format_type(a.atttypid, a.atttypmod),"
+						"\n  (SELECT substring(pg_catalog.pg_get_expr(d.adbin, d.adrelid) for 128)"
+						"\n   FROM pg_catalog.pg_attrdef d"
+						"\n   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),"
+						"\n  a.attnotnull, a.attnum,");
+	if (IS_COCKROACHDB)
+		appendPQExpBufferStr(&buf, "\n  'Not Supported Yet' AS attcollation");
+	else if (pset.sversion >= 90100)
 		appendPQExpBufferStr(&buf, "\n  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t\n"
 							 "   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation");
 	else
 		appendPQExpBufferStr(&buf, "\n  NULL AS attcollation");
-	if (pset.sversion >= 100000)
+	if (IS_COCKROACHDB)
+		appendPQExpBufferStr(&buf, ",\n  'Not Supported Yet' AS attidentity");
+	else if (pset.sversion >= 100000)
 		appendPQExpBufferStr(&buf, ",\n  a.attidentity");
 	else
 		appendPQExpBufferStr(&buf, ",\n  ''::pg_catalog.char AS attidentity");
-	if (tableinfo.relkind == RELKIND_INDEX)
+	if ((tableinfo.relkind == RELKIND_INDEX && !IS_COCKROACHDB))
 		appendPQExpBufferStr(&buf, ",\n  pg_catalog.pg_get_indexdef(a.attrelid, a.attnum, TRUE) AS indexdef");
 	else
 		appendPQExpBufferStr(&buf, ",\n  NULL AS indexdef");
-	if (tableinfo.relkind == RELKIND_FOREIGN_TABLE && pset.sversion >= 90200)
+	if ((tableinfo.relkind == RELKIND_FOREIGN_TABLE && pset.sversion >= 90200 && IS_COCKROACHDB))
 		appendPQExpBufferStr(&buf, ",\n  CASE WHEN attfdwoptions IS NULL THEN '' ELSE "
 							 "  '(' || pg_catalog.array_to_string(ARRAY(SELECT pg_catalog.quote_ident(option_name) || ' ' || pg_catalog.quote_literal(option_value)  FROM "
 							 "  pg_catalog.pg_options_to_table(attfdwoptions)), ', ') || ')' END AS attfdwoptions");
@@ -1690,7 +1714,10 @@ describeOneTableDetails(const char *schemaname,
 	}
 
 	appendPQExpBufferStr(&buf, "\nFROM pg_catalog.pg_attribute a");
-	appendPQExpBuffer(&buf, "\nWHERE a.attrelid = '%s' AND a.attnum > 0 AND NOT a.attisdropped", oid);
+	if (IS_COCKROACHDB)
+		appendPQExpBuffer(&buf, "\nWHERE a.attrelid = '%s'::OID AND a.attnum > 0 AND NOT a.attisdropped", oid);
+	else
+		appendPQExpBuffer(&buf, "\nWHERE a.attrelid = '%s' AND a.attnum > 0 AND NOT a.attisdropped", oid);
 	appendPQExpBufferStr(&buf, "\nORDER BY a.attnum;");
 
 	res = PSQLexec(buf.data);
@@ -2169,8 +2196,11 @@ describeOneTableDetails(const char *schemaname,
 				appendPQExpBufferStr(&buf, "i.indisvalid, ");
 			else
 				appendPQExpBufferStr(&buf, "true as indisvalid, ");
-			appendPQExpBufferStr(&buf, "pg_catalog.pg_get_indexdef(i.indexrelid, 0, true),\n  ");
-			if (pset.sversion >= 90000)
+			if (IS_COCKROACHDB)
+				appendPQExpBufferStr(&buf, "'Not Supported Yet' AS pg_get_indexdef,\n  ");
+			else
+				appendPQExpBufferStr(&buf, "pg_catalog.pg_get_indexdef(i.indexrelid, 0, true),\n  ");
+			if (pset.sversion >= 90000 && !IS_COCKROACHDB)
 				appendPQExpBufferStr(&buf,
 									 "pg_catalog.pg_get_constraintdef(con.oid, true), "
 									 "contype, condeferrable, condeferred");
@@ -2194,15 +2224,19 @@ describeOneTableDetails(const char *schemaname,
 			if (pset.sversion >= 90000)
 				appendPQExpBufferStr(&buf,
 									 "  LEFT JOIN pg_catalog.pg_constraint con ON (conrelid = i.indrelid AND conindid = i.indexrelid AND contype IN ('p','u','x'))\n");
-			appendPQExpBuffer(&buf,
-							  "WHERE c.oid = '%s' AND c.oid = i.indrelid AND i.indexrelid = c2.oid\n", oid);
+			if (IS_COCKROACHDB)
+				appendPQExpBuffer(&buf,
+								"WHERE c.oid = '%s'::OID AND c.oid = i.indrelid AND i.indexrelid = c2.oid\n", oid);
+			else
+				appendPQExpBuffer(&buf,
+								"WHERE c.oid = '%s' AND c.oid = i.indrelid AND i.indexrelid = c2.oid\n", oid);
 			}
 
-			if (tableinfo.hasindex && tableinfo.hassortkey) {
+			if (tableinfo.hasindex && tableinfo.hassortkey && IS_REDSHIFT) {
 				appendPQExpBufferStr(&buf, "  UNION ALL ");
 			}
 
-			if (tableinfo.hassortkey) {
+			if (tableinfo.hassortkey && IS_REDSHIFT) {
 
 			appendPQExpBufferStr(&buf,
 									"  SELECT                                                                                                       "
@@ -2422,7 +2456,7 @@ describeOneTableDetails(const char *schemaname,
 		}
 
 		/* print any row-level policies */
-		if (pset.sversion >= 90500)
+		if (pset.sversion >= 90500 && !IS_COCKROACHDB)
 		{
 			printfPQExpBuffer(&buf, "SELECT pol.polname,");
 			if (pset.sversion >= 100000)
@@ -2926,6 +2960,8 @@ describeOneTableDetails(const char *schemaname,
 		}
 
 		/* print inherited tables (exclude, if parent is a partitioned table) */
+		if (!IS_COCKROACHDB)
+		{
 		printfPQExpBuffer(&buf,
 						  "SELECT c.oid::pg_catalog.regclass"
 						  " FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i"
@@ -2959,9 +2995,16 @@ describeOneTableDetails(const char *schemaname,
 
 			PQclear(result);
 		}
+		}
 
 		/* print child tables (with additional info if partitions) */
-		if (pset.sversion >= 100000)
+		if (IS_COCKROACHDB)
+			printfPQExpBuffer(&buf,
+							  "SELECT c.oid::regclass, 'Not Supported Yet' AS relpartbound"
+							  " FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i"
+							  " WHERE c.oid=i.inhrelid AND i.inhparent = '%s'::OID"
+							  " ORDER BY c.oid::regclass::text;", oid);
+		else if (pset.sversion >= 100000)
 			printfPQExpBuffer(&buf,
 							  "SELECT c.oid::pg_catalog.regclass, pg_catalog.pg_get_expr(c.relpartbound, c.oid)"
 							  " FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i"
