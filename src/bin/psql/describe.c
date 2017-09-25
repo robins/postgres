@@ -3189,16 +3189,34 @@ describeRoles(const char *pattern, bool verbose, bool showSystem)
 
 	initPQExpBuffer(&buf);
 
-	if (pset.sversion >= 80100)
+	if (IS_COCKROACHDB)
 	{
 		printfPQExpBuffer(&buf,
 						  "SELECT r.rolname, r.rolsuper, r.rolinherit,\n"
 						  "  r.rolcreaterole, r.rolcreatedb, r.rolcanlogin,\n"
 						  "  r.rolconnlimit, r.rolvaliduntil,\n"
-						  "  ARRAY(SELECT b.rolname\n"
-						  "        FROM pg_catalog.pg_auth_members m\n"
-						  "        JOIN pg_catalog.pg_roles b ON (m.roleid = b.oid)\n"
-						  "        WHERE m.member = r.oid) as memberof");
+						  "  'NA' as memberof ,\n"
+							"	 pg_catalog.shobj_description(r.oid, 'pg_authid') AS description,\n"
+							"  'f' AS rolreplication, \n"
+							"  'f' AS rolbypassrls\n"
+							"FROM pg_catalog.pg_roles r\n");
+
+		if (!showSystem && !pattern)
+			appendPQExpBufferStr(&buf, "WHERE r.rolname !~ '^pg_'\n");
+
+		processSQLNamePattern(pset.db, &buf, pattern, false, false,
+								NULL, "r.rolname", NULL, NULL);
+	}	
+	else if (pset.sversion >= 80100)
+	{
+		printfPQExpBuffer(&buf,
+							"SELECT r.rolname, r.rolsuper, r.rolinherit,\n"
+							"  r.rolcreaterole, r.rolcreatedb, r.rolcanlogin,\n"
+							"  r.rolconnlimit, r.rolvaliduntil,\n"
+							"  ARRAY(SELECT b.rolname\n"
+							"        FROM pg_catalog.pg_auth_members m\n"
+							"        JOIN pg_catalog.pg_roles b ON (m.roleid = b.oid)\n"
+							"        WHERE m.member = r.oid) as memberof");
 
 		if (verbose && pset.sversion >= 80200)
 		{
