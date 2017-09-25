@@ -794,13 +794,22 @@ listAllDbs(const char *pattern, bool verbose)
 
 	initPQExpBuffer(&buf);
 
-	printfPQExpBuffer(&buf,
-					  "SELECT d.datname as \"%s\",\n"
-					  "       pg_catalog.pg_get_userbyid(d.datdba) as \"%s\",\n"
-					  "       pg_catalog.pg_encoding_to_char(d.encoding) as \"%s\",\n",
-					  gettext_noop("Name"),
-					  gettext_noop("Owner"),
-					  gettext_noop("Encoding"));
+	if (IS_COCKROACHDB)
+		printfPQExpBuffer(&buf,
+							"SELECT d.datname as \"%s\",\n"
+							"       pg_catalog.pg_get_userbyid(d.datdba) as \"%s\",\n"
+							"       'Not Supported Yet' as \"%s\",\n",
+							gettext_noop("Name"),
+							gettext_noop("Owner"),
+							gettext_noop("Encoding"));
+	else
+		printfPQExpBuffer(&buf,
+			"SELECT d.datname as \"%s\",\n"
+			"       pg_catalog.pg_get_userbyid(d.datdba) as \"%s\",\n"
+			"       pg_catalog.pg_encoding_to_char(d.encoding) as \"%s\",\n",
+			gettext_noop("Name"),
+			gettext_noop("Owner"),
+			gettext_noop("Encoding"));
 	if (pset.sversion >= 80400)
 		appendPQExpBuffer(&buf,
 						  "       d.datcollate as \"%s\",\n"
@@ -3507,7 +3516,11 @@ listTables(const char *tabtypes, const char *pattern, bool verbose, bool showSys
 		 * As of PostgreSQL 9.0, use pg_table_size() to show a more accurate
 		 * size of a table, including FSM, VM and TOAST tables.
 		 */
-		if (pset.sversion >= 90000)
+		if (IS_COCKROACHDB)
+			appendPQExpBuffer(&buf,
+								",\n  'Not Supported Yet' as \"%s\"",
+								gettext_noop("Size"));
+		else if (pset.sversion >= 90000)
 			appendPQExpBuffer(&buf,
 							  ",\n  pg_catalog.pg_size_pretty(pg_catalog.pg_table_size(c.oid)) as \"%s\"",
 							  gettext_noop("Size"));
@@ -5600,10 +5613,13 @@ describeSubscriptions(const char *pattern, bool verbose)
 static void
 printACLColumn(PQExpBuffer buf, const char *colname)
 {
-	if (pset.sversion >= 80100)
+	if (IS_COCKROACHDB)
 		appendPQExpBuffer(buf,
-						  "pg_catalog.array_to_string(%s, E'\\n') AS \"%s\"",
-						  colname, gettext_noop("Access privileges"));
+						"'Not Supported Yet' AS \"%s\"", gettext_noop("Access privileges"));
+	else if (pset.sversion >= 80100)
+		appendPQExpBuffer(buf,
+					"pg_catalog.array_to_string(%s, E'\\n') AS \"%s\"",
+					colname, gettext_noop("Access privileges"));
 	else
 		appendPQExpBuffer(buf,
 						  "pg_catalog.array_to_string(%s, '\\n') AS \"%s\"",
