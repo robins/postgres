@@ -1853,8 +1853,8 @@ describeOneTableDetails(const char *schemaname,
 		printTableAddHeader(&cont, headers[i], true, 'l');
 
 	/* Get view_def if table is a view or materialized view */
-	if ((tableinfo.relkind == RELKIND_VIEW ||
-		 tableinfo.relkind == RELKIND_MATVIEW) && verbose)
+	if (!IS_COCKROACHDB && ((tableinfo.relkind == RELKIND_VIEW ||
+		 tableinfo.relkind == RELKIND_MATVIEW) && verbose))
 	{
 		PGresult   *result;
 
@@ -1935,7 +1935,7 @@ describeOneTableDetails(const char *schemaname,
 									  (storage[0] == 'm' ? "main" :
 									   (storage[0] == 'x' ? "extended" :
 										(storage[0] == 'e' ? "external" :
-										 "???")))),
+										 "Not Supported Yet")))),
 							  false, false);
 
 			/* Statistics target, if the relkind supports this feature */
@@ -2197,7 +2197,7 @@ describeOneTableDetails(const char *schemaname,
 			else
 				appendPQExpBufferStr(&buf, "true as indisvalid, ");
 			if (IS_COCKROACHDB)
-				appendPQExpBufferStr(&buf, "'Not Supported Yet' AS pg_get_indexdef,\n  ");
+				appendPQExpBufferStr(&buf, "' USING (Not Supported Yet)' AS pg_get_indexdef,\n  ");
 			else
 				appendPQExpBufferStr(&buf, "pg_catalog.pg_get_indexdef(i.indexrelid, 0, true),\n  ");
 			if (pset.sversion >= 90000 && !IS_COCKROACHDB)
@@ -2736,8 +2736,13 @@ describeOneTableDetails(const char *schemaname,
 		PGresult   *result = NULL;
 
 		/* Footer information about a view */
-		printTableAddFooter(&cont, _("View definition:"));
-		printTableAddFooter(&cont, view_def);
+		if (IS_COCKROACHDB)
+			printTableAddFooter(&cont, _("View definition: Not Supported Yet"));
+		else
+		{
+			printTableAddFooter(&cont, _("View definition:"));
+			printTableAddFooter(&cont, view_def);
+		}
 
 		/* print rules */
 		if (tableinfo.hasrules)
@@ -3101,7 +3106,7 @@ describeOneTableDetails(const char *schemaname,
 							  s,
 							  tableinfo.relreplident == 'f' ? "FULL" :
 							  tableinfo.relreplident == 'n' ? "NOTHING" :
-							  "???");
+							  "Not Supported Yet");
 
 			printTableAddFooter(&cont, buf.data);
 		}
