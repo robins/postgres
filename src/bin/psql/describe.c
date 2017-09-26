@@ -818,14 +818,14 @@ listAllDbs(const char *pattern, bool verbose)
 						  gettext_noop("Ctype"));
 	appendPQExpBufferStr(&buf, "       ");
 	printACLColumn(&buf, "d.datacl");
-	if (verbose && pset.sversion >= 80200)
+	if (verbose && pset.sversion >= 80200 && !IS_COCKROACHDB)
 		appendPQExpBuffer(&buf,
 						  ",\n       CASE WHEN pg_catalog.has_database_privilege(d.datname, 'CONNECT')\n"
 						  "            THEN pg_catalog.pg_size_pretty(pg_catalog.pg_database_size(d.datname))\n"
 						  "            ELSE 'No Access'\n"
 						  "       END as \"%s\"",
 						  gettext_noop("Size"));
-	if (verbose && pset.sversion >= 80000)
+	if (verbose && pset.sversion >= 80000 && !IS_COCKROACHDB)
 		appendPQExpBuffer(&buf,
 						  ",\n       t.spcname as \"%s\"",
 						  gettext_noop("Tablespace"));
@@ -835,7 +835,7 @@ listAllDbs(const char *pattern, bool verbose)
 						  gettext_noop("Description"));
 	appendPQExpBufferStr(&buf,
 						 "\nFROM pg_catalog.pg_database d\n");
-	if (verbose && pset.sversion >= 80000)
+	if (verbose && pset.sversion >= 80000 && !IS_COCKROACHDB)
 		appendPQExpBufferStr(&buf,
 							 "  JOIN pg_catalog.pg_tablespace t on d.dattablespace = t.oid\n");
 
