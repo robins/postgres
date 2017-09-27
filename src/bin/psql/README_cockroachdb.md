@@ -96,19 +96,19 @@ psql Commands | Supported State | Description
 \s | Untested
 \set | Untested
 \setenv | Untested
-\sf[+] | Untested
-\sv[+] | Untested
-\t | Untested
-\T | Untested
+\sf[+] | Dependency Unsupported
+\sv[+] | Unsupported
+\t | Native
+\T | Native
 \timing | Untested
 \unset | Untested
 \w | Untested
-\watch | Untested
-\x | Untested
+\watch | Native
+\x | Native
 \z | Untested
 \! | Untested
 \? | Untested
-\; | Untested
+\; | Native
 
 
 SQL Commands | Supported State
