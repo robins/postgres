@@ -13,18 +13,18 @@ Reference: https://www.cockroachlabs.com/docs/stable/sql-statements.html
 See Support level of all Postgres forks: [Here](https://github.com/robins/postgres/blob/forks/src/bin/psql/README.md)
 
 
-psql Commands | Supported State
-:------------ |:--------------:
-\a | Untested
-\C | Untested
+psql Commands | Supported State | Description
+:------------ |:--------------:|:------------
+\a | Native
+\C | Native
 \cd | Untested
-\conninfo | Untested
+\conninfo | Native
 \copy | Untested
-\copyright | Untested
+\copyright | Native
 \crosstabview | Untested
-\dS[+] | Untested
+\dS[+] | **Yes**
 \da[S] | Untested
-\dA[+] | Untested
+\dA[+] | Dependency Unsupported|The server (version 9.5) does not support access methods.
 \db[+] | Untested
 \dc[S+] | Untested
 \dC[+] | Untested
@@ -32,24 +32,24 @@ psql Commands | Supported State
 \dD[S+] | Untested
 \ddp | Untested
 \dE[S+] | Untested
-\di[S+] | Untested
+\di[S+] | **Yes**
 \dm[S+] | Untested
 \ds[S+] | Untested
-\dt[S+] | Untested
-\dv[S+] | Untested
+\dt[S+] | **Yes**
+\dv[S+] | **Yes**
 \des[+] | Untested
 \det[+] | Untested
 \deu[+] | Untested
 \dew[+] | Untested
-\df[antwS+] | Untested
-\dF[+] | Untested
+\df[antwS+] | Unsupported
+\dF[+] | Unsupported
 \dFd[+] | Untested
 \dFp[+] | Untested
 \dFt[+] | Untested
-\dg[S+] | Untested
-\dl | Untested
+\dg[S+] | Unsupported
+\dl | Unsupported
 \dL[S+] | Untested
-\dn[S+] | Untested
+\dn[S+] | **Yes**
 \do[S+] | Untested
 \dO[S+] | Untested
 \dp | Untested
@@ -57,41 +57,41 @@ psql Commands | Supported State
 \dRp[+] | Untested
 \dRs[+] | Untested
 \dT[S+] | Untested
-\du[S+] | Untested
-\dx[+] | Untested
-\dy[+] | Untested
-\e | Untested
-\echo | Untested
-\ef | Untested
+\du[S+] | Partial
+\dx[+] | Unsupported
+\dy[+] | Unsupported
+\e | Native
+\echo | Native
+\ef | Unsupported
 \encoding | Untested
 \errverbose | Untested
-\ev | Untested
-\f | Untested
+\ev | Unsupported
+\f | Native
 \g | Untested
 \gdesc | Untested
 \gexec | Untested
 \gset | Untested
 \gx | Untested
-\h | Untested
-\H | Untested
+\h | Native
+\H | Native
 \i | Untested
 \if | Untested
 \elif | Untested
 \else | Untested
 \endif | Untested
 \ir | Untested
-\l[+] | Untested
+\l[+] | **Yes**
 \lo_export | Untested
 \lo_import | Untested
 \lo_list | Untested
 \lo_unlink | Untested
-\o | Untested
+\o | Native
 \p | Untested
 \password | Untested
 \prompt | Untested
 \pset | Untested
-\q | Untested
-\qecho | Untested
+\q | Native
+\qecho | Native
 \r | Untested
 \s | Untested
 \set | Untested
