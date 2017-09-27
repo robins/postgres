@@ -13,6 +13,104 @@ Reference: https://www.cockroachlabs.com/docs/stable/sql-statements.html
 See Support level of all Postgres forks: [Here](https://github.com/robins/postgres/blob/forks/src/bin/psql/README.md)
 
 
+psql Commands | Supported State
+:------------ |:--------------:
+\a | Untested
+\C | Untested
+\cd | Untested
+\conninfo | Untested
+\copy | Untested
+\copyright | Untested
+\crosstabview | Untested
+\dS[+] | Untested
+\da[S] | Untested
+\dA[+] | Untested
+\db[+] | Untested
+\dc[S+] | Untested
+\dC[+] | Untested
+\dd[S] | Untested
+\dD[S+] | Untested
+\ddp | Untested
+\dE[S+] | Untested
+\di[S+] | Untested
+\dm[S+] | Untested
+\ds[S+] | Untested
+\dt[S+] | Untested
+\dv[S+] | Untested
+\des[+] | Untested
+\det[+] | Untested
+\deu[+] | Untested
+\dew[+] | Untested
+\df[antwS+] | Untested
+\dF[+] | Untested
+\dFd[+] | Untested
+\dFp[+] | Untested
+\dFt[+] | Untested
+\dg[S+] | Untested
+\dl | Untested
+\dL[S+] | Untested
+\dn[S+] | Untested
+\do[S+] | Untested
+\dO[S+] | Untested
+\dp | Untested
+\drds | Untested
+\dRp[+] | Untested
+\dRs[+] | Untested
+\dT[S+] | Untested
+\du[S+] | Untested
+\dx[+] | Untested
+\dy[+] | Untested
+\e | Untested
+\echo | Untested
+\ef | Untested
+\encoding | Untested
+\errverbose | Untested
+\ev | Untested
+\f | Untested
+\g | Untested
+\gdesc | Untested
+\gexec | Untested
+\gset | Untested
+\gx | Untested
+\h | Untested
+\H | Untested
+\i | Untested
+\if | Untested
+\elif | Untested
+\else | Untested
+\endif | Untested
+\ir | Untested
+\l[+] | Untested
+\lo_export | Untested
+\lo_import | Untested
+\lo_list | Untested
+\lo_unlink | Untested
+\o | Untested
+\p | Untested
+\password | Untested
+\prompt | Untested
+\pset | Untested
+\q | Untested
+\qecho | Untested
+\r | Untested
+\s | Untested
+\set | Untested
+\setenv | Untested
+\sf[+] | Untested
+\sv[+] | Untested
+\t | Untested
+\T | Untested
+\timing | Untested
+\unset | Untested
+\w | Untested
+\watch | Untested
+\x | Untested
+\z | Untested
+\! | Untested
+\? | Untested
+\; | Untested
+
+
 SQL Commands | Supported State
 :----------- |:--------------:
 ADD COLUMN | Dependency Unsupported
