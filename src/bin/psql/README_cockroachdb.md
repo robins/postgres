@@ -1,4 +1,4 @@
-**Note**: Tab Completion requires quote_ident() that is NOT yet supported by the CockroachDB engine. There is a pending request towards this ( cockroachdb/cockroach#15006 ) however, without this tab-completion is not going to work in its current state.
+**Note**: Tab Completion requires quote_ident() that is NOT yet supported by the CockroachDB engine. There is a pending request towards this ( https://github.com/cockroachdb/cockroach/issues/15006 ) however, without this tab-completion is not going to work in its current state.
 
 We could remove quote_ident() requirement from psql, but this would be a pretty big security issue, considering that this is effectively SQL injection in the making.
 
