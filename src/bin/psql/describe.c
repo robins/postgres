@@ -1645,7 +1645,7 @@ describeOneTableDetails(const char *schemaname,
 	printfPQExpBuffer(&buf, "SELECT a.attname,");
 	if (IS_COCKROACHDB)
 		appendPQExpBufferStr(&buf, "\n  pg_catalog.format_type(a.atttypid, a.atttypmod),"
-						 "\n  'Not Supported Yet',"
+						 "\n  'Not Supported Yet'," // (Subquery not fully supported in CockroachDB)
 						 "\n  a.attnotnull, a.attnum,");
 	else
 		appendPQExpBufferStr(&buf, "\n  pg_catalog.format_type(a.atttypid, a.atttypmod),"

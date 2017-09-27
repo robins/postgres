@@ -7,26 +7,26 @@ See Support level of all Postgres forks: [Here](https://github.com/robins/postgr
 
 SQL Commands | Supported State
 :----------- |:--------------:
-ADD COLUMN | Untested
+ADD COLUMN | Native
 ADD CONSTRAINT | Untested
-ALTER COLUMN | Untested
-ALTER TABLE | Untested
-ALTER VIEW | Untested
-CREATE DATABASE | Untested
+ALTER COLUMN | Native
+ALTER TABLE | Native
+ALTER VIEW | Native
+CREATE DATABASE | Native
 CREATE INDEX | Untested
 CREATE TABLE | Untested
 CREATE TABLE AS | Untested
 CREATE VIEW | Untested
-DROP COLUMN | Untested
+DROP COLUMN | Native
 DROP CONSTRAINT | Untested
 DROP DATABASE | Untested
 DROP INDEX | Untested
-DROP TABLE | Untested
-DROP VIEW | Untested
-RENAME COLUMN | Untested
+DROP TABLE | Native
+DROP VIEW | Native
+RENAME COLUMN | Native
 RENAME DATABASE | Untested
 RENAME INDEX | Untested
-RENAME TABLE | Untested
+RENAME TABLE | Native
 SHOW COLUMNS | Untested
 SHOW CONSTRAINTS | Untested
 SHOW CREATE TABLE | Untested
