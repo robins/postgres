@@ -46,7 +46,9 @@
 /* Macro to easily identify which Engine (type) are we speaking to
 	 Any change here should probably be replicated elsewhere since
 	 #define for various SQLs (in this script) employ there own string-compare */
+	 #define IS_COCKROACHDB (strncmp(pset.sengine, "cockroachdb", 11) == 0)
 	 #define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
+	 #define IS_PIPELINEDB (strncmp(pset.sengine, "pipelinedb", 10) == 0)
 
 /*
  * Editable database object types.
@@ -4532,7 +4534,10 @@ lookup_object_oid(EditableObjectType obj_type, const char *desc,
 			 */
 			appendPQExpBufferStr(query, "SELECT ");
 			appendStringLiteralConn(query, desc, pset.db);
-			appendPQExpBuffer(query, "::pg_catalog.regclass::pg_catalog.oid");
+			if (IS_COCKROACHDB)
+				appendPQExpBuffer(query, "::regclass::OID");
+			else
+				appendPQExpBuffer(query, "::pg_catalog.regclass::pg_catalog.oid");
 			break;
 	}
 

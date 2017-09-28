@@ -2,7 +2,7 @@
 
 We could remove quote_ident() requirement from psql, but this would be a pretty big security issue, considering that this is effectively SQL injection in the making.
 
-So by design, tab-completion is going to silently fail (no errors), and intentionally so, until CockroachDB starts support quote_ident(). 
+So by design, tab-completion is going to silently fail (no errors), and intentionally so, until CockroachDB starts support quote_ident(). This issue is logged in #21 and would be addressed if the Dependency is resolved.
 
 =============================================
 
@@ -41,13 +41,13 @@ psql Commands | Supported State | Description
 \det[+] | Untested
 \deu[+] | Untested
 \dew[+] | Untested
-\df[antwS+] | Unsupported
-\dF[+] | Unsupported
+\df[antwS+] | **Yes**
+\dF[+] | Dependency Unsupported
 \dFd[+] | Untested
 \dFp[+] | Untested
 \dFt[+] | Untested
-\dg[S+] | Unsupported
-\dl | Unsupported
+\dg[S+] | **Yes**
+\dl | Dependency Unsupported | pg_largeobject_metadata not supported in Engine
 \dL[S+] | Untested
 \dn[S+] | **Yes**
 \do[S+] | Untested
@@ -58,14 +58,14 @@ psql Commands | Supported State | Description
 \dRs[+] | Untested
 \dT[S+] | Untested
 \du[S+] | Partial
-\dx[+] | Unsupported
-\dy[+] | Unsupported
+\dx[+] | Dependency Unsupported | Issue cockroachdb/cockroach#13436 didn't add supported for OID column
+\dy[+] | Dependency Unsupported | Functions not supported in Engine
 \e | Native
 \echo | Native
-\ef | Unsupported
+\ef | Dependency Unsupported | Functions not supported in Engine
 \encoding | Untested
 \errverbose | Untested
-\ev | Unsupported
+\ev | Dependency Unsupported | Issue #24 is logged towards this
 \f | Native
 \g | Untested
 \gdesc | Untested
@@ -97,7 +97,7 @@ psql Commands | Supported State | Description
 \set | Untested
 \setenv | Untested
 \sf[+] | Dependency Unsupported
-\sv[+] | Unsupported
+\sv[+] | Dependency Unsupported | Issue #24 is logged towards this
 \t | Native
 \T | Native
 \timing | Untested

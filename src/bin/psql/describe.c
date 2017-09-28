@@ -349,8 +349,23 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 					  "  p.proname as \"%s\",\n",
 					  gettext_noop("Schema"),
 					  gettext_noop("Name"));
-
-	if (pset.sversion >= 80400)
+	if (IS_COCKROACHDB)
+		appendPQExpBuffer(&buf,
+							"  'Not Supported Yet' as \"%s\",\n"
+							"  'Not Supported Yet' as \"%s\",\n"
+							" CASE\n"
+							"  WHEN p.proisagg THEN '%s'\n"
+							"  WHEN p.proiswindow THEN '%s'\n"
+							"  ELSE '%s'\n"
+							" END as \"%s\"",
+							gettext_noop("Result data type"),
+							gettext_noop("Argument data types"),
+		/* translator: "agg" is short for "aggregate" */
+							gettext_noop("agg"),
+							gettext_noop("window"),
+							gettext_noop("normal"),
+							gettext_noop("Type"));
+	else if (pset.sversion >= 80400)
 		appendPQExpBuffer(&buf,
 						  "  pg_catalog.pg_get_function_result(p.oid) as \"%s\",\n"
 						  "  pg_catalog.pg_get_function_arguments(p.oid) as \"%s\",\n"
@@ -463,11 +478,11 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 						  gettext_noop("Security"));
 		appendPQExpBufferStr(&buf, ",\n ");
 		printACLColumn(&buf, "p.proacl");
+		if (!IS_COCKROACHDB)
+			appendPQExpBuffer(&buf, ",\n l.lanname as \"%s\"", gettext_noop("Language"));
 		appendPQExpBuffer(&buf,
-						  ",\n l.lanname as \"%s\""
-						  ",\n p.prosrc as \"%s\""
+							",\n p.prosrc as \"%s\""
 						  ",\n pg_catalog.obj_description(p.oid, 'pg_proc') as \"%s\"",
-						  gettext_noop("Language"),
 						  gettext_noop("Source code"),
 						  gettext_noop("Description"));
 	}
@@ -476,7 +491,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 						 "\nFROM pg_catalog.pg_proc p"
 						 "\n     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace\n");
 
-	if (verbose)
+	if (verbose && !IS_COCKROACHDB)
 		appendPQExpBufferStr(&buf,
 							 "     LEFT JOIN pg_catalog.pg_language l ON l.oid = p.prolang\n");
 
@@ -498,7 +513,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 			}
 			appendPQExpBufferStr(&buf, "NOT p.proisagg\n");
 		}
-		if (!showTrigger)
+		if (!showTrigger && !IS_COCKROACHDB)
 		{
 			if (have_where)
 				appendPQExpBufferStr(&buf, "      AND ");
@@ -533,7 +548,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 			appendPQExpBufferStr(&buf, "p.proisagg\n");
 			needs_or = true;
 		}
-		if (showTrigger)
+		if (showTrigger && !IS_COCKROACHDB)
 		{
 			if (needs_or)
 				appendPQExpBufferStr(&buf, "       OR ");
@@ -548,6 +563,8 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 			appendPQExpBufferStr(&buf, "p.proiswindow\n");
 			needs_or = true;
 		}
+		if (!needs_or)
+			appendPQExpBufferStr(&buf, "       TRUE ");
 		appendPQExpBufferStr(&buf, "      )\n");
 	}
 
@@ -3246,31 +3263,16 @@ describeRoles(const char *pattern, bool verbose, bool showSystem)
 
 	initPQExpBuffer(&buf);
 
-	if (IS_COCKROACHDB)
-	{
-		printfPQExpBuffer(&buf,
-						  "SELECT r.rolname, r.rolsuper, r.rolinherit,\n"
-						  "  r.rolcreaterole, r.rolcreatedb, r.rolcanlogin,\n"
-						  "  r.rolconnlimit, r.rolvaliduntil,\n"
-						  "  'NA' as memberof ,\n"
-							"	 pg_catalog.shobj_description(r.oid, 'pg_authid') AS description,\n"
-							"  'f' AS rolreplication, \n"
-							"  'f' AS rolbypassrls\n"
-							"FROM pg_catalog.pg_roles r\n");
-
-		if (!showSystem && !pattern)
-			appendPQExpBufferStr(&buf, "WHERE r.rolname !~ '^pg_'\n");
-
-		processSQLNamePattern(pset.db, &buf, pattern, false, false,
-								NULL, "r.rolname", NULL, NULL);
-	}	
-	else if (pset.sversion >= 80100)
+	if (pset.sversion >= 80100)
 	{
 		printfPQExpBuffer(&buf,
 							"SELECT r.rolname, r.rolsuper, r.rolinherit,\n"
 							"  r.rolcreaterole, r.rolcreatedb, r.rolcanlogin,\n"
-							"  r.rolconnlimit, r.rolvaliduntil,\n"
-							"  ARRAY(SELECT b.rolname\n"
+							"  r.rolconnlimit, r.rolvaliduntil\n");
+		if (IS_COCKROACHDB)
+			appendPQExpBufferStr(&buf, "  ,'NA' as memberof \n");
+		else
+			appendPQExpBufferStr(&buf, "  ,ARRAY(SELECT b.rolname\n"
 							"        FROM pg_catalog.pg_auth_members m\n"
 							"        JOIN pg_catalog.pg_roles b ON (m.roleid = b.oid)\n"
 							"        WHERE m.member = r.oid) as memberof");
@@ -3280,12 +3282,12 @@ describeRoles(const char *pattern, bool verbose, bool showSystem)
 			appendPQExpBufferStr(&buf, "\n, pg_catalog.shobj_description(r.oid, 'pg_authid') AS description");
 			ncols++;
 		}
-		if (pset.sversion >= 90100)
+		if (pset.sversion >= 90100 && !IS_COCKROACHDB)
 		{
 			appendPQExpBufferStr(&buf, "\n, r.rolreplication");
 		}
 
-		if (pset.sversion >= 90500)
+		if (pset.sversion >= 90500 && !IS_COCKROACHDB)
 		{
 			appendPQExpBufferStr(&buf, "\n, r.rolbypassrls");
 		}
@@ -3352,11 +3354,11 @@ describeRoles(const char *pattern, bool verbose, bool showSystem)
 		if (strcmp(PQgetvalue(res, i, 5), "t") != 0)
 			add_role_attribute(&buf, _("Cannot login"));
 
-		if (pset.sversion >= 90100)
+		if (pset.sversion >= 90100 && !IS_COCKROACHDB)
 			if (strcmp(PQgetvalue(res, i, (verbose ? 10 : 9)), "t") == 0)
 				add_role_attribute(&buf, _("Replication"));
 
-		if (pset.sversion >= 90500)
+		if (pset.sversion >= 90500 && !IS_COCKROACHDB)
 			if (strcmp(PQgetvalue(res, i, (verbose ? 11 : 10)), "t") == 0)
 				add_role_attribute(&buf, _("Bypass RLS"));
 
@@ -5227,11 +5229,12 @@ listExtensions(const char *pattern)
 					  "FROM pg_catalog.pg_extension e "
 					  "LEFT JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace "
 					  "LEFT JOIN pg_catalog.pg_description c ON c.objoid = e.oid "
-					  "AND c.classoid = 'pg_catalog.pg_extension'::pg_catalog.regclass\n",
+					  "AND c.classoid = 'pg_catalog.pg_extension'::%s\n",
 					  gettext_noop("Name"),
 					  gettext_noop("Version"),
 					  gettext_noop("Schema"),
-					  gettext_noop("Description"));
+						gettext_noop("Description"),
+						gettext_noop((IS_COCKROACHDB?"regclass":"pg_catalog.regclass")));
 
 	processSQLNamePattern(pset.db, &buf, pattern,
 						  false, false,
