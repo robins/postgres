@@ -1,29 +1,31 @@
-NOTE: This branch is maintained as a personal effort and is not sponsored / supported by my Employer or any other third-party. This is not officially supported / endorsed by Amazon in any way.
+**NOTE**: This branch is maintained as a personal effort and is not 
+sponsored / supported by my Employer or any other third-party. This 
+is not officially supported / endorsed by Amazon in any way.
 
-PostgreSQL Database Management System
-=====================================
+PsqlForks
+=========
 
 This directory contains the source code distribution of the PostgreSQL
-database management system.
+database management system, along with modifications required for 
+PsqlForks.
 
-PostgreSQL is an advanced object-relational database management system
-that supports an extended subset of the SQL standard, including
-transactions, foreign keys, subqueries, triggers, user-defined types
-and functions.  This distribution also contains C language bindings.
+PsqlForks is a psql variant that tries to accommodate as many PostgrSQL
+variants (or software that speak the PostgreSQL protocol to an extent).
 
-PostgreSQL has many language interfaces, many of which are listed here:
+The current status of support for different PostgreSQL derived databases
+can be seen here:
 
-	https://www.postgresql.org/download
+https://github.com/robins/postgres/blob/forks/src/bin/psql/README.md
 
 See the file INSTALL for instructions on how to build and install
 PostgreSQL.  That file also lists supported operating systems and
 hardware platforms and contains information regarding any other
 software packages that are required to build or run the PostgreSQL
 system.  Copyright and license information can be found in the
-file COPYRIGHT.  A comprehensive documentation set is included in this
+file LICENSE.txt.  A comprehensive documentation set is included in this
 distribution; it can be read as described in the installation
 instructions.
 
 The latest version of this software may be obtained at
-https://www.postgresql.org/download/.  For more information look at our
-web site located at https://www.postgresql.org/.
+https://github.com/robins/postgres/tree/forks . For more information look 
+at the web site located at http://www.thatguyfromdelhi.com/search/label/psql .
