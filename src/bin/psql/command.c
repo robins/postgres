@@ -3248,7 +3248,7 @@ SyncVariables(void)
 			server_engine = "redshift";
 		else
 		{
-			guctype = get_guctype("max_index_keys");
+			guctype = get_guctype("node_id");
 			if (guctype != NULL)
 				server_engine = "cockroachdb";
 			else
