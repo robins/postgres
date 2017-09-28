@@ -3237,6 +3237,16 @@ SyncVariables(void)
 	pset.popt.topt.encoding = pset.encoding;
 	pset.sversion = PQserverVersion(pset.db);
 
+	/* this bit should match connection_warnings(): */
+	/* Try to get full text form of version, might include "devel" etc */
+	server_version = PQparameterStatus(pset.db, "server_version");
+	/* Otherwise fall back on pset.sversion */
+	if (!server_version)
+	{
+		formatPGVersionNumber(pset.sversion, true, vbuf, sizeof(vbuf));
+		server_version = vbuf;
+	}
+
 	/* Check whether a given GUC exists */
 	guctype = get_guctype("continuous_queries_enabled");
 	if (guctype != NULL)
@@ -3252,14 +3262,19 @@ SyncVariables(void)
 			if (guctype != NULL)
 				server_engine = "cockroachdb";
 			else
-				server_engine = "postgres";
+			{
+				if (strstr(server_version, "bouncer") != NULL)
+					server_engine = "pgbouncer";
+				else
+					server_engine = "postgres";
+			}
 		}
 	}
 
-	pset.sengine = server_engine;
-
 	if (guctype)
 		free(guctype);
+
+	pset.sengine = server_engine;
 
 	SetVariable(pset.vars, "DBNAME", PQdb(pset.db));
 	SetVariable(pset.vars, "USER", PQuser(pset.db));
@@ -3267,15 +3282,6 @@ SyncVariables(void)
 	SetVariable(pset.vars, "PORT", PQport(pset.db));
 	SetVariable(pset.vars, "ENCODING", pg_encoding_to_char(pset.encoding));
 
-	/* this bit should match connection_warnings(): */
-	/* Try to get full text form of version, might include "devel" etc */
-	server_version = PQparameterStatus(pset.db, "server_version");
-	/* Otherwise fall back on pset.sversion */
-	if (!server_version)
-	{
-		formatPGVersionNumber(pset.sversion, true, vbuf, sizeof(vbuf));
-		server_version = vbuf;
-	}
 	SetVariable(pset.vars, "SERVER_VERSION_NAME", server_version);
 	SetVariable(pset.vars, "SERVER_ENGINE", server_engine);
 
