@@ -28,9 +28,9 @@
 
 /* Macro to easily identify which Engine (type) are we speaking with */
 #define IS_COCKROACHDB (strncmp(pset.sengine, "cockroachdb", 11) == 0)
-#define IS_PGBOUNCER (strncmp(pset.sengine, "pgbouncer", 9) == 0)
-#define IS_PIPELINEDB (strncmp(pset.sengine, "pipelinedb", 10) == 0)
-#define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
+#define IS_PGBOUNCER   (strncmp(pset.sengine, "pgbouncer", 9)    == 0)
+#define IS_PIPELINEDB  (strncmp(pset.sengine, "pipelinedb", 10)  == 0)
+#define IS_REDSHIFT    (strncmp(pset.sengine, "redshift", 8)     == 0)
 
 static bool describeOneTableDetails(const char *schemaname,
 						const char *relationname,

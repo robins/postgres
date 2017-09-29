@@ -7,4 +7,4 @@ Postgres Forks | Support Level | Description
 Amazon Redshift | [Status](https://github.com/robins/postgres/blob/forks/src/bin/psql/README_redshift.md) | Amazon Redshift was spin off of PostgreSQL (version 8.0.2)
 CockroachDB | [Status](https://github.com/robins/postgres/blob/forks/src/bin/psql/README_cockroachdb.md) | Compatible with PostgreSQL (version 9.5.0)
 PipelineDB | [Status](https://github.com/robins/postgres/blob/forks/src/bin/psql/README_pipelinedb.md) | Compatible with PostgreSQL (version 9.5)
-PgBouncer | [Basic Engine Comprehension]
+PgBouncer | Supported | \* (Backslash) is not supported, and gives appropriate error message
