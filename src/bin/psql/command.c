@@ -291,6 +291,14 @@ exec_command(const char *cmd,
 	backslashResult status;
 	bool		active_branch = conditional_active(cstack);
 
+	/* PgBouncer supports no \* commands and so we skip if we're speaking with PgBouncer */
+	if (IS_PGBOUNCER)
+	{
+		psql_error("\\%s command ignored - PgBouncer doesn't support ( \\* ) backslash commands.\n",
+					 cmd);
+		return PSQL_CMD_ERROR;
+	}
+
 	/*
 	 * In interactive mode, warn when we're ignoring a command within a false
 	 * \if-branch.  But we continue on, so as to parse and discard the right
