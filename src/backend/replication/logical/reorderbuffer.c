@@ -2083,15 +2083,16 @@ ReorderBufferSerializeTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 		 * store in segment in which it belongs by start lsn, don't split over
 		 * multiple segments tho
 		 */
-		if (fd == -1 || !XLByteInSeg(change->lsn, curOpenSegNo))
+		if (fd == -1 ||
+			!XLByteInSeg(change->lsn, curOpenSegNo, wal_segment_size))
 		{
 			XLogRecPtr	recptr;
 
 			if (fd != -1)
 				CloseTransientFile(fd);
 
-			XLByteToSeg(change->lsn, curOpenSegNo);
-			XLogSegNoOffsetToRecPtr(curOpenSegNo, 0, recptr);
+			XLByteToSeg(change->lsn, curOpenSegNo, wal_segment_size);
+			XLogSegNoOffsetToRecPtr(curOpenSegNo, 0, recptr, wal_segment_size);
 
 			/*
 			 * No need to care about TLIs here, only used during a single run,
@@ -2103,8 +2104,7 @@ ReorderBufferSerializeTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 
 			/* open segment, create it if necessary */
 			fd = OpenTransientFile(path,
-								   O_CREAT | O_WRONLY | O_APPEND | PG_BINARY,
-								   S_IRUSR | S_IWUSR);
+								   O_CREAT | O_WRONLY | O_APPEND | PG_BINARY);
 
 			if (fd < 0)
 				ereport(ERROR,
@@ -2319,7 +2319,7 @@ ReorderBufferRestoreChanges(ReorderBuffer *rb, ReorderBufferTXN *txn,
 	txn->nentries_mem = 0;
 	Assert(dlist_is_empty(&txn->changes));
 
-	XLByteToSeg(txn->final_lsn, last_segno);
+	XLByteToSeg(txn->final_lsn, last_segno, wal_segment_size);
 
 	while (restored < max_changes_in_memory && *segno <= last_segno)
 	{
@@ -2334,11 +2334,11 @@ ReorderBufferRestoreChanges(ReorderBuffer *rb, ReorderBufferTXN *txn,
 			/* first time in */
 			if (*segno == 0)
 			{
-				XLByteToSeg(txn->first_lsn, *segno);
+				XLByteToSeg(txn->first_lsn, *segno, wal_segment_size);
 			}
 
 			Assert(*segno != 0 || dlist_is_empty(&txn->changes));
-			XLogSegNoOffsetToRecPtr(*segno, 0, recptr);
+			XLogSegNoOffsetToRecPtr(*segno, 0, recptr, wal_segment_size);
 
 			/*
 			 * No need to care about TLIs here, only used during a single run,
@@ -2348,7 +2348,7 @@ ReorderBufferRestoreChanges(ReorderBuffer *rb, ReorderBufferTXN *txn,
 					NameStr(MyReplicationSlot->data.name), txn->xid,
 					(uint32) (recptr >> 32), (uint32) recptr);
 
-			*fd = OpenTransientFile(path, O_RDONLY | PG_BINARY, 0);
+			*fd = OpenTransientFile(path, O_RDONLY | PG_BINARY);
 			if (*fd < 0 && errno == ENOENT)
 			{
 				*fd = -1;
@@ -2575,8 +2575,8 @@ ReorderBufferRestoreCleanup(ReorderBuffer *rb, ReorderBufferTXN *txn)
 	Assert(txn->first_lsn != InvalidXLogRecPtr);
 	Assert(txn->final_lsn != InvalidXLogRecPtr);
 
-	XLByteToSeg(txn->first_lsn, first);
-	XLByteToSeg(txn->final_lsn, last);
+	XLByteToSeg(txn->first_lsn, first, wal_segment_size);
+	XLByteToSeg(txn->final_lsn, last, wal_segment_size);
 
 	/* iterate over all possible filenames, and delete them */
 	for (cur = first; cur <= last; cur++)
@@ -2584,7 +2584,7 @@ ReorderBufferRestoreCleanup(ReorderBuffer *rb, ReorderBufferTXN *txn)
 		char		path[MAXPGPATH];
 		XLogRecPtr	recptr;
 
-		XLogSegNoOffsetToRecPtr(cur, 0, recptr);
+		XLogSegNoOffsetToRecPtr(cur, 0, recptr, wal_segment_size);
 
 		sprintf(path, "pg_replslot/%s/xid-%u-lsn-%X-%X.snap",
 				NameStr(MyReplicationSlot->data.name), txn->xid,
@@ -3037,7 +3037,7 @@ ApplyLogicalMappingFile(HTAB *tuplecid_data, Oid relid, const char *fname)
 	LogicalRewriteMappingData map;
 
 	sprintf(path, "pg_logical/mappings/%s", fname);
-	fd = OpenTransientFile(path, O_RDONLY | PG_BINARY, 0);
+	fd = OpenTransientFile(path, O_RDONLY | PG_BINARY);
 	if (fd < 0)
 		ereport(ERROR,
 				(errcode_for_file_access(),

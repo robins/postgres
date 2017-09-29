@@ -472,7 +472,7 @@ SendTimeLineHistory(TimeLineHistoryCmd *cmd)
 	pq_sendint(&buf, len, 4);	/* col1 len */
 	pq_sendbytes(&buf, histfname, len);
 
-	fd = OpenTransientFile(path, O_RDONLY | PG_BINARY, 0666);
+	fd = OpenTransientFile(path, O_RDONLY | PG_BINARY);
 	if (fd < 0)
 		ereport(ERROR,
 				(errcode_for_file_access(),
@@ -1545,7 +1545,7 @@ exec_replication_command(const char *cmd_string)
 		case T_SQLCmd:
 			if (MyDatabaseId == InvalidOid)
 				ereport(ERROR,
-						(errmsg("not connected to database")));
+						(errmsg("cannot execute SQL commands in WAL sender for physical replication")));
 
 			/* Tell the caller that this wasn't a WalSender command. */
 			return false;
@@ -2316,9 +2316,9 @@ retry:
 		int			segbytes;
 		int			readbytes;
 
-		startoff = recptr % XLogSegSize;
+		startoff = XLogSegmentOffset(recptr, wal_segment_size);
 
-		if (sendFile < 0 || !XLByteInSeg(recptr, sendSegNo))
+		if (sendFile < 0 || !XLByteInSeg(recptr, sendSegNo, wal_segment_size))
 		{
 			char		path[MAXPGPATH];
 
@@ -2326,7 +2326,7 @@ retry:
 			if (sendFile >= 0)
 				close(sendFile);
 
-			XLByteToSeg(recptr, sendSegNo);
+			XLByteToSeg(recptr, sendSegNo, wal_segment_size);
 
 			/*-------
 			 * When reading from a historic timeline, and there is a timeline
@@ -2359,14 +2359,14 @@ retry:
 			{
 				XLogSegNo	endSegNo;
 
-				XLByteToSeg(sendTimeLineValidUpto, endSegNo);
+				XLByteToSeg(sendTimeLineValidUpto, endSegNo, wal_segment_size);
 				if (sendSegNo == endSegNo)
 					curFileTimeLine = sendTimeLineNextTLI;
 			}
 
-			XLogFilePath(path, curFileTimeLine, sendSegNo);
+			XLogFilePath(path, curFileTimeLine, sendSegNo, wal_segment_size);
 
-			sendFile = BasicOpenFile(path, O_RDONLY | PG_BINARY, 0);
+			sendFile = BasicOpenFile(path, O_RDONLY | PG_BINARY);
 			if (sendFile < 0)
 			{
 				/*
@@ -2401,8 +2401,8 @@ retry:
 		}
 
 		/* How many bytes are within this segment? */
-		if (nbytes > (XLogSegSize - startoff))
-			segbytes = XLogSegSize - startoff;
+		if (nbytes > (wal_segment_size - startoff))
+			segbytes = wal_segment_size - startoff;
 		else
 			segbytes = nbytes;
 
@@ -2433,7 +2433,7 @@ retry:
 	 * read() succeeds in that case, but the data we tried to read might
 	 * already have been overwritten with new WAL records.
 	 */
-	XLByteToSeg(startptr, segno);
+	XLByteToSeg(startptr, segno, wal_segment_size);
 	CheckXLogRemoved(segno, ThisTimeLineID);
 
 	/*

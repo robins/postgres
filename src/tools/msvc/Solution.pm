@@ -179,8 +179,6 @@ s{PG_VERSION_STR "[^"]+"}{PG_VERSION_STR "PostgreSQL $self->{strver}$extraver, c
 		  1024, "\n";
 		print $o "#define XLOG_BLCKSZ ",
 		  1024 * $self->{options}->{wal_blocksize}, "\n";
-		print $o "#define XLOG_SEG_SIZE (", $self->{options}->{wal_segsize},
-		  " * 1024 * 1024)\n";
 
 		if ($self->{options}->{float4byval})
 		{
@@ -846,6 +844,32 @@ sub new
 	$self->{vcver}                      = '14.00';
 	$self->{visualStudioName}           = 'Visual Studio 2015';
 	$self->{VisualStudioVersion}        = '14.0.24730.2';
+	$self->{MinimumVisualStudioVersion} = '10.0.40219.1';
+
+	return $self;
+}
+
+package VS2017Solution;
+
+#
+# Package that encapsulates a Visual Studio 2017 solution file
+#
+
+use Carp;
+use strict;
+use warnings;
+use base qw(Solution);
+
+sub new
+{
+	my $classname = shift;
+	my $self      = $classname->SUPER::_new(@_);
+	bless($self, $classname);
+
+	$self->{solutionFileVersion}        = '12.00';
+	$self->{vcver}                      = '15.00';
+	$self->{visualStudioName}           = 'Visual Studio 2017';
+	$self->{VisualStudioVersion}        = '15.0.26730.3';
 	$self->{MinimumVisualStudioVersion} = '10.0.40219.1';
 
 	return $self;
