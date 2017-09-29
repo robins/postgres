@@ -125,8 +125,6 @@ setQFout(const char *fname)
 	return true;
 }
 
-
-
 /*
  * request_password_from_external_source
  *
@@ -136,16 +134,45 @@ setQFout(const char *fname)
 bool 
 request_password_from_external_source(char **username, char **password)
 {
-	//	 FILE *fp;
-		// char path[1035];
+	FILE *fp;
+	long length;
+	char linebuffer[1035];
+	char filebuffer[2000];
 
-		/* Open the command for reading. * /
-		fp = popen("aws redshift get-cluster-credentials --db-user redshift2 --cluster-identifier redshift2", "r");
-		if (fp == NULL) {
-			printf("Failed to run command\n" );
-			exit(1);
+	strcpy(filebuffer, " ");
+	/* Open the command for reading. */
+	//fp = popen("aws redshift get-cluster-credentials --db-user redshift2 --cluster-identifier redshift2", "r");
+	fp = popen("/usr/bin/cat /home/tharar/proj/postgres/src/bin/psql/cluster.txt", "r");
+	if (fp == NULL)
+	{
+		printf("Failed to run command\n" );
+		exit(1);
+	}
+	else 
+	{
+		printf("Able to read file fine\n");
+
+		/* Read the output a line at a time - output it. */
+		while (fgets(linebuffer, sizeof(linebuffer)-1, fp) != NULL) {
+			strncat(filebuffer, linebuffer, sizeof(linebuffer));
+			printf("Filebuffer: %s\n", filebuffer);
 		}
-	*/
+
+		// fseek (fp, 0, SEEK_END);
+		// length = ftell (fp);
+		// fseek (fp, 0, SEEK_SET);
+		// filebuffer = malloc (length);
+		// if (filebuffer)
+		// {
+		// 	fread (filebuffer, 1, length, fp);
+		// }
+		pclose (fp);
+	}
+
+	// /* Read the output a line at a time - output it. */
+	// while (fgets(path, sizeof(path)-1, fp) != NULL) {
+	// 	printf("%s", path);
+	// }
 
 	int i;
 	int r;
@@ -159,7 +186,7 @@ request_password_from_external_source(char **username, char **password)
 	printf("\n===Enter Function===\n");
 
 	jsmn_init(&p);
-	r = jsmn_parse(&p, JSON_STRING, strlen(JSON_STRING), t, sizeof(t)/sizeof(t[0]));
+	r = jsmn_parse(&p, filebuffer, strlen(filebuffer), t, sizeof(t)/sizeof(t[0]));
 	if (r < 0) {
 		printf("Failed to parse JSON: %d\n", r);
 		return false;
@@ -173,39 +200,39 @@ request_password_from_external_source(char **username, char **password)
 	}
 
 	/*
-		buffer = (char *) pg_malloc(maxlength + 1);
-	while (fgets(buffer, maxlength + 1, infile) != NULL && n < nlines)
-		result[n++] = pg_strdup(buffer);
+		filebuffer = (char *) pg_malloc(maxlength + 1);
+	while (fgets(filebuffer, maxlength + 1, infile) != NULL && n < nlines)
+		result[n++] = pg_strdup(filebuffer);
 
 	*/
 	/* Loop over all keys of the root object */
 	for (i = 1; i < r; i++) {
 		//printf("\n0000000000 r=%d i=%d : ", r, i);
-		if (jsoneq(JSON_STRING, &t[i], "DbUser") == 0) {
+		if (jsoneq(filebuffer, &t[i], "DbUser") == 0) {
 			//printf("\n1111111");
 			new_username = pg_malloc(t[i+1].end-t[i+1].start + 2);
-			StrNCpy(new_username, JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start + 1);
+			StrNCpy(new_username, filebuffer + t[i+1].start, t[i+1].end-t[i+1].start + 1);
 			//printf("- Username: %s\n", new_username);
 			found_username = true;
 			i++;
-		} else if (jsoneq(JSON_STRING, &t[i], "DbPassword") == 0) {
+		} else if (jsoneq(filebuffer, &t[i], "DbPassword") == 0) {
 			//printf("\n22222222");
 			new_password = pg_malloc(t[i+1].end-t[i+1].start + 2);
-			StrNCpy(new_password, JSON_STRING + t[i+1].start, t[i+1].end-t[i+1].start + 1);
+			StrNCpy(new_password, filebuffer + t[i+1].start, t[i+1].end-t[i+1].start + 1);
 			//printf("- Password: %s", new_password);
 			found_password = true;
 			i++;
-		} else if (jsoneq(JSON_STRING, &t[i], "Expiration") == 0) {
+		} else if (jsoneq(filebuffer, &t[i], "Expiration") == 0) {
 			//printf("\n333333b");
 			printf("- Expiration: %.*s\n", t[i+1].end-t[i+1].start,
-					JSON_STRING + t[i+1].start);
+			filebuffer + t[i+1].start);
 			i++;
 			//printf("\n333333e");
 		} else {
 			//printf("\n44444444");
 			printf("Unexpected key: %.*s\n", t[i].end-t[i].start,
-					JSON_STRING + t[i].start);
-		} 
+			filebuffer + t[i].start);
+		}
 	}
 	//printf("fetched all params");
 	if (found_username && found_password)
@@ -220,14 +247,6 @@ request_password_from_external_source(char **username, char **password)
 		return true;
 	}
 	return false;
-
-	/* Read the output a line at a time - output it. * /
-	while (fgets(path, sizeof(path)-1, fp) != NULL) {
-		printf("%s", path);
-	}
-
-	/ * close * /
-	pclose(fp); */
 }
 
 
