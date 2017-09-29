@@ -43,12 +43,13 @@
 #include "settings.h"
 #include "variables.h"
 
-/* Macro to easily identify which Engine (type) are we speaking to
+/* Macro to easily identify which Engine (type) are we speaking with
 	 Any change here should probably be replicated elsewhere since
 	 #define for various SQLs (in this script) employ there own string-compare */
 	 #define IS_COCKROACHDB (strncmp(pset.sengine, "cockroachdb", 11) == 0)
-	 #define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
+	 #define IS_PGBOUNCER (strncmp(pset.sengine, "pgbouncer", 9) == 0)
 	 #define IS_PIPELINEDB (strncmp(pset.sengine, "pipelinedb", 10) == 0)
+	 #define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
 
 /*
  * Editable database object types.
