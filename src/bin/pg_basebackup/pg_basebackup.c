@@ -26,6 +26,7 @@
 #include <zlib.h>
 #endif
 
+#include "access/xlog_internal.h"
 #include "common/file_utils.h"
 #include "common/string.h"
 #include "fe_utils/string_utils.h"
@@ -92,6 +93,8 @@ static pg_time_t last_progress_report = 0;
 static int32 maxrate = 0;		/* no limit by default */
 static char *replication_slot = NULL;
 static bool temp_replication_slot = true;
+static bool create_slot = false;
+static bool no_slot = false;
 
 static bool success = false;
 static bool made_new_pgdata = false;
@@ -335,22 +338,23 @@ usage(void)
 			 "                         (in kB/s, or use suffix \"k\" or \"M\")\n"));
 	printf(_("  -R, --write-recovery-conf\n"
 			 "                         write recovery.conf for replication\n"));
-	printf(_("  -S, --slot=SLOTNAME    replication slot to use\n"));
-	printf(_("      --no-slot          prevent creation of temporary replication slot\n"));
 	printf(_("  -T, --tablespace-mapping=OLDDIR=NEWDIR\n"
 			 "                         relocate tablespace in OLDDIR to NEWDIR\n"));
+	printf(_("      --waldir=WALDIR    location for the write-ahead log directory\n"));
 	printf(_("  -X, --wal-method=none|fetch|stream\n"
 			 "                         include required WAL files with specified method\n"));
-	printf(_("      --waldir=WALDIR    location for the write-ahead log directory\n"));
 	printf(_("  -z, --gzip             compress tar output\n"));
 	printf(_("  -Z, --compress=0-9     compress tar output with given compression level\n"));
 	printf(_("\nGeneral options:\n"));
 	printf(_("  -c, --checkpoint=fast|spread\n"
 			 "                         set fast or spread checkpointing\n"));
+	printf(_("  -C, --create-slot      create replication slot\n"));
 	printf(_("  -l, --label=LABEL      set backup label\n"));
 	printf(_("  -n, --no-clean         do not clean up after errors\n"));
 	printf(_("  -N, --no-sync          do not wait for changes to be written safely to disk\n"));
 	printf(_("  -P, --progress         show progress information\n"));
+	printf(_("  -S, --slot=SLOTNAME    replication slot to use\n"));
+	printf(_("      --no-slot          prevent creation of temporary replication slot\n"));
 	printf(_("  -v, --verbose          output verbose messages\n"));
 	printf(_("  -V, --version          output version information, then exit\n"));
 	printf(_("  -?, --help             show this help, then exit\n"));
@@ -465,7 +469,6 @@ typedef struct
 	char		xlog[MAXPGPATH];	/* directory or tarfile depending on mode */
 	char	   *sysidentifier;
 	int			timeline;
-	bool		temp_slot;
 } logstreamer_param;
 
 static int
@@ -491,9 +494,6 @@ LogStreamerMain(logstreamer_param *param)
 	stream.mark_done = true;
 	stream.partial_suffix = NULL;
 	stream.replication_slot = replication_slot;
-	stream.temp_slot = param->temp_slot;
-	if (stream.temp_slot && !stream.replication_slot)
-		stream.replication_slot = psprintf("pg_basebackup_%d", (int) PQbackendPID(param->bgconn));
 
 	if (format == 'p')
 		stream.walmethod = CreateWalDirectoryMethod(param->xlog, 0, do_sync);
@@ -555,7 +555,7 @@ StartLogStreamer(char *startpos, uint32 timeline, char *sysidentifier)
 	}
 	param->startptr = ((uint64) hi) << 32 | lo;
 	/* Round off to even segment position */
-	param->startptr -= param->startptr % XLOG_SEG_SIZE;
+	param->startptr -= XLogSegmentOffset(param->startptr, WalSegSz);
 
 #ifndef WIN32
 	/* Create our background pipe */
@@ -582,9 +582,29 @@ StartLogStreamer(char *startpos, uint32 timeline, char *sysidentifier)
 
 	/* Temporary replication slots are only supported in 10 and newer */
 	if (PQserverVersion(conn) < MINIMUM_VERSION_FOR_TEMP_SLOTS)
-		param->temp_slot = false;
-	else
-		param->temp_slot = temp_replication_slot;
+		temp_replication_slot = false;
+
+	/*
+	 * Create replication slot if requested
+	 */
+	if (temp_replication_slot && !replication_slot)
+		replication_slot = psprintf("pg_basebackup_%d", (int) PQbackendPID(param->bgconn));
+	if (temp_replication_slot || create_slot)
+	{
+		if (!CreateReplicationSlot(param->bgconn, replication_slot, NULL,
+								   temp_replication_slot, true, true, false))
+			disconnect_and_exit(1);
+
+		if (verbose)
+		{
+			if (temp_replication_slot)
+				fprintf(stderr, _("%s: created temporary replication slot \"%s\"\n"),
+						progname, replication_slot);
+			else
+				fprintf(stderr, _("%s: created replication slot \"%s\"\n"),
+						progname, replication_slot);
+		}
+	}
 
 	if (format == 'p')
 	{
@@ -2078,6 +2098,7 @@ main(int argc, char **argv)
 		{"pgdata", required_argument, NULL, 'D'},
 		{"format", required_argument, NULL, 'F'},
 		{"checkpoint", required_argument, NULL, 'c'},
+		{"create-slot", no_argument, NULL, 'C'},
 		{"max-rate", required_argument, NULL, 'r'},
 		{"write-recovery-conf", no_argument, NULL, 'R'},
 		{"slot", required_argument, NULL, 'S'},
@@ -2104,7 +2125,6 @@ main(int argc, char **argv)
 	int			c;
 
 	int			option_index;
-	bool		no_slot = false;
 
 	progname = get_progname(argv[0]);
 	set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("pg_basebackup"));
@@ -2126,11 +2146,14 @@ main(int argc, char **argv)
 
 	atexit(cleanup_directories_atexit);
 
-	while ((c = getopt_long(argc, argv, "D:F:r:RT:X:l:nNzZ:d:c:h:p:U:s:S:wWvP",
+	while ((c = getopt_long(argc, argv, "CD:F:r:RS:T:X:l:nNzZ:d:c:h:p:U:s:wWvP",
 							long_options, &option_index)) != -1)
 	{
 		switch (c)
 		{
+			case 'C':
+				create_slot = true;
+				break;
 			case 'D':
 				basedir = pg_strdup(optarg);
 				break;
@@ -2347,6 +2370,29 @@ main(int argc, char **argv)
 		temp_replication_slot = false;
 	}
 
+	if (create_slot)
+	{
+		if (!replication_slot)
+		{
+			fprintf(stderr,
+					_("%s: --create-slot needs a slot to be specified using --slot\n"),
+					progname);
+			fprintf(stderr, _("Try \"%s --help\" for more information.\n"),
+					progname);
+			exit(1);
+		}
+
+		if (no_slot)
+		{
+			fprintf(stderr,
+					_("%s: --create-slot and --no-slot are incompatible options\n"),
+					progname);
+			fprintf(stderr, _("Try \"%s --help\" for more information.\n"),
+					progname);
+			exit(1);
+		}
+	}
+
 	if (xlog_dir)
 	{
 		if (format != 'p')
@@ -2396,6 +2442,10 @@ main(int argc, char **argv)
 		/* Error message already written in GetConnection() */
 		exit(1);
 	}
+
+	/* determine remote server's xlog segment size */
+	if (!RetrieveWalSegSize(conn))
+		disconnect_and_exit(1);
 
 	/* Create pg_wal symlink, if required */
 	if (xlog_dir)

@@ -950,6 +950,9 @@ PostmasterMain(int argc, char *argv[])
 	 */
 	CreateDataDirLockFile(true);
 
+	/* read control file (error checking and contains config) */
+	LocalProcessControlFile(false);
+
 	/*
 	 * Initialize SSL library, if specified.
 	 */
@@ -3826,6 +3829,10 @@ PostmasterStateMachine(void)
 		ResetBackgroundWorkerCrashTimes();
 
 		shmem_exit(1);
+
+		/* re-read control file into local memory */
+		LocalProcessControlFile(true);
+
 		reset_shared(PostPortNumber);
 
 		StartupPID = StartupDataBase();
@@ -4259,14 +4266,14 @@ BackendInitialize(Port *port)
 	 *
 	 * For a walsender, the ps display is set in the following form:
 	 *
-	 * postgres: wal sender process <user> <host> <activity>
+	 * postgres: walsender <user> <host> <activity>
 	 *
-	 * To achieve that, we pass "wal sender process" as username and username
+	 * To achieve that, we pass "walsender" as username and username
 	 * as dbname to init_ps_display(). XXX: should add a new variant of
 	 * init_ps_display() to avoid abusing the parameters like this.
 	 */
 	if (am_walsender)
-		init_ps_display("wal sender process", port->user_name, remote_ps_data,
+		init_ps_display(pgstat_get_backend_desc(B_WAL_SENDER), port->user_name, remote_ps_data,
 						update_process_title ? "authentication" : "");
 	else
 		init_ps_display(port->user_name, port->database_name, remote_ps_data,
@@ -4804,6 +4811,12 @@ SubPostmasterMain(int argc, char *argv[])
 
 	/* Read in remaining GUC variables */
 	read_nondefault_variables();
+
+	/*
+	 * (re-)read control file, as it contains config. The postmaster will
+	 * already have read this, but this process doesn't know about that.
+	 */
+	LocalProcessControlFile(false);
 
 	/*
 	 * Reload any libraries that were preloaded by the postmaster.  Since we

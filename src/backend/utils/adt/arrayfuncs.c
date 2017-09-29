@@ -1011,7 +1011,7 @@ CopyArrayEls(ArrayType *array,
 Datum
 array_out(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *v = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *v = PG_GETARG_ANY_ARRAY_P(0);
 	Oid			element_type = AARR_ELEMTYPE(v);
 	int			typlen;
 	bool		typbyval;
@@ -1534,7 +1534,7 @@ ReadArrayBinary(StringInfo buf,
 Datum
 array_send(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *v = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *v = PG_GETARG_ANY_ARRAY_P(0);
 	Oid			element_type = AARR_ELEMTYPE(v);
 	int			typlen;
 	bool		typbyval;
@@ -1638,7 +1638,7 @@ array_send(PG_FUNCTION_ARGS)
 Datum
 array_ndims(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *v = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *v = PG_GETARG_ANY_ARRAY_P(0);
 
 	/* Sanity check: does it look like an array at all? */
 	if (AARR_NDIM(v) <= 0 || AARR_NDIM(v) > MAXDIM)
@@ -1654,7 +1654,7 @@ array_ndims(PG_FUNCTION_ARGS)
 Datum
 array_dims(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *v = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *v = PG_GETARG_ANY_ARRAY_P(0);
 	char	   *p;
 	int			i;
 	int		   *dimv,
@@ -1692,7 +1692,7 @@ array_dims(PG_FUNCTION_ARGS)
 Datum
 array_lower(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *v = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *v = PG_GETARG_ANY_ARRAY_P(0);
 	int			reqdim = PG_GETARG_INT32(1);
 	int		   *lb;
 	int			result;
@@ -1719,7 +1719,7 @@ array_lower(PG_FUNCTION_ARGS)
 Datum
 array_upper(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *v = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *v = PG_GETARG_ANY_ARRAY_P(0);
 	int			reqdim = PG_GETARG_INT32(1);
 	int		   *dimv,
 			   *lb;
@@ -1749,7 +1749,7 @@ array_upper(PG_FUNCTION_ARGS)
 Datum
 array_length(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *v = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *v = PG_GETARG_ANY_ARRAY_P(0);
 	int			reqdim = PG_GETARG_INT32(1);
 	int		   *dimv;
 	int			result;
@@ -1776,7 +1776,7 @@ array_length(PG_FUNCTION_ARGS)
 Datum
 array_cardinality(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *v = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *v = PG_GETARG_ANY_ARRAY_P(0);
 
 	PG_RETURN_INT32(ArrayGetNItems(AARR_NDIM(v), AARR_DIMS(v)));
 }
@@ -3147,7 +3147,7 @@ array_map(FunctionCallInfo fcinfo, Oid retType, ArrayMapState *amstate)
 		elog(ERROR, "invalid nargs: %d", fcinfo->nargs);
 	if (PG_ARGISNULL(0))
 		elog(ERROR, "null input array");
-	v = PG_GETARG_ANY_ARRAY(0);
+	v = PG_GETARG_ANY_ARRAY_P(0);
 
 	inpType = AARR_ELEMTYPE(v);
 	ndim = AARR_NDIM(v);
@@ -3297,6 +3297,7 @@ array_map(FunctionCallInfo fcinfo, Oid retType, ArrayMapState *amstate)
  *
  * A palloc'd 1-D array object is constructed and returned.  Note that
  * elem values will be copied into the object even if pass-by-ref type.
+ * Also note the result will be 0-D not 1-D if nelems = 0.
  *
  * NOTE: it would be cleaner to look up the elmlen/elmbval/elmalign info
  * from the system catalogs, given the elmtype.  However, the caller is
@@ -3331,6 +3332,7 @@ construct_array(Datum *elems, int nelems,
  *
  * A palloc'd ndims-D array object is constructed and returned.  Note that
  * elem values will be copied into the object even if pass-by-ref type.
+ * Also note the result will be 0-D not ndims-D if any dims[i] = 0.
  *
  * NOTE: it would be cleaner to look up the elmlen/elmbval/elmalign info
  * from the system catalogs, given the elmtype.  However, the caller is
@@ -3362,11 +3364,11 @@ construct_md_array(Datum *elems,
 				 errmsg("number of array dimensions (%d) exceeds the maximum allowed (%d)",
 						ndims, MAXDIM)));
 
-	/* fast track for empty array */
-	if (ndims == 0)
-		return construct_empty_array(elmtype);
-
 	nelems = ArrayGetNItems(ndims, dims);
+
+	/* if ndims <= 0 or any dims[i] == 0, return empty array */
+	if (nelems <= 0)
+		return construct_empty_array(elmtype);
 
 	/* compute required space */
 	nbytes = 0;
@@ -3589,8 +3591,8 @@ array_contains_nulls(ArrayType *array)
 Datum
 array_eq(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY(0);
-	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY(1);
+	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY_P(0);
+	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY_P(1);
 	Oid			collation = PG_GET_COLLATION();
 	int			ndims1 = AARR_NDIM(array1);
 	int			ndims2 = AARR_NDIM(array2);
@@ -3760,8 +3762,8 @@ btarraycmp(PG_FUNCTION_ARGS)
 static int
 array_cmp(FunctionCallInfo fcinfo)
 {
-	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY(0);
-	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY(1);
+	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY_P(0);
+	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY_P(1);
 	Oid			collation = PG_GET_COLLATION();
 	int			ndims1 = AARR_NDIM(array1);
 	int			ndims2 = AARR_NDIM(array2);
@@ -3931,7 +3933,7 @@ array_cmp(FunctionCallInfo fcinfo)
 Datum
 hash_array(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *array = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *array = PG_GETARG_ANY_ARRAY_P(0);
 	int			ndims = AARR_NDIM(array);
 	int		   *dims = AARR_DIMS(array);
 	Oid			element_type = AARR_ELEMTYPE(array);
@@ -4028,7 +4030,7 @@ hash_array(PG_FUNCTION_ARGS)
 Datum
 hash_array_extended(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *array = PG_GETARG_ANY_ARRAY(0);
+	AnyArrayType *array = PG_GETARG_ANY_ARRAY_P(0);
 	uint64		seed = PG_GETARG_INT64(1);
 	int			ndims = AARR_NDIM(array);
 	int		   *dims = AARR_DIMS(array);
@@ -4260,8 +4262,8 @@ array_contain_compare(AnyArrayType *array1, AnyArrayType *array2, Oid collation,
 Datum
 arrayoverlap(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY(0);
-	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY(1);
+	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY_P(0);
+	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY_P(1);
 	Oid			collation = PG_GET_COLLATION();
 	bool		result;
 
@@ -4278,8 +4280,8 @@ arrayoverlap(PG_FUNCTION_ARGS)
 Datum
 arraycontains(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY(0);
-	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY(1);
+	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY_P(0);
+	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY_P(1);
 	Oid			collation = PG_GET_COLLATION();
 	bool		result;
 
@@ -4296,8 +4298,8 @@ arraycontains(PG_FUNCTION_ARGS)
 Datum
 arraycontained(PG_FUNCTION_ARGS)
 {
-	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY(0);
-	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY(1);
+	AnyArrayType *array1 = PG_GETARG_ANY_ARRAY_P(0);
+	AnyArrayType *array2 = PG_GETARG_ANY_ARRAY_P(1);
 	Oid			collation = PG_GET_COLLATION();
 	bool		result;
 
@@ -5634,7 +5636,7 @@ generate_subscripts(PG_FUNCTION_ARGS)
 	/* stuff done only on the first call of the function */
 	if (SRF_IS_FIRSTCALL())
 	{
-		AnyArrayType *v = PG_GETARG_ANY_ARRAY(0);
+		AnyArrayType *v = PG_GETARG_ANY_ARRAY_P(0);
 		int			reqdim = PG_GETARG_INT32(1);
 		int		   *lb,
 				   *dimv;
@@ -5996,7 +5998,7 @@ array_unnest(PG_FUNCTION_ARGS)
 		 * and not before.  (If no detoast happens, we assume the originally
 		 * passed array will stick around till then.)
 		 */
-		arr = PG_GETARG_ANY_ARRAY(0);
+		arr = PG_GETARG_ANY_ARRAY_P(0);
 
 		/* allocate memory for user context */
 		fctx = (array_unnest_fctx *) palloc(sizeof(array_unnest_fctx));
