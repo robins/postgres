@@ -3272,10 +3272,16 @@ SyncVariables(void)
 				server_engine = "cockroachdb";
 			else
 			{
-				if (strstr(server_version, "bouncer") != NULL)
-					server_engine = "pgbouncer";
+				guctype = get_guctype("rds.extensions");
+				if (guctype != NULL)
+					server_engine = "rdspostgres";
 				else
-					server_engine = "postgres";
+				{
+					if (strstr(server_version, "bouncer") != NULL)
+						server_engine = "pgbouncer";
+					else
+						server_engine = "postgres";
+				}
 			}
 		}
 	}
