@@ -257,6 +257,16 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	 * to values that don't permit parallelism, or if parallel-unsafe
 	 * functions are present in the query tree.
 	 *
+	 * (Note that we do allow CREATE TABLE AS, SELECT INTO, and CREATE
+	 * MATERIALIZED VIEW to use parallel plans, but this is safe only because
+	 * the command is writing into a completely new table which workers won't
+	 * be able to see.  If the workers could see the table, the fact that
+	 * group locking would cause them to ignore the leader's heavyweight
+	 * relation extension lock and GIN page locks would make this unsafe.
+	 * We'll have to fix that somehow if we want to allow parallel inserts in
+	 * general; updates and deletes have additional problems especially around
+	 * combo CIDs.)
+	 *
 	 * For now, we don't try to use parallel mode if we're running inside a
 	 * parallel worker.  We might eventually be able to relax this
 	 * restriction, but for now it seems best not to have parallel workers
@@ -6136,6 +6146,28 @@ get_partitioned_child_rels(PlannerInfo *root, Index rti)
 			result = pc->child_rels;
 			break;
 		}
+	}
+
+	return result;
+}
+
+/*
+ * get_partitioned_child_rels_for_join
+ *		Build and return a list containing the RTI of every partitioned
+ *		relation which is a child of some rel included in the join.
+ */
+List *
+get_partitioned_child_rels_for_join(PlannerInfo *root, Relids join_relids)
+{
+	List	   *result = NIL;
+	ListCell   *l;
+
+	foreach(l, root->pcinfo_list)
+	{
+		PartitionedChildRelInfo *pc = lfirst(l);
+
+		if (bms_is_member(pc->parent_relid, join_relids))
+			result = list_concat(result, list_copy(pc->child_rels));
 	}
 
 	return result;
