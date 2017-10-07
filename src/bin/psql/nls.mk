@@ -4,7 +4,7 @@ AVAIL_LANGUAGES  = cs de es fr he it ja ko pl pt_BR ru sv zh_CN zh_TW
 GETTEXT_FILES    = command.c common.c copy.c crosstabview.c help.c input.c jsmn.c large_obj.c \
                    mainloop.c psqlscanslash.c startup.c \
                    describe.c sql_help.h sql_help.c \
-                   tab-complete.c tab-complete-pipelinedb.c tab-complete-redshift.c variables.c \
+                   tab-complete.c tab-complete-cockroachdb.c tab-complete-pipelinedb.c tab-complete-redshift.c variables.c \
                    ../../fe_utils/print.c ../../fe_utils/psqlscan.c \
                    ../../common/exec.c ../../common/fe_memutils.c ../../common/username.c \
                    ../../common/wait_error.c

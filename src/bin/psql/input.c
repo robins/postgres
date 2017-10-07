@@ -18,6 +18,7 @@
 #include "tab-complete.h"
 #include "tab-complete-redshift.h"
 #include "tab-complete-pipelinedb.h"
+#include "tab-complete-cockroachdb.h"
 #include "common.h"
 
 #ifndef WIN32
@@ -360,6 +361,8 @@ initializeInput(int flags)
 			initialize_readline_redshift();
 		else if (strncmp(pset.sengine, "pipelinedb", 10) == 0)
 			initialize_readline_pipelinedb();
+		else if (strncmp(pset.sengine, "cockroachdb", 11) == 0)
+			initialize_readline_cockroachdb();
 		else
 			initialize_readline();
 		rl_initialize();

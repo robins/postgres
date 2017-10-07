@@ -1697,11 +1697,9 @@ ExecutePlan(EState *estate,
 
 	/*
 	 * If the plan might potentially be executed multiple times, we must force
-	 * it to run without parallelism, because we might exit early.  Also
-	 * disable parallelism when writing into a relation, because no database
-	 * changes are allowed in parallel mode.
+	 * it to run without parallelism, because we might exit early.
 	 */
-	if (!execute_once || dest->mydest == DestIntoRel)
+	if (!execute_once)
 		use_parallel_mode = false;
 
 	if (use_parallel_mode)
@@ -2596,8 +2594,7 @@ EvalPlanQualFetch(EState *estate, Relation relation, int lockmode,
 			 * atomic, and Xmin never changes in an existing tuple, except to
 			 * invalid or frozen, and neither of those can match priorXmax.)
 			 */
-			if (!TransactionIdEquals(HeapTupleHeaderGetXmin(tuple.t_data),
-									 priorXmax))
+			if (!HeapTupleUpdateXmaxMatchesXmin(priorXmax, tuple.t_data))
 			{
 				ReleaseBuffer(buffer);
 				return NULL;
@@ -2744,8 +2741,7 @@ EvalPlanQualFetch(EState *estate, Relation relation, int lockmode,
 		/*
 		 * As above, if xmin isn't what we're expecting, do nothing.
 		 */
-		if (!TransactionIdEquals(HeapTupleHeaderGetXmin(tuple.t_data),
-								 priorXmax))
+		if (!HeapTupleUpdateXmaxMatchesXmin(priorXmax, tuple.t_data))
 		{
 			ReleaseBuffer(buffer);
 			return NULL;

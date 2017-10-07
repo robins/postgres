@@ -26,9 +26,11 @@
 #include "settings.h"
 #include "variables.h"
 
-/* Flag to check if server is a Redshift Engine */
-#define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
-#define IS_PIPELINEDB (strncmp(pset.sengine, "pipelinedb", 10) == 0)
+/* Macro to easily identify which Engine (type) are we speaking with */
+#define IS_COCKROACHDB (strncmp(pset.sengine, "cockroachdb", 11) == 0)
+#define IS_PGBOUNCER   (strncmp(pset.sengine, "pgbouncer", 9)    == 0)
+#define IS_PIPELINEDB  (strncmp(pset.sengine, "pipelinedb", 10)  == 0)
+#define IS_REDSHIFT    (strncmp(pset.sengine, "redshift", 8)     == 0)
 
 static bool describeOneTableDetails(const char *schemaname,
 						const char *relationname,
@@ -115,8 +117,8 @@ describeAggregates(const char *pattern, bool verbose, bool showSystem)
 							 "      AND n.nspname <> 'information_schema'\n");
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
-						  "n.nspname", "p.proname", NULL,
-						  "pg_catalog.pg_function_is_visible(p.oid)");
+							"n.nspname", "p.proname", NULL,
+							(!IS_COCKROACHDB?"pg_catalog.pg_function_is_visible(p.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 4;");
 
@@ -348,8 +350,23 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 					  "  p.proname as \"%s\",\n",
 					  gettext_noop("Schema"),
 					  gettext_noop("Name"));
-
-	if (pset.sversion >= 80400)
+	if (IS_COCKROACHDB)
+		appendPQExpBuffer(&buf,
+							"  'Not Supported Yet' as \"%s\",\n"
+							"  'Not Supported Yet' as \"%s\",\n"
+							" CASE\n"
+							"  WHEN p.proisagg THEN '%s'\n"
+							"  WHEN p.proiswindow THEN '%s'\n"
+							"  ELSE '%s'\n"
+							" END as \"%s\"",
+							gettext_noop("Result data type"),
+							gettext_noop("Argument data types"),
+		/* translator: "agg" is short for "aggregate" */
+							gettext_noop("agg"),
+							gettext_noop("window"),
+							gettext_noop("normal"),
+							gettext_noop("Type"));
+	else if (pset.sversion >= 80400)
 		appendPQExpBuffer(&buf,
 						  "  pg_catalog.pg_get_function_result(p.oid) as \"%s\",\n"
 						  "  pg_catalog.pg_get_function_arguments(p.oid) as \"%s\",\n"
@@ -462,11 +479,11 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 						  gettext_noop("Security"));
 		appendPQExpBufferStr(&buf, ",\n ");
 		printACLColumn(&buf, "p.proacl");
+		if (!IS_COCKROACHDB)
+			appendPQExpBuffer(&buf, ",\n l.lanname as \"%s\"", gettext_noop("Language"));
 		appendPQExpBuffer(&buf,
-						  ",\n l.lanname as \"%s\""
-						  ",\n p.prosrc as \"%s\""
+							",\n p.prosrc as \"%s\""
 						  ",\n pg_catalog.obj_description(p.oid, 'pg_proc') as \"%s\"",
-						  gettext_noop("Language"),
 						  gettext_noop("Source code"),
 						  gettext_noop("Description"));
 	}
@@ -475,7 +492,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 						 "\nFROM pg_catalog.pg_proc p"
 						 "\n     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace\n");
 
-	if (verbose)
+	if (verbose && !IS_COCKROACHDB)
 		appendPQExpBufferStr(&buf,
 							 "     LEFT JOIN pg_catalog.pg_language l ON l.oid = p.prolang\n");
 
@@ -497,7 +514,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 			}
 			appendPQExpBufferStr(&buf, "NOT p.proisagg\n");
 		}
-		if (!showTrigger)
+		if (!showTrigger && !IS_COCKROACHDB)
 		{
 			if (have_where)
 				appendPQExpBufferStr(&buf, "      AND ");
@@ -532,7 +549,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 			appendPQExpBufferStr(&buf, "p.proisagg\n");
 			needs_or = true;
 		}
-		if (showTrigger)
+		if (showTrigger && !IS_COCKROACHDB)
 		{
 			if (needs_or)
 				appendPQExpBufferStr(&buf, "       OR ");
@@ -547,12 +564,14 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 			appendPQExpBufferStr(&buf, "p.proiswindow\n");
 			needs_or = true;
 		}
+		if (!needs_or)
+			appendPQExpBufferStr(&buf, "       TRUE ");
 		appendPQExpBufferStr(&buf, "      )\n");
 	}
 
 	processSQLNamePattern(pset.db, &buf, pattern, have_where, false,
 						  "n.nspname", "p.proname", NULL,
-						  "pg_catalog.pg_function_is_visible(p.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_function_is_visible(p.oid)":NULL));
 
 	if (!showSystem && !pattern)
 		appendPQExpBufferStr(&buf, "      AND n.nspname <> 'pg_catalog'\n"
@@ -683,7 +702,7 @@ describeTypes(const char *pattern, bool verbose, bool showSystem)
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "t.typname",
 						  "pg_catalog.format_type(t.oid, NULL)",
-						  "pg_catalog.pg_type_is_visible(t.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(t.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -759,7 +778,7 @@ describeOperators(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern, true,
 						  "n.nspname", "o.oprname", NULL,
-						  "pg_catalog.pg_operator_is_visible(o.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_operator_is_visible(o.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 3, 4;");
 
@@ -793,13 +812,22 @@ listAllDbs(const char *pattern, bool verbose)
 
 	initPQExpBuffer(&buf);
 
-	printfPQExpBuffer(&buf,
-					  "SELECT d.datname as \"%s\",\n"
-					  "       pg_catalog.pg_get_userbyid(d.datdba) as \"%s\",\n"
-					  "       pg_catalog.pg_encoding_to_char(d.encoding) as \"%s\",\n",
-					  gettext_noop("Name"),
-					  gettext_noop("Owner"),
-					  gettext_noop("Encoding"));
+	if (IS_COCKROACHDB)
+		printfPQExpBuffer(&buf,
+							"SELECT d.datname as \"%s\",\n"
+							"       pg_catalog.pg_get_userbyid(d.datdba) as \"%s\",\n"
+							"       'Not Supported Yet' as \"%s\",\n",
+							gettext_noop("Name"),
+							gettext_noop("Owner"),
+							gettext_noop("Encoding"));
+	else
+		printfPQExpBuffer(&buf,
+			"SELECT d.datname as \"%s\",\n"
+			"       pg_catalog.pg_get_userbyid(d.datdba) as \"%s\",\n"
+			"       pg_catalog.pg_encoding_to_char(d.encoding) as \"%s\",\n",
+			gettext_noop("Name"),
+			gettext_noop("Owner"),
+			gettext_noop("Encoding"));
 	if (pset.sversion >= 80400)
 		appendPQExpBuffer(&buf,
 						  "       d.datcollate as \"%s\",\n"
@@ -808,14 +836,14 @@ listAllDbs(const char *pattern, bool verbose)
 						  gettext_noop("Ctype"));
 	appendPQExpBufferStr(&buf, "       ");
 	printACLColumn(&buf, "d.datacl");
-	if (verbose && pset.sversion >= 80200)
+	if (verbose && pset.sversion >= 80200 && !IS_COCKROACHDB)
 		appendPQExpBuffer(&buf,
 						  ",\n       CASE WHEN pg_catalog.has_database_privilege(d.datname, 'CONNECT')\n"
 						  "            THEN pg_catalog.pg_size_pretty(pg_catalog.pg_database_size(d.datname))\n"
 						  "            ELSE 'No Access'\n"
 						  "       END as \"%s\"",
 						  gettext_noop("Size"));
-	if (verbose && pset.sversion >= 80000)
+	if (verbose && pset.sversion >= 80000 && !IS_COCKROACHDB)
 		appendPQExpBuffer(&buf,
 						  ",\n       t.spcname as \"%s\"",
 						  gettext_noop("Tablespace"));
@@ -825,7 +853,7 @@ listAllDbs(const char *pattern, bool verbose)
 						  gettext_noop("Description"));
 	appendPQExpBufferStr(&buf,
 						 "\nFROM pg_catalog.pg_database d\n");
-	if (verbose && pset.sversion >= 80000)
+	if (verbose && pset.sversion >= 80000 && !IS_COCKROACHDB)
 		appendPQExpBufferStr(&buf,
 							 "  JOIN pg_catalog.pg_tablespace t on d.dattablespace = t.oid\n");
 
@@ -981,9 +1009,14 @@ permissionsList(const char *pattern)
 	 * point of view.  You can see 'em by explicit request though, eg with \z
 	 * pg_catalog.*
 	 */
-	processSQLNamePattern(pset.db, &buf, pattern, true, false,
-						  "n.nspname", "c.relname", NULL,
-						  "n.nspname !~ '^pg_' AND pg_catalog.pg_table_is_visible(c.oid)");
+	if (IS_COCKROACHDB)
+		processSQLNamePattern(pset.db, &buf, pattern, true, false,
+			"n.nspname", "c.relname", NULL,
+			"n.nspname !~ '^pg_' AND");
+	else
+		processSQLNamePattern(pset.db, &buf, pattern, true, false,
+			"n.nspname", "c.relname", NULL,
+			"n.nspname !~ '^pg_' AND pg_catalog.pg_table_is_visible(c.oid)");
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -1136,7 +1169,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern,
 						  false, "n.nspname", "pgc.conname", NULL,
-						  "pg_catalog.pg_table_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
 
 	/* Domain constraint descriptions */
 	appendPQExpBuffer(&buf,
@@ -1158,7 +1191,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern,
 						  false, "n.nspname", "pgc.conname", NULL,
-						  "pg_catalog.pg_type_is_visible(t.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(t.oid)":NULL));
 
 
 	/*
@@ -1186,7 +1219,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 		processSQLNamePattern(pset.db, &buf, pattern, true, false,
 							  "n.nspname", "o.opcname", NULL,
-							  "pg_catalog.pg_opclass_is_visible(o.oid)");
+							  (!IS_COCKROACHDB?"pg_catalog.pg_opclass_is_visible(o.oid)":NULL));
 	}
 
 	/*
@@ -1215,7 +1248,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 		processSQLNamePattern(pset.db, &buf, pattern, true, false,
 							  "n.nspname", "opf.opfname", NULL,
-							  "pg_catalog.pg_opfamily_is_visible(opf.oid)");
+							  (!IS_COCKROACHDB?"pg_catalog.pg_opfamily_is_visible(opf.oid)":NULL));
 	}
 
 	/* Rule descriptions (ignore rules for views) */
@@ -1257,7 +1290,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern, false,
 						  "n.nspname", "t.tgname", NULL,
-						  "pg_catalog.pg_table_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf,
 						 ") AS tt\n"
@@ -1313,7 +1346,7 @@ describeTableDetails(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, !showSystem && !pattern, false,
 						  "n.nspname", "c.relname", NULL,
-						  "pg_catalog.pg_table_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 2, 3;");
 
@@ -1382,7 +1415,7 @@ describeOneTableDetails(const char *schemaname,
 	bool		printTableInitialized = false;
 	int			i;
 	char	   *view_def = NULL;
-	char	   *headers[16];
+	char	   *headers[18];
 	char	  **seq_values = NULL;
 	char	  **ptr;
 	PQExpBufferData title;
@@ -1420,7 +1453,22 @@ describeOneTableDetails(const char *schemaname,
 	initPQExpBuffer(&tmpbuf);
 
 	/* Get general table info */
-	if (pset.sversion >= 90500)
+	if (IS_COCKROACHDB)
+	{
+		printfPQExpBuffer(&buf,
+						  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
+						  "c.relhastriggers, 'Not Supported Yet' AS relrowsecurity, 'Not Supported Yet' AS relforcerowsecurity, "
+						  "c.relhasoids, %s, c.reltablespace, "
+						  "'', 'Not Supported Yet' AS relpersistence, 'Not Supported Yet' AS relreplident\n"
+						  "FROM pg_catalog.pg_class c\n "
+						  "LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)\n"
+						  "WHERE c.oid = '%s'::OID;",
+						  (verbose ?
+						   "'Not Supported Yet'\n"
+						   : "''"),
+						  oid);
+	}
+	else if (pset.sversion >= 90500)
 	{
 		printfPQExpBuffer(&buf,
 						  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
@@ -1583,27 +1631,125 @@ describeOneTableDetails(const char *schemaname,
 	res = NULL;
 
 	/*
-	 * If it's a sequence, fetch its values and store into an array that will
-	 * be used later.
+	 * If it's a sequence, deal with it here separately.
 	 */
 	if (tableinfo.relkind == RELKIND_SEQUENCE)
 	{
-		printfPQExpBuffer(&buf, "SELECT * FROM %s", fmtId(schemaname));
-		/* must be separate because fmtId isn't reentrant */
-		appendPQExpBuffer(&buf, ".%s;", fmtId(relationname));
+		PGresult   *result = NULL;
+		printQueryOpt myopt = pset.popt;
+		char	   *footers[2] = {NULL, NULL};
+
+		if (pset.sversion >= 100000)
+		{
+			printfPQExpBuffer(&buf,
+							  "SELECT pg_catalog.format_type(seqtypid, NULL) AS \"%s\",\n"
+							  "       seqstart AS \"%s\",\n"
+							  "       seqmin AS \"%s\",\n"
+							  "       seqmax AS \"%s\",\n"
+							  "       seqincrement AS \"%s\",\n"
+							  "       CASE WHEN seqcycle THEN '%s' ELSE '%s' END AS \"%s\",\n"
+							  "       seqcache AS \"%s\"\n",
+							  gettext_noop("Type"),
+							  gettext_noop("Start"),
+							  gettext_noop("Minimum"),
+							  gettext_noop("Maximum"),
+							  gettext_noop("Increment"),
+							  gettext_noop("yes"),
+							  gettext_noop("no"),
+							  gettext_noop("Cycles?"),
+							  gettext_noop("Cache"));
+			appendPQExpBuffer(&buf,
+							  "FROM pg_catalog.pg_sequence\n"
+							  "WHERE seqrelid = '%s';",
+							  oid);
+		}
+		else
+		{
+			printfPQExpBuffer(&buf,
+							  "SELECT pg_catalog.format_type('bigint'::regtype, NULL) AS \"%s\",\n"
+							  "       start_value AS \"%s\",\n"
+							  "       min_value AS \"%s\",\n"
+							  "       max_value AS \"%s\",\n"
+							  "       increment_by AS \"%s\",\n"
+							  "       CASE WHEN is_cycled THEN '%s' ELSE '%s' END AS \"%s\",\n"
+							  "       cache_value AS \"%s\"\n",
+							  gettext_noop("Type"),
+							  gettext_noop("Start"),
+							  gettext_noop("Minimum"),
+							  gettext_noop("Maximum"),
+							  gettext_noop("Increment"),
+							  gettext_noop("yes"),
+							  gettext_noop("no"),
+							  gettext_noop("Cycles?"),
+							  gettext_noop("Cache"));
+			appendPQExpBuffer(&buf, "FROM %s", fmtId(schemaname));
+			/* must be separate because fmtId isn't reentrant */
+			appendPQExpBuffer(&buf, ".%s;", fmtId(relationname));
+		}
 
 		res = PSQLexec(buf.data);
 		if (!res)
 			goto error_return;
 
-		seq_values = pg_malloc((PQnfields(res) + 1) * sizeof(*seq_values));
+		/* Footer information about a sequence */
 
-		for (i = 0; i < PQnfields(res); i++)
-			seq_values[i] = pg_strdup(PQgetvalue(res, 0, i));
-		seq_values[i] = NULL;
+		/* Get the column that owns this sequence */
+		printfPQExpBuffer(&buf, "SELECT pg_catalog.quote_ident(nspname) || '.' ||"
+						  "\n   pg_catalog.quote_ident(relname) || '.' ||"
+						  "\n   pg_catalog.quote_ident(attname),"
+						  "\n   d.deptype"
+						  "\nFROM pg_catalog.pg_class c"
+						  "\nINNER JOIN pg_catalog.pg_depend d ON c.oid=d.refobjid"
+						  "\nINNER JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace"
+						  "\nINNER JOIN pg_catalog.pg_attribute a ON ("
+						  "\n a.attrelid=c.oid AND"
+						  "\n a.attnum=d.refobjsubid)"
+						  "\nWHERE d.classid='pg_catalog.pg_class'::pg_catalog.regclass"
+						  "\n AND d.refclassid='pg_catalog.pg_class'::pg_catalog.regclass"
+						  "\n AND d.objid='%s'"
+						  "\n AND d.deptype IN ('a', 'i')",
+						  oid);
 
-		PQclear(res);
-		res = NULL;
+		result = PSQLexec(buf.data);
+
+		/*
+		 * If we get no rows back, don't show anything (obviously). We should
+		 * never get more than one row back, but if we do, just ignore it and
+		 * don't print anything.
+		 */
+		if (!result)
+			goto error_return;
+		else if (PQntuples(result) == 1)
+		{
+			switch (PQgetvalue(result, 0, 1)[0])
+			{
+				case 'a':
+					footers[0] = psprintf(_("Owned by: %s"),
+										  PQgetvalue(result, 0, 0));
+					break;
+				case 'i':
+					footers[0] = psprintf(_("Sequence for identity column: %s"),
+										  PQgetvalue(result, 0, 0));
+					break;
+			}
+		}
+		PQclear(result);
+
+		printfPQExpBuffer(&title, _("Sequence \"%s.%s\""),
+						  schemaname, relationname);
+
+		myopt.footers = footers;
+		myopt.topt.default_footer = false;
+		myopt.title = title.data;
+		myopt.translate_header = true;
+
+		printQuery(res, &myopt, pset.queryFout, false, pset.logfile);
+
+		if (footers[0])
+			free(footers[0]);
+
+		retval = true;
+		goto error_return;		/* not an error, just return early */
 	}
 
 	/*
@@ -1613,25 +1759,34 @@ describeOneTableDetails(const char *schemaname,
 	 * you are adding column(s) preceding to verbose-only columns.
 	 */
 	printfPQExpBuffer(&buf, "SELECT a.attname,");
-	appendPQExpBufferStr(&buf, "\n  pg_catalog.format_type(a.atttypid, a.atttypmod),"
-						 "\n  (SELECT substring(pg_catalog.pg_get_expr(d.adbin, d.adrelid) for 128)"
-						 "\n   FROM pg_catalog.pg_attrdef d"
-						 "\n   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),"
+	if (IS_COCKROACHDB)
+		appendPQExpBufferStr(&buf, "\n  pg_catalog.format_type(a.atttypid, a.atttypmod),"
+						 "\n  'Not Supported Yet'," // (Subquery not fully supported in CockroachDB)
 						 "\n  a.attnotnull, a.attnum,");
-	if (pset.sversion >= 90100)
+	else
+		appendPQExpBufferStr(&buf, "\n  pg_catalog.format_type(a.atttypid, a.atttypmod),"
+						"\n  (SELECT substring(pg_catalog.pg_get_expr(d.adbin, d.adrelid) for 128)"
+						"\n   FROM pg_catalog.pg_attrdef d"
+						"\n   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),"
+						"\n  a.attnotnull, a.attnum,");
+	if (IS_COCKROACHDB)
+		appendPQExpBufferStr(&buf, "\n  'Not Supported Yet' AS attcollation");
+	else if (pset.sversion >= 90100)
 		appendPQExpBufferStr(&buf, "\n  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t\n"
 							 "   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation");
 	else
 		appendPQExpBufferStr(&buf, "\n  NULL AS attcollation");
-	if (pset.sversion >= 100000)
+	if (IS_COCKROACHDB)
+		appendPQExpBufferStr(&buf, ",\n  'Not Supported Yet' AS attidentity");
+	else if (pset.sversion >= 100000)
 		appendPQExpBufferStr(&buf, ",\n  a.attidentity");
 	else
 		appendPQExpBufferStr(&buf, ",\n  ''::pg_catalog.char AS attidentity");
-	if (tableinfo.relkind == RELKIND_INDEX)
+	if ((tableinfo.relkind == RELKIND_INDEX && !IS_COCKROACHDB))
 		appendPQExpBufferStr(&buf, ",\n  pg_catalog.pg_get_indexdef(a.attrelid, a.attnum, TRUE) AS indexdef");
 	else
 		appendPQExpBufferStr(&buf, ",\n  NULL AS indexdef");
-	if (tableinfo.relkind == RELKIND_FOREIGN_TABLE && pset.sversion >= 90200)
+	if ((tableinfo.relkind == RELKIND_FOREIGN_TABLE && pset.sversion >= 90200 && IS_COCKROACHDB))
 		appendPQExpBufferStr(&buf, ",\n  CASE WHEN attfdwoptions IS NULL THEN '' ELSE "
 							 "  '(' || pg_catalog.array_to_string(ARRAY(SELECT pg_catalog.quote_ident(option_name) || ' ' || pg_catalog.quote_literal(option_value)  FROM "
 							 "  pg_catalog.pg_options_to_table(attfdwoptions)), ', ') || ')' END AS attfdwoptions");
@@ -1675,7 +1830,10 @@ describeOneTableDetails(const char *schemaname,
 	}
 
 	appendPQExpBufferStr(&buf, "\nFROM pg_catalog.pg_attribute a");
-	appendPQExpBuffer(&buf, "\nWHERE a.attrelid = '%s' AND a.attnum > 0 AND NOT a.attisdropped", oid);
+	if (IS_COCKROACHDB)
+		appendPQExpBuffer(&buf, "\nWHERE a.attrelid = '%s'::OID AND a.attnum > 0 AND NOT a.attisdropped", oid);
+	else
+		appendPQExpBuffer(&buf, "\nWHERE a.attrelid = '%s' AND a.attnum > 0 AND NOT a.attisdropped", oid);
 	appendPQExpBufferStr(&buf, "\nORDER BY a.attnum;");
 
 	res = PSQLexec(buf.data);
@@ -1705,10 +1863,6 @@ describeOneTableDetails(const char *schemaname,
 			else
 				printfPQExpBuffer(&title, _("Materialized view \"%s.%s\""),
 								  schemaname, relationname);
-			break;
-		case RELKIND_SEQUENCE:
-			printfPQExpBuffer(&title, _("Sequence \"%s.%s\""),
-							  schemaname, relationname);
 			break;
 		case RELKIND_INDEX:
 			if (tableinfo.relpersistence == 'u')
@@ -1776,9 +1930,6 @@ describeOneTableDetails(const char *schemaname,
 		show_column_details = true;
 	}
 
-	if (tableinfo.relkind == RELKIND_SEQUENCE)
-		headers[cols++] = gettext_noop("Value");
-
 	if (tableinfo.relkind == RELKIND_INDEX)
 		headers[cols++] = gettext_noop("Definition");
 
@@ -1811,8 +1962,8 @@ describeOneTableDetails(const char *schemaname,
 		printTableAddHeader(&cont, headers[i], true, 'l');
 
 	/* Get view_def if table is a view or materialized view */
-	if ((tableinfo.relkind == RELKIND_VIEW ||
-		 tableinfo.relkind == RELKIND_MATVIEW) && verbose)
+	if (!IS_COCKROACHDB && ((tableinfo.relkind == RELKIND_VIEW ||
+		 tableinfo.relkind == RELKIND_MATVIEW) && verbose))
 	{
 		PGresult   *result;
 
@@ -1870,10 +2021,6 @@ describeOneTableDetails(const char *schemaname,
 			printTableAddCell(&cont, default_str, false, false);
 		}
 
-		/* Value: for sequences only */
-		if (tableinfo.relkind == RELKIND_SEQUENCE)
-			printTableAddCell(&cont, seq_values[i], false, false);
-
 		/* Expression for index column */
 		if (tableinfo.relkind == RELKIND_INDEX)
 			printTableAddCell(&cont, PQgetvalue(res, i, 7), false, false);
@@ -1893,7 +2040,7 @@ describeOneTableDetails(const char *schemaname,
 									  (storage[0] == 'm' ? "main" :
 									   (storage[0] == 'x' ? "extended" :
 										(storage[0] == 'e' ? "external" :
-										 "???")))),
+										 "Not Supported Yet")))),
 							  false, false);
 
 			/* Statistics target, if the relkind supports this feature */
@@ -1956,13 +2103,16 @@ describeOneTableDetails(const char *schemaname,
 							  partdef);
 			printTableAddFooter(&cont, tmpbuf.data);
 
-			/* If there isn't any constraint, show that explicitly */
-			if (partconstraintdef == NULL || partconstraintdef[0] == '\0')
-				printfPQExpBuffer(&tmpbuf, _("No partition constraint"));
-			else
-				printfPQExpBuffer(&tmpbuf, _("Partition constraint: %s"),
-								  partconstraintdef);
-			printTableAddFooter(&cont, tmpbuf.data);
+			if (verbose)
+			{
+				/* If there isn't any constraint, show that explicitly */
+				if (partconstraintdef == NULL || partconstraintdef[0] == '\0')
+					printfPQExpBuffer(&tmpbuf, _("No partition constraint"));
+				else
+					printfPQExpBuffer(&tmpbuf, _("Partition constraint: %s"),
+									  partconstraintdef);
+				printTableAddFooter(&cont, tmpbuf.data);
+			}
 
 			PQclear(result);
 		}
@@ -2086,55 +2236,6 @@ describeOneTableDetails(const char *schemaname,
 
 		PQclear(result);
 	}
-	else if (tableinfo.relkind == RELKIND_SEQUENCE)
-	{
-		/* Footer information about a sequence */
-		PGresult   *result = NULL;
-
-		/* Get the column that owns this sequence */
-		printfPQExpBuffer(&buf, "SELECT pg_catalog.quote_ident(nspname) || '.' ||"
-						  "\n   pg_catalog.quote_ident(relname) || '.' ||"
-						  "\n   pg_catalog.quote_ident(attname),"
-						  "\n   d.deptype"
-						  "\nFROM pg_catalog.pg_class c"
-						  "\nINNER JOIN pg_catalog.pg_depend d ON c.oid=d.refobjid"
-						  "\nINNER JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace"
-						  "\nINNER JOIN pg_catalog.pg_attribute a ON ("
-						  "\n a.attrelid=c.oid AND"
-						  "\n a.attnum=d.refobjsubid)"
-						  "\nWHERE d.classid='pg_catalog.pg_class'::pg_catalog.regclass"
-						  "\n AND d.refclassid='pg_catalog.pg_class'::pg_catalog.regclass"
-						  "\n AND d.objid='%s'"
-						  "\n AND d.deptype IN ('a', 'i')",
-						  oid);
-
-		result = PSQLexec(buf.data);
-		if (!result)
-			goto error_return;
-		else if (PQntuples(result) == 1)
-		{
-			switch (PQgetvalue(result, 0, 1)[0])
-			{
-				case 'a':
-					printfPQExpBuffer(&buf, _("Owned by: %s"),
-									  PQgetvalue(result, 0, 0));
-					printTableAddFooter(&cont, buf.data);
-					break;
-				case 'i':
-					printfPQExpBuffer(&buf, _("Sequence for identity column: %s"),
-									  PQgetvalue(result, 0, 0));
-					printTableAddFooter(&cont, buf.data);
-					break;
-			}
-		}
-
-		/*
-		 * If we get no rows back, don't show anything (obviously). We should
-		 * never get more than one row back, but if we do, just ignore it and
-		 * don't print anything.
-		 */
-		PQclear(result);
-	}
 	else if (tableinfo.relkind == RELKIND_RELATION ||
 			 tableinfo.relkind == RELKIND_MATVIEW ||
 			 tableinfo.relkind == RELKIND_FOREIGN_TABLE ||
@@ -2154,8 +2255,11 @@ describeOneTableDetails(const char *schemaname,
 				appendPQExpBufferStr(&buf, "i.indisvalid, ");
 			else
 				appendPQExpBufferStr(&buf, "true as indisvalid, ");
-			appendPQExpBufferStr(&buf, "pg_catalog.pg_get_indexdef(i.indexrelid, 0, true),\n  ");
-			if (pset.sversion >= 90000)
+			if (IS_COCKROACHDB)
+				appendPQExpBufferStr(&buf, "' USING (Not Supported Yet)' AS pg_get_indexdef,\n  ");
+			else
+				appendPQExpBufferStr(&buf, "pg_catalog.pg_get_indexdef(i.indexrelid, 0, true),\n  ");
+			if (pset.sversion >= 90000 && !IS_COCKROACHDB)
 				appendPQExpBufferStr(&buf,
 									 "pg_catalog.pg_get_constraintdef(con.oid, true), "
 									 "contype, condeferrable, condeferred");
@@ -2179,15 +2283,19 @@ describeOneTableDetails(const char *schemaname,
 			if (pset.sversion >= 90000)
 				appendPQExpBufferStr(&buf,
 									 "  LEFT JOIN pg_catalog.pg_constraint con ON (conrelid = i.indrelid AND conindid = i.indexrelid AND contype IN ('p','u','x'))\n");
-			appendPQExpBuffer(&buf,
-							  "WHERE c.oid = '%s' AND c.oid = i.indrelid AND i.indexrelid = c2.oid\n", oid);
+			if (IS_COCKROACHDB)
+				appendPQExpBuffer(&buf,
+								"WHERE c.oid = '%s'::OID AND c.oid = i.indrelid AND i.indexrelid = c2.oid\n", oid);
+			else
+				appendPQExpBuffer(&buf,
+								"WHERE c.oid = '%s' AND c.oid = i.indrelid AND i.indexrelid = c2.oid\n", oid);
 			}
 
-			if (tableinfo.hasindex && tableinfo.hassortkey) {
+			if (tableinfo.hasindex && tableinfo.hassortkey && IS_REDSHIFT) {
 				appendPQExpBufferStr(&buf, "  UNION ALL ");
 			}
 
-			if (tableinfo.hassortkey) {
+			if (tableinfo.hassortkey && IS_REDSHIFT) {
 
 			appendPQExpBufferStr(&buf,
 									"  SELECT                                                                                                       "
@@ -2407,7 +2515,7 @@ describeOneTableDetails(const char *schemaname,
 		}
 
 		/* print any row-level policies */
-		if (pset.sversion >= 90500)
+		if (pset.sversion >= 90500 && !IS_COCKROACHDB)
 		{
 			printfPQExpBuffer(&buf, "SELECT pol.polname,");
 			if (pset.sversion >= 100000)
@@ -2687,8 +2795,13 @@ describeOneTableDetails(const char *schemaname,
 		PGresult   *result = NULL;
 
 		/* Footer information about a view */
-		printTableAddFooter(&cont, _("View definition:"));
-		printTableAddFooter(&cont, view_def);
+		if (IS_COCKROACHDB)
+			printTableAddFooter(&cont, _("View definition: Not Supported Yet"));
+		else
+		{
+			printTableAddFooter(&cont, _("View definition:"));
+			printTableAddFooter(&cont, view_def);
+		}
 
 		/* print rules */
 		if (tableinfo.hasrules)
@@ -2911,6 +3024,8 @@ describeOneTableDetails(const char *schemaname,
 		}
 
 		/* print inherited tables (exclude, if parent is a partitioned table) */
+		if (!IS_COCKROACHDB)
+		{
 		printfPQExpBuffer(&buf,
 						  "SELECT c.oid::pg_catalog.regclass"
 						  " FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i"
@@ -2944,9 +3059,16 @@ describeOneTableDetails(const char *schemaname,
 
 			PQclear(result);
 		}
+		}
 
 		/* print child tables (with additional info if partitions) */
-		if (pset.sversion >= 100000)
+		if (IS_COCKROACHDB)
+			printfPQExpBuffer(&buf,
+							  "SELECT c.oid::regclass, 'Not Supported Yet' AS relpartbound"
+							  " FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i"
+							  " WHERE c.oid=i.inhrelid AND i.inhparent = '%s'::OID"
+							  " ORDER BY c.oid::regclass::text;", oid);
+		else if (pset.sversion >= 100000)
 			printfPQExpBuffer(&buf,
 							  "SELECT c.oid::pg_catalog.regclass, pg_catalog.pg_get_expr(c.relpartbound, c.oid)"
 							  " FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i"
@@ -3043,7 +3165,7 @@ describeOneTableDetails(const char *schemaname,
 							  s,
 							  tableinfo.relreplident == 'f' ? "FULL" :
 							  tableinfo.relreplident == 'n' ? "NOTHING" :
-							  "???");
+							  "Not Supported Yet");
 
 			printTableAddFooter(&cont, buf.data);
 		}
@@ -3079,13 +3201,6 @@ error_return:
 	termPQExpBuffer(&buf);
 	termPQExpBuffer(&title);
 	termPQExpBuffer(&tmpbuf);
-
-	if (seq_values)
-	{
-		for (ptr = seq_values; *ptr; ptr++)
-			free(*ptr);
-		free(seq_values);
-	}
 
 	if (view_def)
 		free(view_def);
@@ -3186,25 +3301,28 @@ describeRoles(const char *pattern, bool verbose, bool showSystem)
 	if (pset.sversion >= 80100)
 	{
 		printfPQExpBuffer(&buf,
-						  "SELECT r.rolname, r.rolsuper, r.rolinherit,\n"
-						  "  r.rolcreaterole, r.rolcreatedb, r.rolcanlogin,\n"
-						  "  r.rolconnlimit, r.rolvaliduntil,\n"
-						  "  ARRAY(SELECT b.rolname\n"
-						  "        FROM pg_catalog.pg_auth_members m\n"
-						  "        JOIN pg_catalog.pg_roles b ON (m.roleid = b.oid)\n"
-						  "        WHERE m.member = r.oid) as memberof");
+							"SELECT r.rolname, r.rolsuper, r.rolinherit,\n"
+							"  r.rolcreaterole, r.rolcreatedb, r.rolcanlogin,\n"
+							"  r.rolconnlimit, r.rolvaliduntil\n");
+		if (IS_COCKROACHDB)
+			appendPQExpBufferStr(&buf, "  ,'NA' as memberof \n");
+		else
+			appendPQExpBufferStr(&buf, "  ,ARRAY(SELECT b.rolname\n"
+							"        FROM pg_catalog.pg_auth_members m\n"
+							"        JOIN pg_catalog.pg_roles b ON (m.roleid = b.oid)\n"
+							"        WHERE m.member = r.oid) as memberof");
 
 		if (verbose && pset.sversion >= 80200)
 		{
 			appendPQExpBufferStr(&buf, "\n, pg_catalog.shobj_description(r.oid, 'pg_authid') AS description");
 			ncols++;
 		}
-		if (pset.sversion >= 90100)
+		if (pset.sversion >= 90100 && !IS_COCKROACHDB)
 		{
 			appendPQExpBufferStr(&buf, "\n, r.rolreplication");
 		}
 
-		if (pset.sversion >= 90500)
+		if (pset.sversion >= 90500 && !IS_COCKROACHDB)
 		{
 			appendPQExpBufferStr(&buf, "\n, r.rolbypassrls");
 		}
@@ -3271,11 +3389,11 @@ describeRoles(const char *pattern, bool verbose, bool showSystem)
 		if (strcmp(PQgetvalue(res, i, 5), "t") != 0)
 			add_role_attribute(&buf, _("Cannot login"));
 
-		if (pset.sversion >= 90100)
+		if (pset.sversion >= 90100 && !IS_COCKROACHDB)
 			if (strcmp(PQgetvalue(res, i, (verbose ? 10 : 9)), "t") == 0)
 				add_role_attribute(&buf, _("Replication"));
 
-		if (pset.sversion >= 90500)
+		if (pset.sversion >= 90500 && !IS_COCKROACHDB)
 			if (strcmp(PQgetvalue(res, i, (verbose ? 11 : 10)), "t") == 0)
 				add_role_attribute(&buf, _("Bypass RLS"));
 
@@ -3483,7 +3601,11 @@ listTables(const char *tabtypes, const char *pattern, bool verbose, bool showSys
 		 * As of PostgreSQL 9.0, use pg_table_size() to show a more accurate
 		 * size of a table, including FSM, VM and TOAST tables.
 		 */
-		if (pset.sversion >= 90000)
+		if (IS_COCKROACHDB)
+			appendPQExpBuffer(&buf,
+								",\n  'Not Supported Yet' as \"%s\"",
+								gettext_noop("Size"));
+		else if (pset.sversion >= 90000)
 			appendPQExpBuffer(&buf,
 							  ",\n  pg_catalog.pg_size_pretty(pg_catalog.pg_table_size(c.oid)) as \"%s\"",
 							  gettext_noop("Size"));
@@ -3540,7 +3662,7 @@ listTables(const char *tabtypes, const char *pattern, bool verbose, bool showSys
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "c.relname", NULL,
-						  "pg_catalog.pg_table_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1,2;");
 
@@ -3720,7 +3842,7 @@ listDomains(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "t.typname", NULL,
-						  "pg_catalog.pg_type_is_visible(t.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(t.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -3794,7 +3916,7 @@ listConversions(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "c.conname", NULL,
-						  "pg_catalog.pg_conversion_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_conversion_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -3952,14 +4074,14 @@ listCasts(const char *pattern, bool verbose)
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "ns.nspname", "ts.typname",
 						  "pg_catalog.format_type(ts.oid, NULL)",
-						  "pg_catalog.pg_type_is_visible(ts.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(ts.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, ") OR (true");
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "nt.nspname", "tt.typname",
 						  "pg_catalog.format_type(tt.oid, NULL)",
-						  "pg_catalog.pg_type_is_visible(tt.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_type_is_visible(tt.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, ") )\nORDER BY 1, 2;");
 
@@ -4043,7 +4165,7 @@ listCollations(const char *pattern, bool verbose, bool showSystem)
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "c.collname", NULL,
-						  "pg_catalog.pg_collation_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_collation_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4162,7 +4284,7 @@ listTSParsers(const char *pattern, bool verbose)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "p.prsname", NULL,
-						  "pg_catalog.pg_ts_parser_is_visible(p.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_parser_is_visible(p.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4203,7 +4325,7 @@ listTSParsersVerbose(const char *pattern)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "p.prsname", NULL,
-						  "pg_catalog.pg_ts_parser_is_visible(p.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_parser_is_visible(p.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4420,7 +4542,7 @@ listTSDictionaries(const char *pattern, bool verbose)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "d.dictname", NULL,
-						  "pg_catalog.pg_ts_dict_is_visible(d.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_dict_is_visible(d.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4491,7 +4613,7 @@ listTSTemplates(const char *pattern, bool verbose)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "t.tmplname", NULL,
-						  "pg_catalog.pg_ts_template_is_visible(t.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_template_is_visible(t.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4551,7 +4673,7 @@ listTSConfigs(const char *pattern, bool verbose)
 
 	processSQLNamePattern(pset.db, &buf, pattern, false, false,
 						  "n.nspname", "c.cfgname", NULL,
-						  "pg_catalog.pg_ts_config_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_config_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
@@ -4593,7 +4715,7 @@ listTSConfigsVerbose(const char *pattern)
 
 	processSQLNamePattern(pset.db, &buf, pattern, true, false,
 						  "n.nspname", "c.cfgname", NULL,
-						  "pg_catalog.pg_ts_config_is_visible(c.oid)");
+						  (!IS_COCKROACHDB?"pg_catalog.pg_ts_config_is_visible(c.oid)":NULL));
 
 	appendPQExpBufferStr(&buf, "ORDER BY 3, 2;");
 
@@ -5045,7 +5167,7 @@ listUserMappings(const char *pattern, bool verbose)
  
 	 processSQLNamePattern(pset.db, &buf, pattern, false, false,
 							 "n.nspname", "c.relname", NULL,
-							 "pg_catalog.pg_table_is_visible(c.oid)");
+							 (!IS_COCKROACHDB?"pg_catalog.pg_table_is_visible(c.oid)":NULL));
  
 	 appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
  
@@ -5142,11 +5264,12 @@ listExtensions(const char *pattern)
 					  "FROM pg_catalog.pg_extension e "
 					  "LEFT JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace "
 					  "LEFT JOIN pg_catalog.pg_description c ON c.objoid = e.oid "
-					  "AND c.classoid = 'pg_catalog.pg_extension'::pg_catalog.regclass\n",
+					  "AND c.classoid = 'pg_catalog.pg_extension'::%s\n",
 					  gettext_noop("Name"),
 					  gettext_noop("Version"),
 					  gettext_noop("Schema"),
-					  gettext_noop("Description"));
+						gettext_noop("Description"),
+						gettext_noop((IS_COCKROACHDB?"regclass":"pg_catalog.regclass")));
 
 	processSQLNamePattern(pset.db, &buf, pattern,
 						  false, false,
@@ -5576,10 +5699,13 @@ describeSubscriptions(const char *pattern, bool verbose)
 static void
 printACLColumn(PQExpBuffer buf, const char *colname)
 {
-	if (pset.sversion >= 80100)
+	if (IS_COCKROACHDB)
 		appendPQExpBuffer(buf,
-						  "pg_catalog.array_to_string(%s, E'\\n') AS \"%s\"",
-						  colname, gettext_noop("Access privileges"));
+						"'Not Supported Yet' AS \"%s\"", gettext_noop("Access privileges"));
+	else if (pset.sversion >= 80100)
+		appendPQExpBuffer(buf,
+					"pg_catalog.array_to_string(%s, E'\\n') AS \"%s\"",
+					colname, gettext_noop("Access privileges"));
 	else
 		appendPQExpBuffer(buf,
 						  "pg_catalog.array_to_string(%s, '\\n') AS \"%s\"",

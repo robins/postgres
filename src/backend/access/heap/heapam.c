@@ -2074,8 +2074,7 @@ heap_hot_search_buffer(ItemPointer tid, Relation relation, Buffer buffer,
 		 * broken.
 		 */
 		if (TransactionIdIsValid(prev_xmax) &&
-			!TransactionIdEquals(prev_xmax,
-								 HeapTupleHeaderGetXmin(heapTuple->t_data)))
+			!HeapTupleUpdateXmaxMatchesXmin(prev_xmax, heapTuple->t_data))
 			break;
 
 		/*
@@ -2261,7 +2260,7 @@ heap_get_latest_tid(Relation relation,
 		 * tuple.  Check for XMIN match.
 		 */
 		if (TransactionIdIsValid(priorXmax) &&
-			!TransactionIdEquals(priorXmax, HeapTupleHeaderGetXmin(tp.t_data)))
+			!HeapTupleUpdateXmaxMatchesXmin(priorXmax, tp.t_data))
 		{
 			UnlockReleaseBuffer(buffer);
 			break;
@@ -2293,6 +2292,50 @@ heap_get_latest_tid(Relation relation,
 	}							/* end of loop */
 }
 
+/*
+ * HeapTupleUpdateXmaxMatchesXmin - verify update chain xmax/xmin lineage
+ *
+ * Given the new version of a tuple after some update, verify whether the
+ * given Xmax (corresponding to the previous version) matches the tuple's
+ * Xmin, taking into account that the Xmin might have been frozen after the
+ * update.
+ */
+bool
+HeapTupleUpdateXmaxMatchesXmin(TransactionId xmax, HeapTupleHeader htup)
+{
+	TransactionId	xmin = HeapTupleHeaderGetXmin(htup);
+
+	/*
+	 * If the xmax of the old tuple is identical to the xmin of the new one,
+	 * it's a match.
+	 */
+	if (TransactionIdEquals(xmax, xmin))
+		return true;
+
+	/*
+	 * If the Xmin that was in effect prior to a freeze matches the Xmax,
+	 * it's good too.
+	 */
+	if (HeapTupleHeaderXminFrozen(htup) &&
+		TransactionIdEquals(HeapTupleHeaderGetRawXmin(htup), xmax))
+		return true;
+
+	/*
+	 * When a tuple is frozen, the original Xmin is lost, but we know it's a
+	 * committed transaction.  So unless the Xmax is InvalidXid, we don't know
+	 * for certain that there is a match, but there may be one; and we must
+	 * return true so that a HOT chain that is half-frozen can be walked
+	 * correctly.
+	 *
+	 * We no longer freeze tuples this way, but we must keep this in order to
+	 * interpret pre-pg_upgrade pages correctly.
+	 */
+	if (TransactionIdEquals(xmin, FrozenTransactionId) &&
+		TransactionIdIsValid(xmax))
+		return true;
+
+	return false;
+}
 
 /*
  * UpdateXmaxHintBits - update tuple hint bits after xmax transaction ends
@@ -2598,15 +2641,17 @@ heap_prepare_insert(Relation relation, HeapTuple tup, TransactionId xid,
 					CommandId cid, int options)
 {
 	/*
-	 * For now, parallel operations are required to be strictly read-only.
-	 * Unlike heap_update() and heap_delete(), an insert should never create a
-	 * combo CID, so it might be possible to relax this restriction, but not
-	 * without more thought and testing.
+	 * Parallel operations are required to be strictly read-only in a parallel
+	 * worker.  Parallel inserts are not safe even in the leader in the
+	 * general case, because group locking means that heavyweight locks for
+	 * relation extension or GIN page locks will not conflict between members
+	 * of a lock group, but we don't prohibit that case here because there are
+	 * useful special cases that we can safely allow, such as CREATE TABLE AS.
 	 */
-	if (IsInParallelMode())
+	if (IsParallelWorker())
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_TRANSACTION_STATE),
-				 errmsg("cannot insert tuples during a parallel operation")));
+				 errmsg("cannot insert tuples in a parallel worker")));
 
 	if (relation->rd_rel->relhasoids)
 	{
@@ -5710,8 +5755,7 @@ l4:
 		 * end of the chain, we're done, so return success.
 		 */
 		if (TransactionIdIsValid(priorXmax) &&
-			!TransactionIdEquals(HeapTupleHeaderGetXmin(mytup.t_data),
-								 priorXmax))
+			!HeapTupleUpdateXmaxMatchesXmin(priorXmax, mytup.t_data))
 		{
 			result = HeapTupleMayBeUpdated;
 			goto out_locked;

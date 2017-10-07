@@ -43,10 +43,13 @@
 #include "settings.h"
 #include "variables.h"
 
-/* Macro to easily identify which Engine (type) are we speaking to
+/* Macro to easily identify which Engine (type) are we speaking with
 	 Any change here should probably be replicated elsewhere since
 	 #define for various SQLs (in this script) employ there own string-compare */
-	 #define IS_REDSHIFT (strncmp(pset.sengine, "redshift", 8) == 0)
+	 #define IS_COCKROACHDB (strncmp(pset.sengine, "cockroachdb", 11) == 0)
+	 #define IS_PGBOUNCER   (strncmp(pset.sengine, "pgbouncer", 9)    == 0)
+	 #define IS_PIPELINEDB  (strncmp(pset.sengine, "pipelinedb", 10)  == 0)
+	 #define IS_REDSHIFT    (strncmp(pset.sengine, "redshift", 8)     == 0)
 
 /*
  * Editable database object types.
@@ -287,6 +290,14 @@ exec_command(const char *cmd,
 {
 	backslashResult status;
 	bool		active_branch = conditional_active(cstack);
+
+	/* PgBouncer supports no \* commands and so we skip if we're speaking with PgBouncer */
+	if (IS_PGBOUNCER)
+	{
+		psql_error("\\%s command ignored - PgBouncer doesn't support ( \\* ) backslash commands.\n",
+					 cmd);
+		return PSQL_CMD_ERROR;
+	}
 
 	/*
 	 * In interactive mode, warn when we're ignoring a command within a false
@@ -3259,31 +3270,6 @@ SyncVariables(void)
 	pset.popt.topt.encoding = pset.encoding;
 	pset.sversion = PQserverVersion(pset.db);
 
-	/* Check whether a given GUC exists */
-	guctype = get_guctype("continuous_queries_enabled");
-	if (guctype != NULL)
-		server_engine = "pipelinedb";
-	else
-	{
-		guctype = get_guctype("wlm_query_slot_count");
-
-		if (guctype != NULL)
-			server_engine = "redshift";
-		else
-			server_engine = "postgres";
-	}
-
-	pset.sengine = server_engine;
-
-	if (guctype)
-		free(guctype);
-
-	SetVariable(pset.vars, "DBNAME", PQdb(pset.db));
-	SetVariable(pset.vars, "USER", PQuser(pset.db));
-	SetVariable(pset.vars, "HOST", PQhost(pset.db));
-	SetVariable(pset.vars, "PORT", PQport(pset.db));
-	SetVariable(pset.vars, "ENCODING", pg_encoding_to_char(pset.encoding));
-
 	/* this bit should match connection_warnings(): */
 	/* Try to get full text form of version, might include "devel" etc */
 	server_version = PQparameterStatus(pset.db, "server_version");
@@ -3293,6 +3279,48 @@ SyncVariables(void)
 		formatPGVersionNumber(pset.sversion, true, vbuf, sizeof(vbuf));
 		server_version = vbuf;
 	}
+
+	/* Check whether a given GUC exists */
+	guctype = get_guctype("continuous_queries_enabled");
+	if (guctype != NULL)
+		server_engine = "pipelinedb";
+	else
+	{
+		guctype = get_guctype("wlm_query_slot_count");
+		if (guctype != NULL)
+			server_engine = "redshift";
+		else
+		{
+			guctype = get_guctype("node_id");
+			if (guctype != NULL)
+				server_engine = "cockroachdb";
+			else
+			{
+				guctype = get_guctype("rds.extensions");
+				if (guctype != NULL)
+					server_engine = "rdspostgres";
+				else
+				{
+					if (strstr(server_version, "bouncer") != NULL)
+						server_engine = "pgbouncer";
+					else
+						server_engine = "postgres";
+				}
+			}
+		}
+	}
+
+	if (guctype)
+		free(guctype);
+
+	pset.sengine = server_engine;
+
+	SetVariable(pset.vars, "DBNAME", PQdb(pset.db));
+	SetVariable(pset.vars, "USER", PQuser(pset.db));
+	SetVariable(pset.vars, "HOST", PQhost(pset.db));
+	SetVariable(pset.vars, "PORT", PQport(pset.db));
+	SetVariable(pset.vars, "ENCODING", pg_encoding_to_char(pset.encoding));
+
 	SetVariable(pset.vars, "SERVER_VERSION_NAME", server_version);
 	SetVariable(pset.vars, "SERVER_ENGINE", server_engine);
 
@@ -4551,7 +4579,10 @@ lookup_object_oid(EditableObjectType obj_type, const char *desc,
 			 */
 			appendPQExpBufferStr(query, "SELECT ");
 			appendStringLiteralConn(query, desc, pset.db);
-			appendPQExpBuffer(query, "::pg_catalog.regclass::pg_catalog.oid");
+			if (IS_COCKROACHDB)
+				appendPQExpBuffer(query, "::regclass::OID");
+			else
+				appendPQExpBuffer(query, "::pg_catalog.regclass::pg_catalog.oid");
 			break;
 	}
 
