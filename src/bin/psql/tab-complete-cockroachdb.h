@@ -10,8 +10,6 @@
 
 #include "pqexpbuffer.h"
 
-extern PQExpBuffer tab_completion_query_buf;
-
 extern void initialize_readline_cockroachdb(void);
 
 #endif							/* TAB_COMPLETE_COCKROACHDB_H */

@@ -33,6 +33,7 @@
  */
 
 #include "postgres_fe.h"
+#include "tab-complete.h"
 #include "tab-complete-pipelinedb.h"
 #include "input.h"
 

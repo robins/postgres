@@ -10,8 +10,6 @@
 
 #include "pqexpbuffer.h"
 
-extern PQExpBuffer tab_completion_query_buf;
-
 extern void initialize_readline_pipelinedb(void);
 
 #endif							/* TAB_COMPLETE_PIPELINEDB_H */

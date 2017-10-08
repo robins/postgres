@@ -33,6 +33,7 @@
  */
 
 #include "postgres_fe.h"
+#include "tab-complete.h"
 #include "tab-complete-cockroachdb.h"
 #include "input.h"
 
@@ -62,13 +63,6 @@ extern char *filename_completion_function();
 
 /* word break characters */
 #define WORD_BREAKS		"\t\n@$><=;|&{() "
-
-/*
- * Since readline doesn't let us pass any state through to the tab completion
- * callback, we have to use this global variable to let get_previous_words()
- * get at the previous lines of the current command.  Ick.
- */
-PQExpBuffer tab_completion_query_buf = NULL;
 
 /*
  * This struct is used to define "schema queries", which are custom-built
