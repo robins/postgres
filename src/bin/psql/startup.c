@@ -266,20 +266,25 @@ main(int argc, char *argv[])
 		keywords[7] = NULL;
 		values[7] = NULL;
 
-		printf("Username: '%s', Password: '%s', Host: '%s', Port: '%s', PasswordLen: %d, Database: '%s' \n", values[2], values[3], values[0], values[1], strlen(values[3]), values[4]);
+		//	printf("Username: '%s', Password: '%s', Host: '%s', Port: '%s', PasswordLen: %d, Database: '%s' \n", values[2], values[3], values[0], values[1], strlen(values[3]), values[4]);
+		printf("Username: '%s', Password: '%s', Host: '%s', Port: '%s', Database: '%s' \n", values[2], values[3], values[0], values[1], values[4]);
 		
 		new_pass = false;
 		pset.db = PQconnectdbParams(keywords, values, true);
 		free(keywords);
 		free(values);
 		printf("Exit1\n");
-		
+	if (PQstatus(pset.db) == CONNECTION_BAD)
+		printf("connection bad\n");
+	else
+		printf("connection not bad\n");
+
 		if (PQstatus(pset.db) == CONNECTION_BAD &&
 			PQconnectionNeedsPassword(pset.db) &&
 			!have_password &&
 			pset.getPassword != TRI_NO)
 		{
-			printf("n1");
+			printf("n1\n");
 			if (pset.credential_source == AWS_IAM_REDSHIFT)
 			{
 				PQfinish(pset.db);
@@ -299,7 +304,7 @@ main(int argc, char *argv[])
 			}
 			else
 			{
-				printf("n2");
+				printf("n2\n");
 				
 				PQfinish(pset.db);
 				simple_prompt(password_prompt, password, sizeof(password), false);
@@ -307,22 +312,22 @@ main(int argc, char *argv[])
 				new_pass = true;
 			}
 		}
-		printf("n3");
+		printf("n3\n");
 		if (new_pass)
 			printf("new_pass");
 	} while (new_pass);
-	printf("n4");
+	printf("n4\n");
 	
 	free(password_prompt);
 
 	if (PQstatus(pset.db) == CONNECTION_BAD)
 	{
-		printf("n5");
+		printf("n5\n");
 		fprintf(stderr, "%s: %s", pset.progname, PQerrorMessage(pset.db));
 		PQfinish(pset.db);
 		exit(EXIT_BADCONN);
 	}
-	printf("n6");
+	printf("n6\n");
 	
 	setup_cancel_handler();
 
