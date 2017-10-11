@@ -1055,7 +1055,7 @@ listDefaultACLs(const char *pattern)
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, false, true, false};
 
-	if (pset.sversion < 90000)
+	if (pset.sversion < 90000 && !IS_REDSHIFT)
 	{
 		char		sverbuf[32];
 
@@ -1067,12 +1067,17 @@ listDefaultACLs(const char *pattern)
 
 	initPQExpBuffer(&buf);
 
-	printfPQExpBuffer(&buf,
-					  "SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS \"%s\",\n"
-					  "  n.nspname AS \"%s\",\n"
+	if (IS_REDSHIFT)
+		printfPQExpBuffer(&buf,
+						"SELECT pg_catalog.pg_get_userbyid(d.defacluser) AS \"%s\",\n", gettext_noop("Owner"));
+	else
+		printfPQExpBuffer(&buf,
+						"SELECT pg_catalog.pg_get_userbyid(d.defaclrole) AS \"%s\",\n", gettext_noop("Owner"));
+
+	appendPQExpBuffer(&buf,
+											  "  n.nspname AS \"%s\",\n"
 					  "  CASE d.defaclobjtype WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' END AS \"%s\",\n"
 					  "  ",
-					  gettext_noop("Owner"),
 					  gettext_noop("Schema"),
 					  DEFACLOBJ_RELATION,
 					  gettext_noop("table"),
