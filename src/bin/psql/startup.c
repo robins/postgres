@@ -25,6 +25,8 @@
 #include "fe_utils/print.h"
 #include "settings.h"
 
+
+
 /*
  * Global psql options
  */
@@ -157,7 +159,7 @@ main(int argc, char *argv[])
 
 	pset.getPassword = TRI_DEFAULT;
 	pset.credential_source = DEFAULT;
-	
+
 	EstablishVariableSpace();
 
 	/* Create variables showing psql version number */
@@ -215,16 +217,14 @@ main(int argc, char *argv[])
 	{
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
 		{
-			printf("Entry1\n");
 			if (request_password_from_external_source(&(options.username), &new_password))
 			{
 				sprintf(password, "%s", new_password);
-				printf("Username: '%s', Password: '%s'\n", options.username, password);
 				have_password = true;
 			}
 			else
 			{
-				printf("Unable to fetch Username / Password from IAM");
+				psql_error("Unable to fetch Username / Password from IAM");
 			}
 			if (new_password)
 				free(new_password);
@@ -266,29 +266,19 @@ main(int argc, char *argv[])
 		keywords[7] = NULL;
 		values[7] = NULL;
 
-		//	printf("Username: '%s', Password: '%s', Host: '%s', Port: '%s', PasswordLen: %d, Database: '%s' \n", values[2], values[3], values[0], values[1], strlen(values[3]), values[4]);
-		printf("Username: '%s', Password: '%s', Host: '%s', Port: '%s', Database: '%s' \n", values[2], values[3], values[0], values[1], values[4]);
-		
 		new_pass = false;
 		pset.db = PQconnectdbParams(keywords, values, true);
 		free(keywords);
 		free(values);
-		printf("Exit1\n");
-	if (PQstatus(pset.db) == CONNECTION_BAD)
-		printf("connection bad\n");
-	else
-		printf("connection not bad\n");
 
 		if (PQstatus(pset.db) == CONNECTION_BAD &&
 			PQconnectionNeedsPassword(pset.db) &&
 			!have_password &&
 			pset.getPassword != TRI_NO)
 		{
-			printf("n1\n");
 			if (pset.credential_source == AWS_IAM_REDSHIFT)
 			{
 				PQfinish(pset.db);
-				printf("Entry2\n");
 				if (request_password_from_external_source(&(options.username), &new_password))
 				{
 					sprintf(password, "%s", new_password);
@@ -297,38 +287,30 @@ main(int argc, char *argv[])
 				}
 				else
 				{
-					printf("Unable to fetch new Username / Password from IAM");
+					psql_error("Unable to fetch new Username / Password from IAM");
 				}
 				if (new_password)
 					free(new_password);
 			}
 			else
 			{
-				printf("n2\n");
-				
 				PQfinish(pset.db);
 				simple_prompt(password_prompt, password, sizeof(password), false);
 				have_password = true;
 				new_pass = true;
 			}
 		}
-		printf("n3\n");
-		if (new_pass)
-			printf("new_pass");
 	} while (new_pass);
-	printf("n4\n");
-	
+
 	free(password_prompt);
 
 	if (PQstatus(pset.db) == CONNECTION_BAD)
 	{
-		printf("n5\n");
 		fprintf(stderr, "%s: %s", pset.progname, PQerrorMessage(pset.db));
 		PQfinish(pset.db);
 		exit(EXIT_BADCONN);
 	}
-	printf("n6\n");
-	
+
 	setup_cancel_handler();
 
 	PQsetNoticeProcessor(pset.db, NoticeProcessor, NULL);

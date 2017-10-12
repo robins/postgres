@@ -531,7 +531,7 @@ PQconnectdbParams(const char *const *keywords,
 				  int expand_dbname)
 {
 	PGconn	   *conn = PQconnectStartParams(keywords, values, expand_dbname);
-printf("n10\n");
+
 	if (conn && conn->status != CONNECTION_BAD)
 		(void) connectDBComplete(conn);
 
@@ -1837,18 +1837,15 @@ connectDBComplete(PGconn *conn)
 	PostgresPollingStatusType flag = PGRES_POLLING_WRITING;
 	time_t		finish_time = ((time_t) -1);
 	int			timeout = 0;
-printf("n1--1\n");
+
 	if (conn == NULL || conn->status == CONNECTION_BAD)
-		{return 0;printf("n110\n");
-		}		
-		printf("n1101\n");
-		
+		return 0;
+
 	/*
 	 * Set up a time limit, if connect_timeout isn't zero.
 	 */
 	if (conn->connect_timeout != NULL)
 	{
-		printf("n1102\n");
 		timeout = atoi(conn->connect_timeout);
 		if (timeout > 0)
 		{
@@ -1856,14 +1853,12 @@ printf("n1--1\n");
 			 * Rounding could cause connection to fail; need at least 2 secs
 			 */
 			if (timeout < 2)
-				timeout = 2;		printf("n1103\n");
-				
+				timeout = 2;
 			/* calculate the finish time based on start + timeout */
 			finish_time = time(NULL) + timeout;
 		}
 	}
-	printf("n111\n");
-	
+
 	for (;;)
 	{
 		int			ret = 0;
@@ -1875,8 +1870,7 @@ printf("n1--1\n");
 		switch (flag)
 		{
 			case PGRES_POLLING_OK:
-			printf("n112\n");
-			
+
 				/*
 				 * Reset stored error messages since we now have a working
 				 * connection
@@ -1905,11 +1899,9 @@ printf("n1--1\n");
 			default:
 				/* Just in case we failed to set it in PQconnectPoll */
 				conn->status = CONNECTION_BAD;
-				printf("n113\n");
 				return 0;
 		}
-		printf("n114\n");
-		
+
 		if (ret == 1)			/* connect_timeout elapsed */
 		{
 			/*
@@ -1922,8 +1914,7 @@ printf("n1--1\n");
 				conn->status = CONNECTION_BAD;
 				return 0;
 			}
-			printf("n115\n");
-			
+
 			/*
 			 * Attempt connection to the next host, starting the
 			 * connect_timeout timer
@@ -1934,14 +1925,12 @@ printf("n1--1\n");
 			if (conn->connect_timeout != NULL)
 				finish_time = time(NULL) + timeout;
 		}
-		printf("n116\n");
-		
+
 		/*
 		 * Now try to advance the state machine.
 		 */
 		flag = PQconnectPoll(conn);
 	}
-	printf("n11a\n");
 }
 
 /*
@@ -1962,7 +1951,6 @@ saveErrorMessage(PGconn *conn, PQExpBuffer savedMessage)
 	appendPQExpBufferStr(savedMessage,
 						 conn->errorMessage.data);
 	resetPQExpBuffer(&conn->errorMessage);
-	printf("n11b\n");
 	return true;
 }
 
@@ -1976,7 +1964,6 @@ restoreErrorMessage(PGconn *conn, PQExpBuffer savedMessage)
 	resetPQExpBuffer(&conn->errorMessage);
 	appendPQExpBufferStr(&conn->errorMessage, savedMessage->data);
 	termPQExpBuffer(savedMessage);
-	printf("n11c\n");
 }
 
 /* ----------------
@@ -2069,8 +2056,7 @@ PQconnectPoll(PGconn *conn)
 			goto error_return;
 	}
 
-	printf("n11d\n");
-	
+
 keep_going:						/* We will come back to here until there is
 								 * nothing left to do. */
 	switch (conn->status)
@@ -2161,7 +2147,6 @@ keep_going:						/* We will come back to here until there is
 						continue;
 					}
 #endif							/* F_SETFD */
-printf("n11e\n");
 
 					if (!IS_AF_UNIX(addr_cur->ai_family))
 					{
@@ -2434,7 +2419,6 @@ printf("n11e\n");
 					}
 				}
 #endif							/* HAVE_UNIX_SOCKETS */
-printf("n11g\n");
 
 #ifdef USE_SSL
 
@@ -3402,8 +3386,7 @@ makeEmptyPGconn(void)
 		freePGconn(conn);
 		conn = NULL;
 	}
-	printf("n11h\n");
-	
+
 	return conn;
 }
 

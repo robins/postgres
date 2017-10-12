@@ -35,12 +35,6 @@ static bool ExecQueryUsingCursor(const char *query, double *elapsed_msec);
 static bool command_no_begin(const char *query);
 static bool is_select_command(const char *query);
 
-
-static const char *JSON_STRING =
-//"{\"DbUser\": \"redshift2\", \"DbPassword\": \"Redshift2\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
-"{\"DbUser\": \"IAM:redshift2\", \"DbPassword\": \"BIKXgrJ+KurOerMkFF/IZJyzqcUxjAcqWV2aPJBjkX6DdW8VZDOfI75/FEeeC3zGQQAO6oQ==\", \"Expiration\": \"2017-09-16T11:12:37.608Z\"}";
-
-
 static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
 	if (tok->type == JSMN_STRING && (int) strlen(s) == tok->end - tok->start &&
 			strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
@@ -48,7 +42,6 @@ static int jsoneq(const char *json, jsmntok_t *tok, const char *s) {
 	}
 	return -1;
 }
-
 
 /*
  * openQueryOutputFile --- attempt to open a query output file
@@ -129,9 +122,8 @@ setQFout(const char *fname)
  * request_password_from_external_source
  *
  * Generalized function to fetch usernames and passwords from external source.
- * For now works only in Linux.
  */
-bool 
+bool
 request_password_from_external_source(char **username, char **password)
 {
 	FILE *fp;
@@ -145,34 +137,19 @@ request_password_from_external_source(char **username, char **password)
 	fp = popen("cat /home/pi/projects/postgres/src/bin/psql/cluster.txt", "r");
 	if (fp == NULL)
 	{
-		printf("Failed to run command\n" );
+		psql_error("Failed to run AWS CLI to fetch IAM authentication: \n");
 		exit(1);
 	}
-	else 
+	else
 	{
-		printf("Able to read file fine\n");
-
 		/* Read the output a line at a time - output it. */
 		while (fgets(linebuffer, sizeof(linebuffer)-1, fp) != NULL) {
 			strncat(filebuffer, linebuffer, sizeof(linebuffer));
-			printf("Filebuffer: %s\n", filebuffer);
+			//printf("Filebuffer: %s\n", filebuffer);
 		}
 
-		// fseek (fp, 0, SEEK_END);
-		// length = ftell (fp);
-		// fseek (fp, 0, SEEK_SET);
-		// filebuffer = malloc (length);
-		// if (filebuffer)
-		// {
-		// 	fread (filebuffer, 1, length, fp);
-		// }
 		pclose (fp);
 	}
-
-	// /* Read the output a line at a time - output it. */
-	// while (fgets(path, sizeof(path)-1, fp) != NULL) {
-	// 	printf("%s", path);
-	// }
 
 	int i;
 	int r;
@@ -192,58 +169,37 @@ request_password_from_external_source(char **username, char **password)
 		return false;
 	}
 
-
 	/* Assume the top-level element is an object */
 	if (r < 1 || t[0].type != JSMN_OBJECT) {
 		printf("Object expected\n");
 		return false;
 	}
 
-	/*
-		filebuffer = (char *) pg_malloc(maxlength + 1);
-	while (fgets(filebuffer, maxlength + 1, infile) != NULL && n < nlines)
-		result[n++] = pg_strdup(filebuffer);
-
-	*/
 	/* Loop over all keys of the root object */
 	for (i = 1; i < r; i++) {
-		//printf("\n0000000000 r=%d i=%d : ", r, i);
 		if (jsoneq(filebuffer, &t[i], "DbUser") == 0) {
-			//printf("\n1111111");
 			new_username = pg_malloc(t[i+1].end-t[i+1].start + 2);
 			StrNCpy(new_username, filebuffer + t[i+1].start, t[i+1].end-t[i+1].start + 1);
-			//printf("- Username: %s\n", new_username);
 			found_username = true;
 			i++;
 		} else if (jsoneq(filebuffer, &t[i], "DbPassword") == 0) {
-			//printf("\n22222222");
 			new_password = pg_malloc(t[i+1].end-t[i+1].start + 2);
 			StrNCpy(new_password, filebuffer + t[i+1].start, t[i+1].end-t[i+1].start + 1);
-			//printf("- Password: %s", new_password);
 			found_password = true;
 			i++;
 		} else if (jsoneq(filebuffer, &t[i], "Expiration") == 0) {
-			//printf("\n333333b");
-			printf("- Expiration: %.*s\n", t[i+1].end-t[i+1].start,
-			filebuffer + t[i+1].start);
+			// XXX: Need to cross check current time vs Expiration.
 			i++;
-			//printf("\n333333e");
 		} else {
-			//printf("\n44444444");
-			printf("Unexpected key: %.*s\n", t[i].end-t[i].start,
-			filebuffer + t[i].start);
+			psql_error("Unexpected key: %.*s\n", t[i].end-t[i].start,
+				filebuffer + t[i].start);
 		}
 	}
-	//printf("fetched all params");
+
 	if (found_username && found_password)
 	{
 		*username = pg_strdup(new_username);
-//		password = pg_strdup(new_password);
-		printf("PRE: Found username: %s, Password: %s\n", new_username, new_password);
-//		snprintf(password, sizeof(new_password), "%s", new_password);
 		*password = pg_strdup(new_password);
-//sprintf(password, "%s", new_password);
-		printf("POST: Found username: %s, Password: %s\n", *username, *password);
 		return true;
 	}
 	return false;
