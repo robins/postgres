@@ -130,10 +130,16 @@ request_password_from_external_source(char **username, char **password)
 	long length;
 	char linebuffer[1035];
 	char filebuffer[2000];
-
+	char	*aws_command;
+	
 	strcpy(filebuffer, " ");
 	/* Open the command for reading. */
-	fp = popen("aws redshift get-cluster-credentials --db-user redshift2 --cluster-identifier redshift2", "r");
+	
+	aws_command = psprintf("aws redshift get-cluster-credentials --auto-create --db-user %s --cluster-identifier redshift2", *username);
+	printf("\nCLI: %s\n", aws_command);
+	fp = popen(aws_command, "r");
+	free(aws_command);
+
 	//fp = popen("cat /home/pi/projects/postgres/src/bin/psql/cluster.txt", "r");
 	if (fp == NULL)
 	{
