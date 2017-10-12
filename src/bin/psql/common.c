@@ -142,7 +142,7 @@ request_password_from_external_source(char **username, char **password)
 	strcpy(filebuffer, " ");
 	/* Open the command for reading. */
 	//fp = popen("aws redshift get-cluster-credentials --db-user redshift2 --cluster-identifier redshift2", "r");
-	fp = popen("cat /home/tharar/proj/postgres/src/bin/psql/cluster.txt", "r");
+	fp = popen("cat /home/pi/projects/postgres/src/bin/psql/cluster.txt", "r");
 	if (fp == NULL)
 	{
 		printf("Failed to run command\n" );
