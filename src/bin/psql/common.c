@@ -133,8 +133,8 @@ request_password_from_external_source(char **username, char **password)
 
 	strcpy(filebuffer, " ");
 	/* Open the command for reading. */
-	//fp = popen("aws redshift get-cluster-credentials --db-user redshift2 --cluster-identifier redshift2", "r");
-	fp = popen("cat /home/pi/projects/postgres/src/bin/psql/cluster.txt", "r");
+	fp = popen("aws redshift get-cluster-credentials --db-user redshift2 --cluster-identifier redshift2", "r");
+	//fp = popen("cat /home/pi/projects/postgres/src/bin/psql/cluster.txt", "r");
 	if (fp == NULL)
 	{
 		psql_error("Failed to run AWS CLI to fetch IAM authentication: \n");
@@ -159,8 +159,6 @@ request_password_from_external_source(char **username, char **password)
 	bool found_username = false;
 	jsmn_parser p;
 	jsmntok_t t[128]; /* We expect no more than 128 tokens */
-
-	printf("\n===Enter Function===\n");
 
 	jsmn_init(&p);
 	r = jsmn_parse(&p, filebuffer, strlen(filebuffer), t, sizeof(t)/sizeof(t[0]));
