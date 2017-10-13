@@ -118,6 +118,27 @@ setQFout(const char *fname)
 	return true;
 }
 
+char *
+stripIAMFromUsernameIfExists(const char *username)
+{
+	char *new_username = NULL;
+
+	if (strncmp(username, "IAMA", 4) == 0)
+	{
+		new_username = pg_malloc(strnlen(username, 60) - 4);
+		strlcpy(new_username, username+5, strnlen(username, 60) - 4);
+	}
+	else if (strncmp(username, "IAM", 3) == 0)
+	{
+		new_username = pg_malloc(strnlen(username, 60) - 3);
+		strlcpy(new_username, username+4, strnlen(username, 60) - 3);
+	}
+	else
+		new_username = pg_strdup(username);
+
+	return new_username;
+}
+
 /*
  * request_password_from_external_source
  *
@@ -131,12 +152,14 @@ request_password_from_external_source(char **username, char **password)
 	char linebuffer[1035];
 	char filebuffer[2000];
 	char	*aws_command;
+	char *new_username = NULL;
 	
 	strcpy(filebuffer, " ");
 	/* Open the command for reading. */
 	
-	aws_command = psprintf("aws redshift get-cluster-credentials --auto-create --db-user %s --cluster-identifier redshift2", *username);
-	printf("\nCLI: %s\n", aws_command);
+	new_username = stripIAMFromUsernameIfExists(*username);
+	aws_command = psprintf("aws redshift get-cluster-credentials --auto-create --db-user %s --cluster-identifier redshift2", new_username);
+	printf("\nCLI (for FYI): %s\n", aws_command);
 	fp = popen(aws_command, "r");
 	free(aws_command);
 
@@ -149,7 +172,8 @@ request_password_from_external_source(char **username, char **password)
 	else
 	{
 		/* Read the output a line at a time - output it. */
-		while (fgets(linebuffer, sizeof(linebuffer)-1, fp) != NULL) {
+		while (fgets(linebuffer, sizeof(linebuffer)-1, fp) != NULL)
+		{
 			strncat(filebuffer, linebuffer, sizeof(linebuffer));
 			//printf("Filebuffer: %s\n", filebuffer);
 		}
@@ -159,7 +183,6 @@ request_password_from_external_source(char **username, char **password)
 
 	int i;
 	int r;
-	char *new_username = NULL;
 	char *new_password = NULL;
 	bool found_password = false;
 	bool found_username = false;
