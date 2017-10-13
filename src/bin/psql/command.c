@@ -2992,7 +2992,10 @@ do_connect(enum trivalue reuse_previous_specification,
 			if (request_password_from_external_source(&user, &new_password, host))
 				password = pg_strdup(new_password);
 			else
-				password = NULL;
+				{
+					psql_error("Unable to fetch new Username / Password from IAM\n");
+					password = NULL;
+				}
 		}
 		else if (pset.credential_source == DEFAULT)
 			password = prompt_for_password(user);

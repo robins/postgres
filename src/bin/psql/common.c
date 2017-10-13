@@ -188,14 +188,14 @@ request_password_from_external_source(char **username, char **password, const ch
 	stripped_host = stripSubDomainFromHost(host);
 
 	aws_command = psprintf("aws redshift get-cluster-credentials --auto-create --db-user %s --cluster-identifier %s", new_username, stripped_host);
-	printf("\nCLI (for FYI): %s\n", aws_command);
+	printf("\nCLI Command (Just FYI): %s\n", aws_command);
 	fp = popen(aws_command, "r");
 	free(aws_command);
 
 	//fp = popen("cat /home/pi/projects/postgres/src/bin/psql/cluster.txt", "r");
 	if (fp == NULL)
 	{
-		psql_error("Failed to run AWS CLI to fetch IAM authentication: \n");
+		psql_error("Unable to run AWS CLI to fetch IAM authentication.\n");
 		exit(1);
 	}
 	else
@@ -213,13 +213,13 @@ request_password_from_external_source(char **username, char **password, const ch
 	jsmn_init(&p);
 	r = jsmn_parse(&p, filebuffer, strlen(filebuffer), t, sizeof(t)/sizeof(t[0]));
 	if (r < 0) {
-		printf("Failed to parse JSON: %d\n", r);
+		psql_error("Unable to parse CLI JSON Response: %d\n", r);
 		return false;
 	}
 
 	/* Assume the top-level element is an object */
 	if (r < 1 || t[0].type != JSMN_OBJECT) {
-		printf("Object expected\n");
+		psql_error("CLI Response not a JSON object\n");
 		return false;
 	}
 

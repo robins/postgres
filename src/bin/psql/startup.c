@@ -224,7 +224,7 @@ main(int argc, char *argv[])
 			}
 			else
 			{
-				psql_error("Unable to fetch Username / Password from IAM");
+				psql_error("Unable to fetch Username / Password from IAM\n");
 			}
 			if (new_password)
 				free(new_password);
@@ -287,7 +287,7 @@ main(int argc, char *argv[])
 				}
 				else
 				{
-					psql_error("Unable to fetch new Username / Password from IAM");
+					psql_error("Unable to fetch new Username / Password from IAM\n");
 				}
 				if (new_password)
 					free(new_password);
