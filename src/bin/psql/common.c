@@ -180,10 +180,10 @@ request_password_from_external_source(char **username, char **password, const ch
 	bool found_username = false;
 	jsmn_parser p;
 	jsmntok_t t[128]; /* We expect no more than 128 tokens */
-	
+
 	strcpy(filebuffer, " ");
 	/* Open the command for reading. */
-	
+
 	new_username = stripIAMFromUsernameIfExists(*username);
 	stripped_host = stripSubDomainFromHost(host);
 
@@ -204,7 +204,6 @@ request_password_from_external_source(char **username, char **password, const ch
 		while (fgets(linebuffer, sizeof(linebuffer)-1, fp) != NULL)
 		{
 			strncat(filebuffer, linebuffer, sizeof(linebuffer));
-			//printf("Filebuffer: %s\n", filebuffer);
 		}
 
 		pclose (fp);
