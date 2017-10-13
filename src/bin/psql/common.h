@@ -46,7 +46,8 @@ extern void expand_tilde(char **filename);
 
 extern bool recognized_connection_string(const char *connstr);
 
-extern bool request_password_from_external_source(char **username, char **password);
+extern bool request_password_from_external_source(char **username, char **password, const char *host);
 extern char *stripIAMFromUsernameIfExists(const char *username);
+extern char *stripSubDomainFromHost(const char *host);
 
 #endif							/* COMMON_H */

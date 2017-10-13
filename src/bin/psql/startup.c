@@ -217,7 +217,7 @@ main(int argc, char *argv[])
 	{
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
 		{
-			if (request_password_from_external_source(&(options.username), &new_password))
+			if (request_password_from_external_source(&(options.username), &new_password, options.host))
 			{
 				sprintf(password, "%s", new_password);
 				have_password = true;
@@ -279,7 +279,7 @@ main(int argc, char *argv[])
 			if (pset.credential_source == AWS_IAM_REDSHIFT)
 			{
 				PQfinish(pset.db);
-				if (request_password_from_external_source(&(options.username), &new_password))
+				if (request_password_from_external_source(&(options.username), &new_password, options.host))
 				{
 					sprintf(password, "%s", new_password);
 					have_password = true;

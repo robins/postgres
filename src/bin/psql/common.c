@@ -139,26 +139,55 @@ stripIAMFromUsernameIfExists(const char *username)
 	return new_username;
 }
 
+char *
+stripSubDomainFromHost(const char *host)
+{
+	int len;
+	char *stripped_host = strstr(host, ".");
+
+	if (stripped_host)
+	{
+		len = stripped_host - host;
+		stripped_host = pg_malloc(len+1);
+
+		if (stripped_host != NULL)
+			strlcpy(stripped_host, host, len+1);
+	}
+	else
+		stripped_host = pg_strdup(host);
+
+	return stripped_host;
+}
+
 /*
  * request_password_from_external_source
  *
  * Generalized function to fetch usernames and passwords from external source.
  */
 bool
-request_password_from_external_source(char **username, char **password)
+request_password_from_external_source(char **username, char **password, const char *host)
 {
 	FILE *fp;
-	long length;
 	char linebuffer[1035];
 	char filebuffer[2000];
 	char	*aws_command;
 	char *new_username = NULL;
+	char *stripped_host = NULL;
+	int i;
+	int r;
+	char *new_password = NULL;
+	bool found_password = false;
+	bool found_username = false;
+	jsmn_parser p;
+	jsmntok_t t[128]; /* We expect no more than 128 tokens */
 	
 	strcpy(filebuffer, " ");
 	/* Open the command for reading. */
 	
 	new_username = stripIAMFromUsernameIfExists(*username);
-	aws_command = psprintf("aws redshift get-cluster-credentials --auto-create --db-user %s --cluster-identifier redshift2", new_username);
+	stripped_host = stripSubDomainFromHost(host);
+
+	aws_command = psprintf("aws redshift get-cluster-credentials --auto-create --db-user %s --cluster-identifier %s", new_username, stripped_host);
 	printf("\nCLI (for FYI): %s\n", aws_command);
 	fp = popen(aws_command, "r");
 	free(aws_command);
@@ -180,14 +209,6 @@ request_password_from_external_source(char **username, char **password)
 
 		pclose (fp);
 	}
-
-	int i;
-	int r;
-	char *new_password = NULL;
-	bool found_password = false;
-	bool found_username = false;
-	jsmn_parser p;
-	jsmntok_t t[128]; /* We expect no more than 128 tokens */
 
 	jsmn_init(&p);
 	r = jsmn_parse(&p, filebuffer, strlen(filebuffer), t, sizeof(t)/sizeof(t[0]));

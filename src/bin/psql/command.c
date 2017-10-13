@@ -2989,7 +2989,7 @@ do_connect(enum trivalue reuse_previous_specification,
 	{
 		if (pset.credential_source == AWS_IAM_REDSHIFT)
 		{
-			if (request_password_from_external_source(&user, &new_password))
+			if (request_password_from_external_source(&user, &new_password, host))
 				password = pg_strdup(new_password);
 			else
 				password = NULL;
