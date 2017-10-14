@@ -221,6 +221,7 @@ main(int argc, char *argv[])
 			{
 				sprintf(password, "%s", new_password);
 				have_password = true;
+				pset.getPassword = TRI_DEFAULT;
 			}
 			else
 			{
