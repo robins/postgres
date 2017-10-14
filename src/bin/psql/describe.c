@@ -1568,15 +1568,12 @@ describeOneTableDetails(const char *schemaname,
 	}
 	else if (pset.sversion >= 80000)
 	{
-
 		if (IS_REDSHIFT) {
 			printfPQExpBuffer(&buf,
 				"SELECT relchecks, relkind, relhasindex, relhasrules, "
 				"reltriggers <> 0, false, false, relhasoids, "
-				"%s, reltablespace, (SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = oid AND attsortkeyord <> 0)) as relhassortkey \n"
+				"'', reltablespace, (SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = oid AND attsortkeyord <> 0)) as relhassortkey \n"
 				"FROM pg_catalog.pg_class WHERE oid = '%s';",
-				(verbose ?
-				 "pg_catalog.array_to_string(reloptions, E', ')" : "''"),
 				oid);
 		}
 		else
