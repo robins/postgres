@@ -188,7 +188,7 @@ request_password_from_external_source(char **username, char **password, const ch
 	stripped_host = stripSubDomainFromHost(host);
 
 	aws_command = psprintf("aws redshift get-cluster-credentials --auto-create --db-user %s --cluster-identifier %s", new_username, stripped_host);
-	printf("\nCLI Command (Just FYI): %s\n", aws_command);
+	printf("AWS CLI: %s\n", aws_command);
 	fp = popen(aws_command, "r");
 	free(aws_command);
 

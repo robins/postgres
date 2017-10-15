@@ -3064,6 +3064,20 @@ do_connect(enum trivalue reuse_previous_specification,
 			break;
 
 		/*
+		 * If we support IAM Authentication and are in Interactive mode, we
+		 * need to request another password from IAM and try again
+		*/
+		if (pset.credential_source == AWS_IAM_REDSHIFT)
+		{
+			PQfinish(n_conn);
+			psql_error("Previous IAM token Expired. Requesting another and trying again.\n");
+			if (request_password_from_external_source(&user, &password, host))
+				continue;
+			else
+				psql_error("Unable to fetch new Username / Password from IAM\n");
+		}
+
+		/*
 		 * Connection attempt failed; either retry the connection attempt with
 		 * a new password, or give up.
 		 */
@@ -3166,7 +3180,7 @@ connection_warnings(bool in_startup)
 				server_version = sverbuf;
 			}
 
-			printf(_("%s (client-version:%s, server-version:%s, engine:%s)\n"),
+			printf(_("%s (client %s, server %s, engine %s)\n"),
 				   pset.progname, PG_VERSION, server_version, pset.sengine);
 		}
 		/* For version match, only print psql banner on startup. */
