@@ -10,9 +10,9 @@ This directory contains the source code distribution of the PostgreSQL
 database management system, along with modifications required for 
 PsqlForks.
 
-PsqlForks ( http://psqlforks.com ) is a psql variant that tries to
-accommodate as many PostgrSQL variants (or software that speak the 
-PostgreSQL protocol to an extent).
+PsqlForks is a psql variant that tries to accommodate as many 
+PostgrSQL variants (or software that speak the PostgreSQL protocol 
+to an extent).
 
 The current status of support for different PostgreSQL derived databases
 can be seen here:
