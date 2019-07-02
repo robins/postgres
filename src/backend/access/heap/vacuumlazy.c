@@ -516,6 +516,7 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 	Buffer		vmbuffer = InvalidBuffer;
 	BlockNumber next_unskippable_block;
 	bool		skipping_blocks;
+	bool		single_pass;
 	xl_heap_freeze_tuple *frozen;
 	StringInfoData buf;
 	const int	initprog_index[] = {
@@ -552,6 +553,8 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 	vacrelstats->tupcount_pages = 0;
 	vacrelstats->nonempty_pages = 0;
 	vacrelstats->latestRemovedXid = InvalidTransactionId;
+
+	single_pass = false;
 
 	lazy_space_alloc(vacrelstats, nblocks);
 	frozen = palloc(sizeof(xl_heap_freeze_tuple) * MaxHeapTuplesPerPage);
@@ -745,6 +748,10 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 				PROGRESS_VACUUM_NUM_INDEX_VACUUMS
 			};
 			int64		hvp_val[2];
+
+			single_pass = true;
+
+        ereport(elevel,                (errmsg(" SSSSSSSSSS : Setting Single Pass = True")));
 
 			/*
 			 * Before beginning index vacuuming, we release any pin we may
@@ -1386,6 +1393,9 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 		 */
 		if (vacrelstats->num_dead_tuples == prev_dead_count)
 			RecordPageWithFreeSpace(onerel, blkno, freespace);
+
+		if (single_pass)
+			break;
 	}
 
 	/* report that everything is scanned and vacuumed */
