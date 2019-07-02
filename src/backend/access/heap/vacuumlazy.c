@@ -751,8 +751,6 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 
 			single_pass = true;
 
-        ereport(elevel,                (errmsg(" SSSSSSSSSS : Setting Single Pass = True")));
-
 			/*
 			 * Before beginning index vacuuming, we release any pin we may
 			 * hold on the visibility map page.  This isn't necessary for
@@ -1395,7 +1393,11 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 			RecordPageWithFreeSpace(onerel, blkno, freespace);
 
 		if (single_pass)
+		{
+			ereport(elevel,
+					(errmsg("Performing only single pass of Index Cleanup / Page Compaction")));
 			break;
+		}
 	}
 
 	/* report that everything is scanned and vacuumed */
