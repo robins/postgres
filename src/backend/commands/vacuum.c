@@ -99,6 +99,7 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
 	/* Set default value */
 	params.index_cleanup = VACOPT_TERNARY_DEFAULT;
 	params.truncate = VACOPT_TERNARY_DEFAULT;
+	params.single_pass = VACOPT_TERNARY_DEFAULT;
 
 	/* Parse options list */
 	foreach(lc, vacstmt->options)
@@ -129,6 +130,8 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
 			params.index_cleanup = get_vacopt_ternary_value(opt);
 		else if (strcmp(opt->defname, "truncate") == 0)
 			params.truncate = get_vacopt_ternary_value(opt);
+		else if (strcmp(opt->defname, "single_pass") == 0)
+			params.single_pass = get_vacopt_ternary_value(opt);
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
@@ -1772,6 +1775,18 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params)
 			params->truncate = VACOPT_TERNARY_ENABLED;
 		else
 			params->truncate = VACOPT_TERNARY_DISABLED;
+	}
+
+	/* Set single pass option for index-cleanup / page-truncation 
+	 * based on reloptions if not done yet
+	 */
+	if (params->single_pass == VACOPT_TERNARY_DEFAULT)
+	{
+		if (onerel->rd_options == NULL ||
+			((StdRdOptions *) onerel->rd_options)->vacuum_single_pass)
+			params->single_pass = VACOPT_TERNARY_ENABLED;
+		else
+			params->single_pass = VACOPT_TERNARY_DISABLED;
 	}
 
 	/*
