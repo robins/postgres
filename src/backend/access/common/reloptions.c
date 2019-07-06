@@ -149,6 +149,15 @@ static relopt_bool boolRelOpts[] =
 		},
 		true
 	},
+        {
+                {
+                        "vacuum_single_pass",
+                        "Enables only single-pass for Index Cleanup and Page Truncation phases",
+                        RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+                        ShareUpdateExclusiveLock
+                },
+                true
+        },
 	{
 		{
 			"vacuum_truncate",
@@ -1411,6 +1420,8 @@ default_reloptions(Datum reloptions, bool validate, relopt_kind kind)
 		offsetof(StdRdOptions, vacuum_cleanup_index_scale_factor)},
 		{"vacuum_index_cleanup", RELOPT_TYPE_BOOL,
 		offsetof(StdRdOptions, vacuum_index_cleanup)},
+		{"vacuum_single_pass", RELOPT_TYPE_BOOL,
+		offsetof(StdRdOptions, vacuum_single_pass)},
 		{"vacuum_truncate", RELOPT_TYPE_BOOL,
 		offsetof(StdRdOptions, vacuum_truncate)}
 	};
