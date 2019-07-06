@@ -716,6 +716,8 @@ static const struct tsearch_config_match tsearch_config_languages[] =
 	{"french", "French"},
 	{"german", "de"},
 	{"german", "German"},
+	{"greek", "el"},
+	{"greek", "Greek"},
 	{"hungarian", "hu"},
 	{"hungarian", "Hungarian"},
 	{"indonesian", "id"},
@@ -2497,7 +2499,7 @@ setup_bin_paths(const char *argv0)
 			pg_log_error("The program \"postgres\" is needed by %s but was not found in the\n"
 						 "same directory as \"%s\".\n"
 						 "Check your installation.",
-						 full_path, progname);
+						 progname, full_path);
 		else
 			pg_log_error("The program \"postgres\" was found by \"%s\"\n"
 						 "but was not the same version as %s.\n"
