@@ -650,6 +650,7 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 		bool		all_visible_according_to_vm = false;
 		bool		all_visible;
 		bool		all_frozen = true;	/* provided all_visible is also true */
+		bool		index_cleanup_done = false;
 		bool		has_dead_tuples;
 		TransactionId visibility_cutoff_xid = InvalidTransactionId;
 
@@ -746,6 +747,7 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 				PROGRESS_VACUUM_NUM_INDEX_VACUUMS
 			};
 			int64		hvp_val[2];
+			index_cleanup_done = true;
 
 			/*
 			 * Before beginning index vacuuming, we release any pin we may
@@ -1388,7 +1390,7 @@ lazy_scan_heap(Relation onerel, VacuumParams *params, LVRelStats *vacrelstats,
 		if (vacrelstats->num_dead_tuples == prev_dead_count)
 			RecordPageWithFreeSpace(onerel, blkno, freespace);
 
-		if (params->single_pass == VACOPT_TERNARY_ENABLED)
+		if (params->single_pass == VACOPT_TERNARY_ENABLED && index_cleanup_done)
 		{
 			ereport(elevel,
 					(errmsg("Performing only single pass of Index Cleanup / Page Compaction")));
