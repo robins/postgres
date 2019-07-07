@@ -98,8 +98,8 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
 
 	/* Set default value */
 	params.index_cleanup = VACOPT_TERNARY_DEFAULT;
-	params.truncate = VACOPT_TERNARY_DEFAULT;
 	params.single_pass = VACOPT_TERNARY_DEFAULT;
+	params.truncate = VACOPT_TERNARY_DEFAULT;
 
 	/* Parse options list */
 	foreach(lc, vacstmt->options)
@@ -128,10 +128,10 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
 			disable_page_skipping = defGetBoolean(opt);
 		else if (strcmp(opt->defname, "index_cleanup") == 0)
 			params.index_cleanup = get_vacopt_ternary_value(opt);
-		else if (strcmp(opt->defname, "truncate") == 0)
-			params.truncate = get_vacopt_ternary_value(opt);
 		else if (strcmp(opt->defname, "single_pass") == 0)
 			params.single_pass = get_vacopt_ternary_value(opt);
+		else if (strcmp(opt->defname, "truncate") == 0)
+			params.truncate = get_vacopt_ternary_value(opt);
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
