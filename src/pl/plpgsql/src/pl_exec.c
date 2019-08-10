@@ -3294,10 +3294,10 @@ exec_stmt_return_next(PLpgSQL_execstate *estate,
 	 * reference; in particular, this path is always taken in functions with
 	 * one or more OUT parameters.
 	 *
-	 * Unlike exec_statement_return, there's no special win here for R/W
-	 * expanded values, since they'll have to get flattened to go into the
-	 * tuplestore.  Indeed, we'd better make them R/O to avoid any risk of the
-	 * casting step changing them in-place.
+	 * Unlike exec_stmt_return, there's no special win here for R/W expanded
+	 * values, since they'll have to get flattened to go into the tuplestore.
+	 * Indeed, we'd better make them R/O to avoid any risk of the casting step
+	 * changing them in-place.
 	 */
 	if (stmt->retvarno >= 0)
 	{
@@ -3704,7 +3704,7 @@ exec_stmt_raise(PLpgSQL_execstate *estate, PLpgSQL_stmt_raise *stmt)
 													 paramvalue,
 													 paramtypeid);
 				appendStringInfoString(&ds, extval);
-				current_param = lnext(current_param);
+				current_param = lnext(stmt->params, current_param);
 				exec_eval_cleanup(estate);
 			}
 			else

@@ -204,17 +204,16 @@ struct PlannerInfo
 
 	/*
 	 * simple_rte_array is the same length as simple_rel_array and holds
-	 * pointers to the associated rangetable entries.  This lets us avoid
-	 * rt_fetch(), which can be a bit slow once large inheritance sets have
-	 * been expanded.
+	 * pointers to the associated rangetable entries.  Using this is a shade
+	 * faster than using rt_fetch(), mostly due to fewer indirections.
 	 */
 	RangeTblEntry **simple_rte_array;	/* rangetable as an array */
 
 	/*
 	 * append_rel_array is the same length as the above arrays, and holds
 	 * pointers to the corresponding AppendRelInfo entry indexed by
-	 * child_relid, or NULL if none.  The array itself is not allocated if
-	 * append_rel_list is empty.
+	 * child_relid, or NULL if the rel is not an appendrel child.  The array
+	 * itself is not allocated if append_rel_list is empty.
 	 */
 	struct AppendRelInfo **append_rel_array;
 
@@ -264,6 +263,8 @@ struct PlannerInfo
 									 * subquery outputs */
 
 	List	   *eq_classes;		/* list of active EquivalenceClasses */
+
+	bool		ec_merging_done;	/* set true once ECs are canonical */
 
 	List	   *canon_pathkeys; /* list of "canonical" PathKeys */
 
@@ -505,6 +506,8 @@ typedef struct PartitionSchemeData *PartitionScheme;
  *		pages - number of disk pages in relation (zero if not a table)
  *		tuples - number of tuples in relation (not considering restrictions)
  *		allvisfrac - fraction of disk pages that are marked all-visible
+ *		eclass_indexes - EquivalenceClasses that mention this rel (filled
+ *						 only after EC merging is complete)
  *		subroot - PlannerInfo for subquery (NULL if it's not a subquery)
  *		subplan_params - list of PlannerParamItems to be passed to subquery
  *
@@ -678,6 +681,8 @@ typedef struct RelOptInfo
 	BlockNumber pages;			/* size estimates derived from pg_class */
 	double		tuples;
 	double		allvisfrac;
+	Bitmapset  *eclass_indexes; /* Indexes in PlannerInfo's eq_classes list of
+								 * ECs that mention this rel */
 	PlannerInfo *subroot;		/* if subquery */
 	List	   *subplan_params; /* if subquery */
 	int			rel_parallel_workers;	/* wanted number of parallel workers */
