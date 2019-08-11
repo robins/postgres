@@ -98,7 +98,7 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
 
 	/* Set default value */
 	params.index_cleanup = VACOPT_TERNARY_DEFAULT;
-	params.single_pass = VACOPT_TERNARY_DEFAULT;
+	params.single_pass = VACOPT_TERNARY_DISABLED;
 	params.truncate = VACOPT_TERNARY_DEFAULT;
 
 	/* Parse options list */
