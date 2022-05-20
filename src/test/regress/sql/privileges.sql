@@ -1342,7 +1342,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA testns GRANT USAGE ON SCHEMAS TO regress_priv
 
 -- Test makeaclitem()
 SELECT makeaclitem('regress_priv_user1'::regrole, 'regress_priv_user2'::regrole, 'SELECT', TRUE); -- single privilege
-SELECT makeaclitem('regress_priv_user1'::regrole, 'regress_priv_user2'::regrole, 
+SELECT makeaclitem('regress_priv_user1'::regrole, 'regress_priv_user2'::regrole,
 	'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, EXECUTE, USAGE, CREATE,
 	TEMP, TEMPORARY, CONNECT, SET, ALTER SYSTEM, RULE ', FALSE); -- multiple privileges
 
