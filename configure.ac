@@ -17,7 +17,7 @@ dnl Read the Autoconf manual for details.
 dnl
 m4_pattern_forbid(^PGAC_)dnl to catch undefined macros
 
-AC_INIT([PostgreSQL], [15devel], [pgsql-bugs@lists.postgresql.org], [], [https://www.postgresql.org/])
+AC_INIT([PostgreSQL], [15beta1], [pgsql-bugs@lists.postgresql.org], [], [https://www.postgresql.org/])
 
 m4_if(m4_defn([m4_PACKAGE_VERSION]), [2.69], [], [m4_fatal([Autoconf version 2.69 is required.
 Untested combinations of 'autoconf' and PostgreSQL versions are not
@@ -1374,7 +1374,14 @@ if test "$with_ldap" = yes ; then
     LDAP_LIBS_BE="-lldap $EXTRA_LDAP_LIBS"
     # This test is carried out against libldap.
     AC_CHECK_FUNCS([ldap_initialize])
-    if test "$enable_thread_safety" = yes; then
+    # The separate ldap_r library only exists in OpenLDAP < 2.5, and if we
+    # have 2.5 or later, we shouldn't even probe for ldap_r (we might find a
+    # library from a separate OpenLDAP installation).  The most reliable
+    # way to check that is to check for a function introduced in 2.5.
+    AC_CHECK_FUNC([ldap_verify_credentials],
+		  [thread_safe_libldap=yes],
+		  [thread_safe_libldap=no])
+    if test "$enable_thread_safety" = yes -a "$thread_safe_libldap" = no; then
       # Use ldap_r for FE if available, else assume ldap is thread-safe.
       # On some platforms ldap_r fails to link without PTHREAD_LIBS.
       LIBS="$_LIBS"
@@ -1525,7 +1532,7 @@ fi
 
 PGAC_PATH_PROGS(LZ4, lz4)
 if test "$with_lz4" = yes; then
-  AC_CHECK_HEADERS(lz4.h, [], [AC_MSG_ERROR([lz4.h header file is required for LZ4])])
+  AC_CHECK_HEADER(lz4.h, [], [AC_MSG_ERROR([lz4.h header file is required for LZ4])])
 fi
 
 PGAC_PATH_PROGS(ZSTD, zstd)

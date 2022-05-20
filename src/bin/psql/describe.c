@@ -109,9 +109,9 @@ describeAggregates(const char *pattern, bool verbose, bool showSystem)
 							 "      AND n.nspname <> 'information_schema'\n");
 
 	if (!validateSQLNamePattern(&buf, pattern, true, false,
-							  "n.nspname", "p.proname", NULL,
-							  "pg_catalog.pg_function_is_visible(p.oid)",
-							  NULL, 3))
+								"n.nspname", "p.proname", NULL,
+								"pg_catalog.pg_function_is_visible(p.oid)",
+								NULL, 3))
 		return false;
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 4;");
@@ -2934,29 +2934,29 @@ describeOneTableDetails(const char *schemaname,
 			{
 				printfPQExpBuffer(&buf,
 								  "SELECT pubname\n"
-								  "		, NULL\n"
-								  "		, NULL\n"
+								  "     , NULL\n"
+								  "     , NULL\n"
 								  "FROM pg_catalog.pg_publication p\n"
-								  "		JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid\n"
-								  "		JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid\n"
+								  "     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid\n"
+								  "     JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid\n"
 								  "WHERE pc.oid ='%s' and pg_catalog.pg_relation_is_publishable('%s')\n"
 								  "UNION\n"
 								  "SELECT pubname\n"
-								  "		, pg_get_expr(pr.prqual, c.oid)\n"
-								  "		, (CASE WHEN pr.prattrs IS NOT NULL THEN\n"
-								  "			(SELECT string_agg(attname, ', ')\n"
-								  "			  FROM pg_catalog.generate_series(0, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], 1)) s,\n"
-								  "				   pg_catalog.pg_attribute\n"
-								  "			 WHERE attrelid = pr.prrelid AND attnum = prattrs[s])\n"
-								  "		   ELSE NULL END) "
+								  "     , pg_get_expr(pr.prqual, c.oid)\n"
+								  "     , (CASE WHEN pr.prattrs IS NOT NULL THEN\n"
+								  "         (SELECT string_agg(attname, ', ')\n"
+								  "           FROM pg_catalog.generate_series(0, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], 1)) s,\n"
+								  "                pg_catalog.pg_attribute\n"
+								  "          WHERE attrelid = pr.prrelid AND attnum = prattrs[s])\n"
+								  "        ELSE NULL END) "
 								  "FROM pg_catalog.pg_publication p\n"
-								  "		JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid\n"
-								  "		JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid\n"
+								  "     JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid\n"
+								  "     JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid\n"
 								  "WHERE pr.prrelid = '%s'\n"
 								  "UNION\n"
 								  "SELECT pubname\n"
-								  "		, NULL\n"
-								  "		, NULL\n"
+								  "     , NULL\n"
+								  "     , NULL\n"
 								  "FROM pg_catalog.pg_publication p\n"
 								  "WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('%s')\n"
 								  "ORDER BY 1;",
@@ -2966,15 +2966,15 @@ describeOneTableDetails(const char *schemaname,
 			{
 				printfPQExpBuffer(&buf,
 								  "SELECT pubname\n"
-								  "		, NULL\n"
-								  "		, NULL\n"
+								  "     , NULL\n"
+								  "     , NULL\n"
 								  "FROM pg_catalog.pg_publication p\n"
 								  "JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid\n"
 								  "WHERE pr.prrelid = '%s'\n"
 								  "UNION ALL\n"
 								  "SELECT pubname\n"
-								  "		, NULL\n"
-								  "		, NULL\n"
+								  "     , NULL\n"
+								  "     , NULL\n"
 								  "FROM pg_catalog.pg_publication p\n"
 								  "WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable('%s')\n"
 								  "ORDER BY 1;",
@@ -4940,8 +4940,8 @@ listSchemas(const char *pattern, bool verbose, bool showSystem)
 		printfPQExpBuffer(&buf,
 						  "SELECT pubname \n"
 						  "FROM pg_catalog.pg_publication p\n"
-						  "		JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid\n"
-						  "		JOIN pg_catalog.pg_namespace n ON n.oid = pn.pnnspid \n"
+						  "     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid\n"
+						  "     JOIN pg_catalog.pg_namespace n ON n.oid = pn.pnnspid \n"
 						  "WHERE n.nspname = '%s'\n"
 						  "ORDER BY 1",
 						  pattern);
@@ -6002,7 +6002,7 @@ validateSQLNamePattern(PQExpBuffer buf, const char *pattern, bool have_where,
 					   const char *visibilityrule, bool *added_clause,
 					   int maxparts)
 {
-	PQExpBufferData	dbbuf;
+	PQExpBufferData dbbuf;
 	int			dotcnt;
 	bool		added;
 
@@ -6021,7 +6021,7 @@ validateSQLNamePattern(PQExpBuffer buf, const char *pattern, bool have_where,
 		return false;
 	}
 
-	if (maxparts > 1 && dotcnt == maxparts-1)
+	if (maxparts > 1 && dotcnt == maxparts - 1)
 	{
 		if (PQdb(pset.db) == NULL)
 		{
