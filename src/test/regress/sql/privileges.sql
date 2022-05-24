@@ -1345,6 +1345,8 @@ SELECT makeaclitem('regress_priv_user1'::regrole, 'regress_priv_user2'::regrole,
 SELECT makeaclitem('regress_priv_user1'::regrole, 'regress_priv_user2'::regrole,
 	'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER, EXECUTE, USAGE, CREATE,
 	TEMP, TEMPORARY, CONNECT, SET, ALTER SYSTEM, RULE ', FALSE); -- multiple privileges
+SELECT makeaclitem('regress_priv_user1'::regrole, 'regress_priv_user2'::regrole,
+	'SELECT, fake_privilege ', FALSE); -- error
 
 --
 -- Testing blanket default grants is very hazardous since it might change

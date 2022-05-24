@@ -2114,6 +2114,9 @@ SELECT makeaclitem('regress_priv_user1'::regrole, 'regress_priv_user2'::regrole,
  regress_priv_user1=arwdDxtXUCTcsA/regress_priv_user2
 (1 row)
 
+SELECT makeaclitem('regress_priv_user1'::regrole, 'regress_priv_user2'::regrole,
+	'SELECT, fake_privilege ', FALSE); -- error
+ERROR:  unrecognized privilege type: "fake_privilege"
 --
 -- Testing blanket default grants is very hazardous since it might change
 -- the privileges attached to objects created by concurrent regression tests.
