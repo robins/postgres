@@ -184,7 +184,12 @@ text_char(PG_FUNCTION_ARGS)
 	 * discarded.
 	 */
 	if (VARSIZE_ANY_EXHDR(arg1) > 0)
-		result = *(VARDATA_ANY(arg1));
+		if (VARATT_IS_1B(arg1))
+			result = *(VARDATA_1B(arg1));
+		else
+			ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				errmsg("\"char\" out of range")));
 	else
 		result = '\0';
 
