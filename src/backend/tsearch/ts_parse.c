@@ -373,6 +373,7 @@ parsetext(Oid cfgId, ParsedText *prs, char *buf, int buflen)
 
 	do
 	{
+		CHECK_FOR_INTERRUPTS();
 		type = DatumGetInt32(FunctionCall3(&(prsobj->prstoken),
 										   PointerGetDatum(prsdata),
 										   PointerGetDatum(&lemm),
@@ -425,7 +426,6 @@ parsetext(Oid cfgId, ParsedText *prs, char *buf, int buflen)
 			}
 			pfree(norms);
 		}
-		CHECK_FOR_INTERRUPTS();
 	} while (type > 0);
 
 	FunctionCall1(&(prsobj->prsend), PointerGetDatum(prsdata));
