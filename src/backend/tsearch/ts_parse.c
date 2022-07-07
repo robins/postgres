@@ -425,6 +425,7 @@ parsetext(Oid cfgId, ParsedText *prs, char *buf, int buflen)
 			}
 			pfree(norms);
 		}
+		CHECK_FOR_INTERRUPTS();
 	} while (type > 0);
 
 	FunctionCall1(&(prsobj->prsend), PointerGetDatum(prsdata));
