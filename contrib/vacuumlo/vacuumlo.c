@@ -278,6 +278,21 @@ vacuumlo(const char *database, const struct _param *param)
 	PQclear(res);
 
 	/*
+	 * Drop the index before the upcoming DELETE
+	 */
+	buf[0] = '\0';
+	strcat(buf, "DROP INDEX vacuum_l_lo_idx;");
+	res = PQexec(conn, buf);
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
+		pg_log_error("failed to drop index on temp table: %s", PQerrorMessage(conn));
+		PQclear(res);
+		PQfinish(conn);
+		return -1;
+	}
+	PQclear(res);
+
+	/*
 	 * Now, those entries remaining in vacuum_l are orphans.  Delete 'em.
 	 *
 	 * We don't want to run each delete as an individual transaction, because
