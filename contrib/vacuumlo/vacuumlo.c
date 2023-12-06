@@ -169,7 +169,7 @@ vacuumlo(const char *database, const struct _param *param)
 	 * Create an Index to speed up the DELETEs below
 	 */
 	buf[0] = '\0';
-	strcat(buf, "CREATE INDEX ON vacuum_l USING btree(oid);");
+	strcat(buf, "CREATE INDEX ON vacuum_l USING btree(lo);");
 	res = PQexec(conn, buf);
 	if (PQresultStatus(res) != PGRES_COMMAND_OK)
 	{
