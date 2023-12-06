@@ -166,6 +166,21 @@ vacuumlo(const char *database, const struct _param *param)
 	PQclear(res);
 
 	/*
+	 * Create an Index to speed up the DELETEs below
+	 */
+	buf[0] = '\0';
+	strcat(buf, "CREATE INDEX ON vacuum_l USING btree(oid);");
+	res = PQexec(conn, buf);
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
+		pg_log_error("failed to create index on temp table: %s", PQerrorMessage(conn));
+		PQclear(res);
+		PQfinish(conn);
+		return -1;
+	}
+	PQclear(res);
+
+	/*
 	 * Analyze the temp table so that planner will generate decent plans for
 	 * the DELETEs below.
 	 */
