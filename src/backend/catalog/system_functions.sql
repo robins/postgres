@@ -695,6 +695,8 @@ REVOKE EXECUTE ON FUNCTION pg_ls_logdir() FROM public;
 
 REVOKE EXECUTE ON FUNCTION pg_ls_waldir() FROM public;
 
+REVOKE EXECUTE ON FUNCTION pg_ls_multixact_members() FROM public;
+
 REVOKE EXECUTE ON FUNCTION pg_ls_archive_statusdir() FROM public;
 
 REVOKE EXECUTE ON FUNCTION pg_ls_tmpdir() FROM public;
@@ -764,6 +766,8 @@ REVOKE EXECUTE ON FUNCTION pg_ls_replslotdir(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION pg_ls_logdir() TO pg_monitor;
 
 GRANT EXECUTE ON FUNCTION pg_ls_waldir() TO pg_monitor;
+
+GRANT EXECUTE ON FUNCTION pg_ls_multixact_members() TO pg_monitor;
 
 GRANT EXECUTE ON FUNCTION pg_ls_archive_statusdir() TO pg_monitor;
 

@@ -689,6 +689,15 @@ pg_ls_waldir(PG_FUNCTION_ARGS)
 }
 
 /*
+ * Function to return the list of files in the pg_multixact/members directory.
+ */
+Datum
+pg_ls_multixact_members(PG_FUNCTION_ARGS)
+{
+	return pg_ls_dir_files(fcinfo, "pg_multixact/members", false);
+}
+
+/*
  * Generic function to return the list of files in pgsql_tmp
  */
 static Datum
@@ -733,15 +742,6 @@ Datum
 pg_ls_archive_statusdir(PG_FUNCTION_ARGS)
 {
 	return pg_ls_dir_files(fcinfo, XLOGDIR "/archive_status", true);
-}
-
-/*
- * Function to return the list of files in the pg_logical/snapshots directory.
- */
-Datum
-pg_ls_logicalsnapdir(PG_FUNCTION_ARGS)
-{
-	return pg_ls_dir_files(fcinfo, "pg_logical/snapshots", false);
 }
 
 /*

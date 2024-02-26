@@ -366,6 +366,31 @@ from (select pg_ls_waldir() w) ss where length((w).name) = 24 limit 1;
  t
 (1 row)
 
+select count(*) > 0 as ok from pg_ls_multixact_members();
+ ok 
+----
+ t
+(1 row)
+
+-- Test ProjectSet as well as FunctionScan
+select count(*) > 0 as ok from (select pg_ls_multixact_members()) ss;
+ ok 
+----
+ t
+(1 row)
+
+-- Test not-run-to-completion cases.
+select * from pg_ls_multixact_members() limit 0;
+ name | size | modification 
+------+------+--------------
+(0 rows)
+
+select count(*) > 0 as ok from (select * from pg_ls_multixact_members() limit 1) ss;
+ ok 
+----
+ t
+(1 row)
+
 select count(*) >= 0 as ok from pg_ls_archive_statusdir();
  ok 
 ----

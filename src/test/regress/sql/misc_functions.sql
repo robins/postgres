@@ -121,6 +121,13 @@ select count(*) > 0 as ok from (select * from pg_ls_waldir() limit 1) ss;
 select (w).size = :segsize as ok
 from (select pg_ls_waldir() w) ss where length((w).name) = 24 limit 1;
 
+select count(*) > 0 as ok from pg_ls_multixact_members();
+-- Test ProjectSet as well as FunctionScan
+select count(*) > 0 as ok from (select pg_ls_multixact_members()) ss;
+-- Test not-run-to-completion cases.
+select * from pg_ls_multixact_members() limit 0;
+select count(*) > 0 as ok from (select * from pg_ls_multixact_members() limit 1) ss;
+
 select count(*) >= 0 as ok from pg_ls_archive_statusdir();
 
 -- pg_read_file()
