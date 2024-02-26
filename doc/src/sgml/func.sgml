@@ -29201,7 +29201,7 @@ SELECT pg_size_pretty(sum(pg_relation_size(relid))) AS total_size
        </para>
        <para>
         Returns the name, size, and last modification time (mtime) of each
-        ordinary file in the server's pg_multixact directory.
+        ordinary file in the server's pg_multixact/members directory.
         Filenames beginning with a dot, directories, and other special files
         are excluded.
        </para>
