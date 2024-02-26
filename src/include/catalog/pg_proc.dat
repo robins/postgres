@@ -12050,7 +12050,7 @@
   proargmodes => '{i,o,o,o}',
   proargnames => '{slot_name,name,size,modification}',
   prosrc => 'pg_ls_replslotdir' },
-{ oid => '5032', descr => 'list of files in the WAL directory',
+{ oid => '5432', descr => 'list of files in the pg_multixact/members directory',
   proname => 'pg_ls_multixact_members', procost => '10', prorows => '20', proretset => 't',
   provolatile => 'v', prorettype => 'record', proargtypes => '',
   proallargtypes => '{text,int8,timestamptz}', proargmodes => '{o,o,o}',
