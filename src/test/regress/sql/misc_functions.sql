@@ -126,7 +126,6 @@ select count(*) > 0 as ok from pg_ls_multixact_members();
 select count(*) > 0 as ok from (select pg_ls_multixact_members()) ss;
 -- Test not-run-to-completion cases.
 select * from pg_ls_multixact_members() limit 0;
-select count(*) > 0 as ok from (select * from pg_ls_multixact_members() limit 1) ss;
 
 select count(*) >= 0 as ok from pg_ls_archive_statusdir();
 

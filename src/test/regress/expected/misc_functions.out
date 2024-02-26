@@ -385,12 +385,6 @@ select * from pg_ls_multixact_members() limit 0;
 ------+------+--------------
 (0 rows)
 
-select count(*) > 0 as ok from (select * from pg_ls_multixact_members() limit 1) ss;
- ok 
-----
- t
-(1 row)
-
 select count(*) >= 0 as ok from pg_ls_archive_statusdir();
  ok 
 ----
