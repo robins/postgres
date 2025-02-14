@@ -8650,6 +8650,12 @@
   prorettype => 'timestamptz', proargtypes => '',
   prosrc => 'pg_postmaster_start_time' },
 
+# accept connections start time function
+{ oid => '8600', descr => 'accept connections start time',
+  proname => 'pg_accept_connections_start_time', provolatile => 's',
+  prorettype => 'timestamptz', proargtypes => '',
+  prosrc => 'pg_accept_connections_start_time' },
+
 # config reload time function
 { oid => '2034', descr => 'configuration load time',
   proname => 'pg_conf_load_time', provolatile => 's', proparallel => 'r',
