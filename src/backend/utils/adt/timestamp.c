@@ -52,8 +52,8 @@
 /* Set at postmaster start */
 TimestampTz PgStartTime;
 
-/* Set when database is ready to accept connections */
-TimestampTz PgAcceptConnStartTime;
+/* Set when database is open to connections */
+TimestampTz PgOpenStartTime;
 
 /* Set at configuration reload */
 TimestampTz PgReloadTime;
@@ -1632,9 +1632,9 @@ pg_postmaster_start_time(PG_FUNCTION_ARGS)
 }
 
 Datum
-pg_accept_connections_start_time(PG_FUNCTION_ARGS)
+pg_postmaster_open_time(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_TIMESTAMPTZ(PgAcceptConnStartTime);
+	PG_RETURN_TIMESTAMPTZ(PgOpenStartTime);
 }
 
 Datum

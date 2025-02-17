@@ -24938,13 +24938,13 @@ SELECT * FROM pg_ls_dir('.') WITH ORDINALITY AS t(ls,n);
       <row>
        <entry role="func_table_entry"><para role="func_signature">
         <indexterm>
-         <primary>pg_accept_connections_start_time</primary>
+         <primary>pg_postmaster_open_time</primary>
         </indexterm>
-        <function>pg_accept_connections_start_time</function> ()
+        <function>pg_postmaster_open_time</function> ()
         <returnvalue>timestamp with time zone</returnvalue>
        </para>
        <para>
-        Returns the time when the server was ready to accept connections.
+        Returns the time when the server was open to connections.
        </para></entry>
       </row>
 

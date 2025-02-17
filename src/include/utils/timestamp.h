@@ -90,7 +90,7 @@ IntervalPGetDatum(const Interval *X)
 extern PGDLLIMPORT TimestampTz PgStartTime;
 
 /* Set when database is ready to accept connections */
-extern PGDLLIMPORT TimestampTz PgAcceptConnStartTime;
+extern PGDLLIMPORT TimestampTz PgOpenStartTime;
 
 /* Set at configuration reload */
 extern PGDLLIMPORT TimestampTz PgReloadTime;

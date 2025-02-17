@@ -2330,9 +2330,9 @@ process_pm_child_exit(void)
 			StartWorkerNeeded = true;
 
 			/*
-			* Remember time when database was ready to accept connections
+			* Remember time when database was open to connections
 			*/
-			PgAcceptConnStartTime = GetCurrentTimestamp();
+			PgOpenStartTime = GetCurrentTimestamp();
 
 			/* at this point we are really open for business */
 			ereport(LOG,
