@@ -168,9 +168,7 @@ INIT
 	$portdir = $ENV{PG_TEST_PORT_DIR};
 	# Otherwise, try to use a directory at the top of the build tree
 	# or as a last resort use the tmp_check directory
-	my $build_dir =
-		 $ENV{MESON_BUILD_ROOT}
-	  || $ENV{top_builddir}
+	my $build_dir = $ENV{top_builddir}
 	  || $PostgreSQL::Test::Utils::tmp_check;
 	$portdir ||= "$build_dir/portlock";
 	$portdir =~ s!\\!/!g;
@@ -2515,6 +2513,11 @@ instead of the default.
 
 If this regular expression is set, matches it with the output generated.
 
+=item expected_stderr => B<value>
+
+If this regular expression is set, matches it against the standard error
+stream; otherwise stderr must be empty.
+
 =item log_like => [ qr/required message/ ]
 
 =item log_unlike => [ qr/prohibited message/ ]
@@ -2558,7 +2561,22 @@ sub connect_ok
 		like($stdout, $params{expected_stdout}, "$test_name: stdout matches");
 	}
 
-	is($stderr, "", "$test_name: no stderr");
+	if (defined($params{expected_stderr}))
+	{
+		if (like(
+				$stderr, $params{expected_stderr},
+				"$test_name: stderr matches")
+			&& ($ret != 0))
+		{
+			# In this case (failing test but matching stderr) we'll have
+			# swallowed the output needed to debug. Put it back into the logs.
+			diag("$test_name: full stderr:\n" . $stderr);
+		}
+	}
+	else
+	{
+		is($stderr, "", "$test_name: no stderr");
+	}
 
 	$self->log_check($test_name, $log_location, %params);
 }

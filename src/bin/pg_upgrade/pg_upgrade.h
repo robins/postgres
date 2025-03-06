@@ -125,6 +125,11 @@ extern char *output_files[];
  */
 #define JSONB_FORMAT_CHANGE_CAT_VER 201409291
 
+/*
+ * The control file was changed to have the default char signedness,
+ * commit 44fe30fdab6746a287163e7cc093fd36cda8eb92
+ */
+#define DEFAULT_CHAR_SIGNEDNESS_CAT_VER 202502212
 
 /*
  * Each relation is represented by a relinfo structure.
@@ -245,6 +250,7 @@ typedef struct
 	bool		date_is_int;
 	bool		float8_pass_by_value;
 	uint32		data_checksum_version;
+	bool		default_char_signedness;
 } ControlData;
 
 /*
@@ -327,6 +333,10 @@ typedef struct
 	int			jobs;			/* number of processes/threads to use */
 	char	   *socketdir;		/* directory to use for Unix sockets */
 	char	   *sync_method;
+	bool		do_statistics;	/* carry over statistics from old cluster */
+	int			char_signedness;	/* default char signedness: -1 for initial
+									 * value, 1 for "signed" and 0 for
+									 * "unsigned" */
 } UserOpts;
 
 typedef struct

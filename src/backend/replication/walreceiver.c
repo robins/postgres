@@ -180,7 +180,7 @@ ProcessWalRcvInterrupts(void)
 
 /* Main entry point for walreceiver process */
 void
-WalReceiverMain(char *startup_data, size_t startup_data_len)
+WalReceiverMain(const void *startup_data, size_t startup_data_len)
 {
 	char		conninfo[MAXCONNINFO];
 	char	   *tmp_conninfo;
@@ -584,6 +584,16 @@ WalReceiverMain(char *startup_data, size_t startup_data_len)
 					bool		requestReply = false;
 
 					/*
+					 * Report pending statistics to the cumulative stats
+					 * system.  This location is useful for the report as it
+					 * is not within a tight loop in the WAL receiver, to
+					 * avoid bloating pgstats with requests, while also making
+					 * sure that the reports happen each time a status update
+					 * is sent.
+					 */
+					pgstat_report_wal(false);
+
+					/*
 					 * Check if time since last receive from primary has
 					 * reached the configured limit.
 					 */
@@ -912,6 +922,7 @@ XLogWalRcvWrite(char *buf, Size nbytes, XLogRecPtr recptr, TimeLineID tli)
 {
 	int			startoff;
 	int			byteswritten;
+	instr_time	start;
 
 	Assert(tli != 0);
 
@@ -942,7 +953,18 @@ XLogWalRcvWrite(char *buf, Size nbytes, XLogRecPtr recptr, TimeLineID tli)
 		/* OK to write the logs */
 		errno = 0;
 
+		/*
+		 * Measure I/O timing to write WAL data, for pg_stat_io.
+		 */
+		start = pgstat_prepare_io_time(track_wal_io_timing);
+
+		pgstat_report_wait_start(WAIT_EVENT_WAL_WRITE);
 		byteswritten = pg_pwrite(recvFile, buf, segbytes, (off_t) startoff);
+		pgstat_report_wait_end();
+
+		pgstat_count_io_op_time(IOOBJECT_WAL, IOCONTEXT_NORMAL,
+								IOOP_WRITE, start, 1, byteswritten);
+
 		if (byteswritten <= 0)
 		{
 			char		xlogfname[MAXFNAMELEN];

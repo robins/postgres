@@ -5677,21 +5677,16 @@ postprocess_sql_command(Command *my_command)
  * At call, we have scanned only the initial backslash.
  */
 static Command *
-process_backslash_command(PsqlScanState sstate, const char *source)
+process_backslash_command(PsqlScanState sstate, const char *source,
+						  int lineno, int start_offset)
 {
 	Command    *my_command;
 	PQExpBufferData word_buf;
 	int			word_offset;
 	int			offsets[MAX_ARGS];	/* offsets of argument words */
-	int			start_offset;
-	int			lineno;
 	int			j;
 
 	initPQExpBuffer(&word_buf);
-
-	/* Remember location of the backslash */
-	start_offset = expr_scanner_offset(sstate) - 1;
-	lineno = expr_scanner_get_lineno(sstate, start_offset);
 
 	/* Collect first word of command */
 	if (!expr_lex_one_word(sstate, &word_buf, &word_offset))
@@ -5747,7 +5742,6 @@ process_backslash_command(PsqlScanState sstate, const char *source)
 		my_command->first_line =
 			expr_scanner_get_substring(sstate,
 									   start_offset,
-									   expr_scanner_offset(sstate),
 									   true);
 
 		expr_scanner_finish(yyscanner);
@@ -5777,7 +5771,6 @@ process_backslash_command(PsqlScanState sstate, const char *source)
 	my_command->first_line =
 		expr_scanner_get_substring(sstate,
 								   start_offset,
-								   expr_scanner_offset(sstate),
 								   true);
 
 	if (my_command->meta == META_SLEEP)
@@ -5952,8 +5945,6 @@ ParseScript(const char *script, const char *desc, int weight)
 	PQExpBufferData line_buf;
 	int			alloc_num;
 	int			index;
-	int			lineno;
-	int			start_offset;
 
 #define COMMANDS_ALLOC_NUM 128
 	alloc_num = COMMANDS_ALLOC_NUM;
@@ -5977,7 +5968,6 @@ ParseScript(const char *script, const char *desc, int weight)
 	 * stdstrings should be true, which is a bit riskier.
 	 */
 	psql_scan_setup(sstate, script, strlen(script), 0, true);
-	start_offset = expr_scanner_offset(sstate) - 1;
 
 	initPQExpBuffer(&line_buf);
 
@@ -5990,7 +5980,6 @@ ParseScript(const char *script, const char *desc, int weight)
 		Command    *command = NULL;
 
 		resetPQExpBuffer(&line_buf);
-		lineno = expr_scanner_get_lineno(sstate, start_offset);
 
 		sr = psql_scan(sstate, &line_buf, &prompt);
 
@@ -6004,7 +5993,15 @@ ParseScript(const char *script, const char *desc, int weight)
 		/* If we reached a backslash, process that */
 		if (sr == PSCAN_BACKSLASH)
 		{
-			command = process_backslash_command(sstate, desc);
+			int			lineno;
+			int			start_offset;
+
+			/* Capture location of the backslash */
+			psql_scan_get_location(sstate, &lineno, &start_offset);
+			start_offset--;
+
+			command = process_backslash_command(sstate, desc,
+												lineno, start_offset);
 
 			if (command)
 			{
@@ -6815,12 +6812,25 @@ main(int argc, char **argv)
 #ifdef HAVE_GETRLIMIT
 				if (getrlimit(RLIMIT_NOFILE, &rlim) == -1)
 					pg_fatal("getrlimit failed: %m");
-				if (rlim.rlim_cur < nclients + 3)
+
+				if (rlim.rlim_max < nclients + 3)
 				{
 					pg_log_error("need at least %d open files, but system limit is %ld",
-								 nclients + 3, (long) rlim.rlim_cur);
+								 nclients + 3, (long) rlim.rlim_max);
 					pg_log_error_hint("Reduce number of clients, or use limit/ulimit to increase the system limit.");
 					exit(1);
+				}
+
+				if (rlim.rlim_cur < nclients + 3)
+				{
+					rlim.rlim_cur = nclients + 3;
+					if (setrlimit(RLIMIT_NOFILE, &rlim) == -1)
+					{
+						pg_log_error("need at least %d open files, but couldn't raise the limit: %m",
+									 nclients + 3);
+						pg_log_error_hint("Reduce number of clients, or use limit/ulimit to increase the system limit.");
+						exit(1);
+					}
 				}
 #endif							/* HAVE_GETRLIMIT */
 				break;

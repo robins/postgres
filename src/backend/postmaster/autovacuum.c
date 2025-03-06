@@ -316,7 +316,7 @@ static WorkerInfo MyWorkerInfo = NULL;
 int			AutovacuumLauncherPid = 0;
 
 static Oid	do_start_worker(void);
-static void HandleAutoVacLauncherInterrupts(void);
+static void ProcessAutoVacLauncherInterrupts(void);
 static void AutoVacLauncherShutdown(void) pg_attribute_noreturn();
 static void launcher_determine_sleep(bool canlaunch, bool recursing,
 									 struct timeval *nap);
@@ -364,7 +364,7 @@ static void check_av_worker_gucs(void);
  * Main entry point for the autovacuum launcher process.
  */
 void
-AutoVacLauncherMain(char *startup_data, size_t startup_data_len)
+AutoVacLauncherMain(const void *startup_data, size_t startup_data_len)
 {
 	sigjmp_buf	local_sigjmp_buf;
 
@@ -594,7 +594,7 @@ AutoVacLauncherMain(char *startup_data, size_t startup_data_len)
 
 		ResetLatch(MyLatch);
 
-		HandleAutoVacLauncherInterrupts();
+		ProcessAutoVacLauncherInterrupts();
 
 		/*
 		 * a worker finished, or postmaster signaled failure to start a worker
@@ -742,7 +742,7 @@ AutoVacLauncherMain(char *startup_data, size_t startup_data_len)
  * Process any new interrupts.
  */
 static void
-HandleAutoVacLauncherInterrupts(void)
+ProcessAutoVacLauncherInterrupts(void)
 {
 	/* the normal shutdown case */
 	if (ShutdownRequestPending)
@@ -1371,7 +1371,7 @@ avl_sigusr2_handler(SIGNAL_ARGS)
  * Main entry point for autovacuum worker processes.
  */
 void
-AutoVacWorkerMain(char *startup_data, size_t startup_data_len)
+AutoVacWorkerMain(const void *startup_data, size_t startup_data_len)
 {
 	sigjmp_buf	local_sigjmp_buf;
 	Oid			dbid;
@@ -2938,7 +2938,6 @@ relation_needs_vacanalyze(Oid relid,
 {
 	bool		force_vacuum;
 	bool		av_enabled;
-	float4		reltuples;		/* pg_class.reltuples */
 
 	/* constants from reloptions or GUC variables */
 	int			vac_base_thresh,
@@ -3052,7 +3051,11 @@ relation_needs_vacanalyze(Oid relid,
 	 */
 	if (PointerIsValid(tabentry) && AutoVacuumingActive())
 	{
-		reltuples = classForm->reltuples;
+		float4		pcnt_unfrozen = 1;
+		float4		reltuples = classForm->reltuples;
+		int32		relpages = classForm->relpages;
+		int32		relallfrozen = classForm->relallfrozen;
+
 		vactuples = tabentry->dead_tuples;
 		instuples = tabentry->ins_since_vacuum;
 		anltuples = tabentry->mod_since_analyze;
@@ -3061,11 +3064,29 @@ relation_needs_vacanalyze(Oid relid,
 		if (reltuples < 0)
 			reltuples = 0;
 
+		/*
+		 * If we have data for relallfrozen, calculate the unfrozen percentage
+		 * of the table to modify insert scale factor. This helps us decide
+		 * whether or not to vacuum an insert-heavy table based on the number
+		 * of inserts to the more "active" part of the table.
+		 */
+		if (relpages > 0 && relallfrozen > 0)
+		{
+			/*
+			 * It could be the stats were updated manually and relallfrozen >
+			 * relpages. Clamp relallfrozen to relpages to avoid nonsensical
+			 * calculations.
+			 */
+			relallfrozen = Min(relallfrozen, relpages);
+			pcnt_unfrozen = 1 - ((float4) relallfrozen / relpages);
+		}
+
 		vacthresh = (float4) vac_base_thresh + vac_scale_factor * reltuples;
 		if (vac_max_thresh >= 0 && vacthresh > (float4) vac_max_thresh)
 			vacthresh = (float4) vac_max_thresh;
 
-		vacinsthresh = (float4) vac_ins_base_thresh + vac_ins_scale_factor * reltuples;
+		vacinsthresh = (float4) vac_ins_base_thresh +
+			vac_ins_scale_factor * reltuples * pcnt_unfrozen;
 		anlthresh = (float4) anl_base_thresh + anl_scale_factor * reltuples;
 
 		/*

@@ -107,6 +107,8 @@ bthandler(PG_FUNCTION_ARGS)
 	amroutine->amoptsprocnum = BTOPTIONS_PROC;
 	amroutine->amcanorder = true;
 	amroutine->amcanorderbyop = false;
+	amroutine->amcanhash = false;
+	amroutine->amcancrosscompare = true;
 	amroutine->amcanbackward = true;
 	amroutine->amcanunique = true;
 	amroutine->amcanmulticol = true;
@@ -1513,7 +1515,7 @@ btgettreeheight(Relation rel)
 }
 
 CompareType
-bttranslatestrategy(StrategyNumber strategy, Oid opfamily, Oid opcintype)
+bttranslatestrategy(StrategyNumber strategy, Oid opfamily)
 {
 	switch (strategy)
 	{
@@ -1533,7 +1535,7 @@ bttranslatestrategy(StrategyNumber strategy, Oid opfamily, Oid opcintype)
 }
 
 StrategyNumber
-bttranslatecmptype(CompareType cmptype, Oid opfamily, Oid opcintype)
+bttranslatecmptype(CompareType cmptype, Oid opfamily)
 {
 	switch (cmptype)
 	{

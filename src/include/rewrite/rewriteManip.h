@@ -89,6 +89,12 @@ extern Node *map_variable_attnos(Node *node,
 								 const struct AttrMap *attno_map,
 								 Oid to_rowtype, bool *found_whole_row);
 
+extern Node *ReplaceVarFromTargetList(Var *var,
+									  RangeTblEntry *target_rte,
+									  List *targetlist,
+									  int result_relation,
+									  ReplaceVarsNoMatchOption nomatch_option,
+									  int nomatch_varno);
 extern Node *ReplaceVarsFromTargetList(Node *node,
 									   int target_varno, int sublevels_up,
 									   RangeTblEntry *target_rte,

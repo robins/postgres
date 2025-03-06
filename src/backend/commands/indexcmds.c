@@ -2468,11 +2468,11 @@ GetOperatorFromCompareType(Oid opclass, Oid rhstype, CompareType cmptype,
 		/*
 		 * Ask the index AM to translate to its internal stratnum
 		 */
-		*strat = IndexAmTranslateCompareType(cmptype, amid, opfamily, opcintype, true);
+		*strat = IndexAmTranslateCompareType(cmptype, amid, opfamily, true);
 		if (*strat == InvalidStrategy)
 			ereport(ERROR,
 					errcode(ERRCODE_UNDEFINED_OBJECT),
-					cmptype = COMPARE_EQ ? errmsg("could not identify an equality operator for type %s", format_type_be(opcintype)) :
+					cmptype == COMPARE_EQ ? errmsg("could not identify an equality operator for type %s", format_type_be(opcintype)) :
 					cmptype == COMPARE_OVERLAP ? errmsg("could not identify an overlaps operator for type %s", format_type_be(opcintype)) :
 					cmptype == COMPARE_CONTAINED_BY ? errmsg("could not identify a contained-by operator for type %s", format_type_be(opcintype)) : 0,
 					errdetail("Could not translate compare type %d for operator family \"%s\", input type %s, access method \"%s\".",

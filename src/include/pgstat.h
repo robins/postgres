@@ -212,7 +212,7 @@ typedef struct PgStat_TableXactStatus
  * ------------------------------------------------------------
  */
 
-#define PGSTAT_FILE_FORMAT_ID	0x01A5BCB3
+#define PGSTAT_FILE_FORMAT_ID	0x01A5BCB5
 
 typedef struct PgStat_ArchiverStats
 {
@@ -474,33 +474,31 @@ typedef struct PgStat_StatTabEntry
 	PgStat_Counter total_autoanalyze_time;
 } PgStat_StatTabEntry;
 
-typedef struct PgStat_WalStats
+/* ------
+ * PgStat_WalCounters	WAL activity data gathered from WalUsage
+ *
+ * This stores all the counters and data gathered from WalUsage for WAL
+ * activity statistics, separated into its own structure so as this can be
+ * shared across multiple Stats structures.
+ * ------
+ */
+typedef struct PgStat_WalCounters
 {
 	PgStat_Counter wal_records;
 	PgStat_Counter wal_fpi;
 	uint64		wal_bytes;
 	PgStat_Counter wal_buffers_full;
-	PgStat_Counter wal_write;
-	PgStat_Counter wal_sync;
-	PgStat_Counter wal_write_time;
-	PgStat_Counter wal_sync_time;
+} PgStat_WalCounters;
+
+/* -------
+ * PgStat_WalStats		WAL statistics
+ * -------
+ */
+typedef struct PgStat_WalStats
+{
+	PgStat_WalCounters wal_counters;
 	TimestampTz stat_reset_timestamp;
 } PgStat_WalStats;
-
-/*
- * This struct stores wal-related durations as instr_time, which makes it
- * cheaper and easier to accumulate them, by not requiring type
- * conversions. During stats flush instr_time will be converted into
- * microseconds.
- */
-typedef struct PgStat_PendingWalStats
-{
-	PgStat_Counter wal_write;
-	PgStat_Counter wal_sync;
-	instr_time	wal_write_time;
-	instr_time	wal_sync_time;
-} PgStat_PendingWalStats;
-
 
 /*
  * Functions in pgstat.c
@@ -556,6 +554,8 @@ extern void pgstat_count_backend_io_op(IOObject io_object,
 									   IOOp io_op, uint32 cnt,
 									   uint64 bytes);
 extern PgStat_Backend *pgstat_fetch_stat_backend(ProcNumber procNumber);
+extern PgStat_Backend *pgstat_fetch_stat_backend_by_pid(int pid,
+														BackendType *bktype);
 extern bool pgstat_tracks_backend_bktype(BackendType bktype);
 extern void pgstat_create_backend(ProcNumber procnum);
 
@@ -833,14 +833,5 @@ extern PGDLLIMPORT PgStat_Counter pgStatTransactionIdleTime;
 
 /* updated by the traffic cop and in errfinish() */
 extern PGDLLIMPORT SessionEndType pgStatSessionEndCause;
-
-
-/*
- * Variables in pgstat_wal.c
- */
-
-/* updated directly by backends and background processes */
-extern PGDLLIMPORT PgStat_PendingWalStats PendingWalStats;
-
 
 #endif							/* PGSTAT_H */

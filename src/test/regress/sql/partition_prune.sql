@@ -586,7 +586,7 @@ begin
             $1)
     loop
         ln := regexp_replace(ln, 'Workers Launched: \d+', 'Workers Launched: N');
-        ln := regexp_replace(ln, 'actual rows=\d+ loops=\d+', 'actual rows=N loops=N');
+        ln := regexp_replace(ln, 'actual rows=\d+(?:\.\d+)? loops=\d+', 'actual rows=N loops=N');
         ln := regexp_replace(ln, 'Rows Removed by Filter: \d+', 'Rows Removed by Filter: N');
         return next ln;
     end loop;
@@ -1396,6 +1396,18 @@ merge into part_abc_view pt
 using (select stable_one() + 2 as pid) as q join part_abc_1 pt1 on (q.pid = pt1.a) on pt.a = pt1.a
 when matched then delete returning pt.a;
 table part_abc_view;
+
+-- A case with nested MergeAppend with its own PartitionPruneInfo.
+create index on part_abc (a);
+alter table part_abc add d int;
+create table part_abc_3 partition of part_abc for values in (3, 4) partition by range (d);
+create table part_abc_3_1 partition of part_abc_3 for values from (minvalue) to (1);
+create table part_abc_3_2 partition of part_abc_3 for values from (1) to (100);
+create table part_abc_3_3 partition of part_abc_3 for values from (100) to (maxvalue);
+explain (costs off)
+select min(a) over (partition by a order by a) from part_abc where a >= stable_one() + 1 and d <= stable_one()
+union all
+select min(a) over (partition by a order by a) from part_abc where a >= stable_one() + 1 and d >= stable_one();
 
 drop view part_abc_view;
 drop table part_abc;

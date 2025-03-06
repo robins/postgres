@@ -24,7 +24,10 @@
 
 #include "postgres.h"
 
+#include "access/xlog.h"
 #include "storage/bufmgr.h"
+#include "storage/proc.h"
+#include "storage/procarray.h"
 #include "utils/memutils.h"
 #include "utils/pgstat_internal.h"
 
@@ -43,7 +46,7 @@ void
 pgstat_count_backend_io_op_time(IOObject io_object, IOContext io_context,
 								IOOp io_op, instr_time io_time)
 {
-	Assert(track_io_timing);
+	Assert(track_io_timing || track_wal_io_timing);
 
 	if (!pgstat_tracks_backend_bktype(MyBackendType))
 		return;
@@ -79,6 +82,56 @@ pgstat_fetch_stat_backend(ProcNumber procNumber)
 														  InvalidOid, procNumber);
 
 	return backend_entry;
+}
+
+/*
+ * Returns statistics of a backend by pid.
+ *
+ * This routine includes sanity checks to ensire that the backend exists and
+ * is running.  "bktype" can be optionally defined to return the BackendType
+ * of the backend whose statistics are returned.
+ */
+PgStat_Backend *
+pgstat_fetch_stat_backend_by_pid(int pid, BackendType *bktype)
+{
+	PGPROC	   *proc;
+	PgBackendStatus *beentry;
+	ProcNumber	procNumber;
+	PgStat_Backend *backend_stats;
+
+	proc = BackendPidGetProc(pid);
+	if (bktype)
+		*bktype = B_INVALID;
+
+	/* this could be an auxiliary process */
+	if (!proc)
+		proc = AuxiliaryPidGetProc(pid);
+
+	if (!proc)
+		return NULL;
+
+	procNumber = GetNumberFromPGProc(proc);
+
+	beentry = pgstat_get_beentry_by_proc_number(procNumber);
+	if (!beentry)
+		return NULL;
+
+	/* check if the backend type tracks statistics */
+	if (!pgstat_tracks_backend_bktype(beentry->st_backendType))
+		return NULL;
+
+	backend_stats = pgstat_fetch_stat_backend(procNumber);
+	if (!backend_stats)
+		return NULL;
+
+	/* if PID does not match, leave */
+	if (beentry->st_procpid != pid)
+		return NULL;
+
+	if (bktype)
+		*bktype = beentry->st_backendType;
+
+	return backend_stats;
 }
 
 /*

@@ -26,6 +26,7 @@
 #include "partitioning/partdesc.h"
 #include "partitioning/partprune.h"
 #include "rewrite/rewriteManip.h"
+#include "storage/lmgr.h"
 #include "utils/acl.h"
 #include "utils/lsyscache.h"
 #include "utils/partcache.h"
@@ -1768,7 +1769,8 @@ adjust_partition_colnos_using_map(List *colnos, AttrMap *attrMap)
  * ExecDoInitialPruning:
  *		Perform runtime "initial" pruning, if necessary, to determine the set
  *		of child subnodes that need to be initialized during ExecInitNode() for
- *		all plan nodes that contain a PartitionPruneInfo.
+ *		all plan nodes that contain a PartitionPruneInfo.  This also locks the
+ *		leaf partitions whose subnodes will be initialized if needed.
  *
  * ExecInitPartitionExecPruning:
  *		Updates the PartitionPruneState found at given part_prune_index in
@@ -1789,11 +1791,13 @@ adjust_partition_colnos_using_map(List *colnos, AttrMap *attrMap)
  *-------------------------------------------------------------------------
  */
 
+
 /*
  * ExecDoInitialPruning
  *		Perform runtime "initial" pruning, if necessary, to determine the set
  *		of child subnodes that need to be initialized during ExecInitNode() for
- *		plan nodes that support partition pruning.
+ *		plan nodes that support partition pruning.  This also locks the leaf
+ *		partitions whose subnodes will be initialized if needed.
  *
  * This function iterates over each PartitionPruneInfo entry in
  * estate->es_part_prune_infos. For each entry, it creates a PartitionPruneState
@@ -1816,6 +1820,7 @@ void
 ExecDoInitialPruning(EState *estate)
 {
 	ListCell   *lc;
+	List	   *locked_relids = NIL;
 
 	foreach(lc, estate->es_part_prune_infos)
 	{
@@ -1841,10 +1846,39 @@ ExecDoInitialPruning(EState *estate)
 		else
 			validsubplan_rtis = all_leafpart_rtis;
 
+		if (ExecShouldLockRelations(estate))
+		{
+			int			rtindex = -1;
+
+			while ((rtindex = bms_next_member(validsubplan_rtis,
+											  rtindex)) >= 0)
+			{
+				RangeTblEntry *rte = exec_rt_fetch(rtindex, estate);
+
+				Assert(rte->rtekind == RTE_RELATION &&
+					   rte->rellockmode != NoLock);
+				LockRelationOid(rte->relid, rte->rellockmode);
+				locked_relids = lappend_int(locked_relids, rtindex);
+			}
+		}
 		estate->es_unpruned_relids = bms_add_members(estate->es_unpruned_relids,
 													 validsubplan_rtis);
 		estate->es_part_prune_results = lappend(estate->es_part_prune_results,
 												validsubplans);
+	}
+
+	/*
+	 * Release the useless locks if the plan won't be executed.  This is the
+	 * same as what CheckCachedPlan() in plancache.c does.
+	 */
+	if (!ExecPlanStillValid(estate))
+	{
+		foreach(lc, locked_relids)
+		{
+			RangeTblEntry *rte = exec_rt_fetch(lfirst_int(lc), estate);
+
+			UnlockRelationOid(rte->relid, rte->rellockmode);
+		}
 	}
 }
 
@@ -2555,9 +2589,9 @@ ExecFindMatchingSubPlans(PartitionPruneState *prunestate,
  * find_matching_subplans_recurse
  *		Recursive worker function for ExecFindMatchingSubPlans
  *
- * Adds valid (non-prunable) subplan IDs to *validsubplans and the RT indexes
- * of their corresponding leaf partitions to *validsubplan_rtis if
- * it's non-NULL.
+ * Adds valid (non-prunable) subplan IDs to *validsubplans. If
+ * *validsubplan_rtis is non-NULL, it also adds the RT indexes of their
+ * corresponding partitions, but only if they are leaf partitions.
  */
 static void
 find_matching_subplans_recurse(PartitionPruningData *prunedata,
@@ -2594,7 +2628,12 @@ find_matching_subplans_recurse(PartitionPruningData *prunedata,
 		{
 			*validsubplans = bms_add_member(*validsubplans,
 											pprune->subplan_map[i]);
-			if (validsubplan_rtis)
+
+			/*
+			 * Only report leaf partitions. Non-leaf partitions may appear
+			 * here when they use an unflattened Append or MergeAppend.
+			 */
+			if (validsubplan_rtis && pprune->leafpart_rti_map[i])
 				*validsubplan_rtis = bms_add_member(*validsubplan_rtis,
 													pprune->leafpart_rti_map[i]);
 		}

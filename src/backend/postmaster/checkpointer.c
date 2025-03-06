@@ -157,7 +157,7 @@ static pg_time_t last_xlog_switch_time;
 
 /* Prototypes for private functions */
 
-static void HandleCheckpointerInterrupts(void);
+static void ProcessCheckpointerInterrupts(void);
 static void CheckArchiveTimeout(void);
 static bool IsCheckpointOnSchedule(double progress);
 static bool ImmediateCheckpointRequested(void);
@@ -175,7 +175,7 @@ static void ReqShutdownXLOG(SIGNAL_ARGS);
  * basic execution environment, but not enabled signals yet.
  */
 void
-CheckpointerMain(char *startup_data, size_t startup_data_len)
+CheckpointerMain(const void *startup_data, size_t startup_data_len)
 {
 	sigjmp_buf	local_sigjmp_buf;
 	MemoryContext checkpointer_context;
@@ -359,7 +359,7 @@ CheckpointerMain(char *startup_data, size_t startup_data_len)
 		 */
 		AbsorbSyncRequests();
 
-		HandleCheckpointerInterrupts();
+		ProcessCheckpointerInterrupts();
 		if (ShutdownXLOGPending || ShutdownRequestPending)
 			break;
 
@@ -536,7 +536,7 @@ CheckpointerMain(char *startup_data, size_t startup_data_len)
 			 * We may have received an interrupt during the checkpoint and the
 			 * latch might have been reset (e.g. in CheckpointWriteDelay).
 			 */
-			HandleCheckpointerInterrupts();
+			ProcessCheckpointerInterrupts();
 			if (ShutdownXLOGPending || ShutdownRequestPending)
 				break;
 		}
@@ -615,7 +615,7 @@ CheckpointerMain(char *startup_data, size_t startup_data_len)
 		/* Clear any already-pending wakeups */
 		ResetLatch(MyLatch);
 
-		HandleCheckpointerInterrupts();
+		ProcessCheckpointerInterrupts();
 
 		if (ShutdownRequestPending)
 			break;
@@ -634,7 +634,7 @@ CheckpointerMain(char *startup_data, size_t startup_data_len)
  * Process any new interrupts.
  */
 static void
-HandleCheckpointerInterrupts(void)
+ProcessCheckpointerInterrupts(void)
 {
 	if (ProcSignalBarrierPending)
 		ProcessProcSignalBarrier();

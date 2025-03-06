@@ -96,8 +96,9 @@ pgstat_prepare_io_time(bool track_io_guc)
 	else
 	{
 		/*
-		 * There is no need to set io_start when an IO timing GUC is disabled,
-		 * still initialize it to zero to avoid compiler warnings.
+		 * There is no need to set io_start when an IO timing GUC is disabled.
+		 * Initialize it to zero to avoid compiler warnings and to let
+		 * pgstat_count_io_op_time() know that timings should be ignored.
 		 */
 		INSTR_TIME_SET_ZERO(io_start);
 	}
@@ -120,7 +121,7 @@ void
 pgstat_count_io_op_time(IOObject io_object, IOContext io_context, IOOp io_op,
 						instr_time start_time, uint32 cnt, uint64 bytes)
 {
-	if (track_io_timing)
+	if (!INSTR_TIME_IS_ZERO(start_time))
 	{
 		instr_time	io_time;
 
@@ -434,10 +435,20 @@ pgstat_tracks_io_object(BackendType bktype, IOObject io_object,
 	 */
 	no_temp_rel = bktype == B_AUTOVAC_LAUNCHER || bktype == B_BG_WRITER ||
 		bktype == B_CHECKPOINTER || bktype == B_AUTOVAC_WORKER ||
-		bktype == B_STANDALONE_BACKEND || bktype == B_STARTUP;
+		bktype == B_STANDALONE_BACKEND || bktype == B_STARTUP ||
+		bktype == B_WAL_SUMMARIZER || bktype == B_WAL_WRITER ||
+		bktype == B_WAL_RECEIVER;
 
 	if (no_temp_rel && io_context == IOCONTEXT_NORMAL &&
 		io_object == IOOBJECT_TEMP_RELATION)
+		return false;
+
+	/*
+	 * Some BackendTypes only perform IO under IOOBJECT_WAL, hence exclude all
+	 * rows for all the other objects for these.
+	 */
+	if ((bktype == B_WAL_SUMMARIZER || bktype == B_WAL_RECEIVER ||
+		 bktype == B_WAL_WRITER) && io_object != IOOBJECT_WAL)
 		return false;
 
 	/*

@@ -56,9 +56,9 @@ static void StartupPacketTimeoutHandler(void);
  * client, and start the main processing loop.
  */
 void
-BackendMain(char *startup_data, size_t startup_data_len)
+BackendMain(const void *startup_data, size_t startup_data_len)
 {
-	BackendStartupData *bsdata = (BackendStartupData *) startup_data;
+	const BackendStartupData *bsdata = startup_data;
 
 	Assert(startup_data_len == sizeof(BackendStartupData));
 	Assert(MyClientSocket != NULL);
@@ -480,7 +480,7 @@ ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done)
 	 * sound inefficient, but it's not really, because of buffering in
 	 * pqcomm.c.)
 	 */
-	if (pq_getbytes((char *) &len, 1) == EOF)
+	if (pq_getbytes(&len, 1) == EOF)
 	{
 		/*
 		 * If we get no data at all, don't clutter the log with a complaint;

@@ -2,6 +2,12 @@
 #
 # For instructions on how to enable the CI integration in a repository and
 # further details, see src/tools/ci/README
+#
+#
+# NB: Different tasks intentionally test with different, non-default,
+# configurations, to increase the chance of catching problems. Each task with
+# non-obvious non-default documents their oddity at the top of the task,
+# prefixed by "SPECIAL:".
 
 
 env:
@@ -23,7 +29,7 @@ env:
   MTEST_ARGS: --print-errorlogs --no-rebuild -C build
   PGCTLTIMEOUT: 120 # avoids spurious failures during parallel tests
   TEMP_CONFIG: ${CIRRUS_WORKING_DIR}/src/tools/ci/pg_ci_base.conf
-  PG_TEST_EXTRA: kerberos ldap ssl libpq_encryption load_balance
+  PG_TEST_EXTRA: kerberos ldap ssl libpq_encryption load_balance oauth
 
 
 # What files to preserve in case tests fail
@@ -55,6 +61,10 @@ on_failure_meson: &on_failure_meson
 
 # To avoid unnecessarily spinning up a lot of VMs / containers for entirely
 # broken commits, have a minimal task that all others depend on.
+#
+# SPECIAL:
+# - Builds with --auto-features=disabled and thus almost no enabled
+#   dependencies
 task:
   name: SanityCheck
 
@@ -125,21 +135,33 @@ task:
       src/tools/ci/cores_backtrace.sh linux /tmp/cores
 
 
+# SPECIAL:
+# - Uses postgres specific CPPFLAGS that increase test coverage
+# - Specifies configuration options that test reading/writing/copying of node trees
+# - Specifies debug_parallel_query=regress, to catch related issues during CI
+# - Also runs tests against a running postgres instance, see test_running_script
 task:
-  name: FreeBSD - 13 - Meson
+  name: FreeBSD - Meson
 
   env:
     CPUS: 4
     BUILD_JOBS: 4
     TEST_JOBS: 8
-    IMAGE_FAMILY: pg-ci-freebsd-13
+    IMAGE_FAMILY: pg-ci-freebsd
     DISK_SIZE: 50
 
     CCACHE_DIR: /tmp/ccache_dir
     CPPFLAGS: -DRELCACHE_FORCE_RELEASE -DENFORCE_REGRESSION_TEST_NAME_RESTRICTIONS
     CFLAGS: -Og -ggdb
 
-    PG_TEST_INITDB_EXTRA_OPTS: -c debug_copy_parse_plan_trees=on -c debug_write_read_parse_plan_trees=on -c debug_raw_expression_coverage_test=on
+    # Several buildfarm animals enable these options. Without testing them
+    # during CI, it would be easy to cause breakage on the buildfarm with CI
+    # passing.
+    PG_TEST_INITDB_EXTRA_OPTS: >-
+      -c debug_copy_parse_plan_trees=on
+      -c debug_write_read_parse_plan_trees=on
+      -c debug_raw_expression_coverage_test=on
+      -c debug_parallel_query=regress
     PG_TEST_PG_UPGRADE_MODE: --link
 
   <<: *freebsd_task_template
@@ -155,8 +177,7 @@ task:
 
   ccache_cache:
     folder: $CCACHE_DIR
-  # Work around performance issues due to 32KB block size
-  repartition_script: src/tools/ci/gcp_freebsd_repartition.sh
+  setup_ram_disk_script: src/tools/ci/gcp_ram_disk.sh
   create_user_script: |
     pw useradd postgres
     chown -R postgres:postgres .
@@ -275,7 +296,7 @@ task:
 
   ccache_cache:
     folder: $CCACHE_DIR
-
+  setup_ram_disk_script: src/tools/ci/gcp_ram_disk.sh
   create_user_script: |
     useradd postgres
     chown -R postgres:users /home/postgres
@@ -329,6 +350,7 @@ LINUX_CONFIGURE_FEATURES: &LINUX_CONFIGURE_FEATURES >-
   --with-gssapi
   --with-icu
   --with-ldap
+  --with-libcurl
   --with-libxml
   --with-libxslt
   --with-llvm
@@ -348,6 +370,7 @@ LINUX_MESON_FEATURES: &LINUX_MESON_FEATURES >-
   -Duuid=e2fs
 
 
+# Check SPECIAL in the matrix: below
 task:
   env:
     CPUS: 4
@@ -426,6 +449,10 @@ task:
     #DEBIAN_FRONTEND=noninteractive apt-get -y install ...
 
   matrix:
+    # SPECIAL:
+    # - Uses address sanitizer, sanitizer failures are typically printed in
+    #   the server log
+    # - Configures postgres with a small segment size
     - name: Linux - Debian Bookworm - Autoconf
 
       env:
@@ -461,6 +488,10 @@ task:
       on_failure:
         <<: *on_failure_ac
 
+    # SPECIAL:
+    # - Uses undefined behaviour and alignment sanitizers, sanitizer failures
+    #   are typically printed in the server log
+    # - Test both 64bit and 32 bit builds
     - name: Linux - Debian Bookworm - Meson
 
       env:
@@ -521,6 +552,11 @@ task:
     cores_script: src/tools/ci/cores_backtrace.sh linux /tmp/cores
 
 
+# NB: macOS is by far the most expensive OS to run CI for, therefore no
+# expensive additional checks should be added.
+#
+# SPECIAL:
+# - Enables --clone for pg_upgrade and pg_combinebackup
 task:
   name: macOS - Sonoma - Meson
 

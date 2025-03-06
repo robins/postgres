@@ -157,6 +157,7 @@ ArrayType
 AsyncQueueControl
 AsyncQueueEntry
 AsyncRequest
+ATAlterConstraint
 AttInMetadata
 AttStatsSlot
 AttoptCacheEntry
@@ -371,6 +372,9 @@ CState
 CTECycleClause
 CTEMaterialize
 CTESearchClause
+CURL
+CURLM
+CURLoption
 CV
 CachedExpression
 CachedPlan
@@ -497,6 +501,7 @@ ConvertRowtypeExpr
 CookedConstraint
 CopyDest
 CopyFormatOptions
+CopyFromRoutine
 CopyFromState
 CopyFromStateData
 CopyHeaderChoice
@@ -508,6 +513,7 @@ CopyMultiInsertInfo
 CopyOnErrorChoice
 CopySource
 CopyStmt
+CopyToRoutine
 CopyToState
 CopyToStateData
 Cost
@@ -1026,11 +1032,14 @@ GinBtreeData
 GinBtreeDataLeafInsertData
 GinBtreeEntryInsertData
 GinBtreeStack
+GinBuffer
+GinBuildShared
 GinBuildState
 GinChkVal
 GinEntries
 GinEntryAccumulator
 GinIndexStat
+GinLeader
 GinMetaPageData
 GinNullCategory
 GinOptions
@@ -1043,9 +1052,11 @@ GinScanEntry
 GinScanKey
 GinScanOpaque
 GinScanOpaqueData
+GinSegmentInfo
 GinState
 GinStatsData
 GinTernaryValue
+GinTuple
 GinTupleCollector
 GinVacuumState
 GistBuildMode
@@ -1619,6 +1630,7 @@ Material
 MaterialPath
 MaterialState
 MdfdVec
+MdPathStr
 Memoize
 MemoizeEntry
 MemoizeInstrumentation
@@ -1724,6 +1736,7 @@ NumericDigit
 NumericSortSupport
 NumericSumAccum
 NumericVar
+OAuthValidatorCallbacks
 OM_uint32
 OP
 OSAPerGroupState
@@ -1792,6 +1805,7 @@ PGAsyncStatusType
 PGCALL2
 PGChecksummablePage
 PGContextVisibility
+PGErrorVerbosity
 PGEvent
 PGEventConnDestroy
 PGEventConnReset
@@ -1832,6 +1846,7 @@ PGVerbosity
 PG_Locale_Strategy
 PG_Lock_Status
 PG_init_t
+PGauthData
 PGcancel
 PGcancelConn
 PGcmdQueueEntry
@@ -1839,7 +1854,9 @@ PGconn
 PGdataValue
 PGlobjfuncs
 PGnotify
+PGoauthBearerRequest
 PGpipelineStatus
+PGpromptOAuthDevice
 PGresAttDesc
 PGresAttValue
 PGresParamDesc
@@ -1952,6 +1969,7 @@ PQArgBlock
 PQEnvironmentOption
 PQExpBuffer
 PQExpBufferData
+PQauthDataHook_type
 PQcommMethods
 PQconninfoOption
 PQnoticeProcessor
@@ -2163,7 +2181,6 @@ PgStat_KindInfo
 PgStat_LocalState
 PgStat_PendingDroppedStatsItem
 PgStat_PendingIO
-PgStat_PendingWalStats
 PgStat_SLRUStats
 PgStat_ShmemControl
 PgStat_Snapshot
@@ -2179,6 +2196,7 @@ PgStat_SubXactStatus
 PgStat_TableCounts
 PgStat_TableStatus
 PgStat_TableXactStatus
+PgStat_WalCounters
 PgStat_WalStats
 PgXmlErrorContext
 PgXmlStrictness
@@ -2401,6 +2419,8 @@ RelMapFile
 RelMapping
 RelOptInfo
 RelOptKind
+RelPathStr
+RelStatsInfo
 RelToCheck
 RelToCluster
 RelabelType
@@ -2689,6 +2709,7 @@ SkipPages
 SlabBlock
 SlabContext
 SlabSlot
+SlotInvalidationCauseMap
 SlotNumber
 SlotSyncCtxStruct
 SlruCtl
@@ -3092,6 +3113,8 @@ VacuumRelation
 VacuumStmt
 ValidIOData
 ValidateIndexState
+ValidatorModuleState
+ValidatorModuleResult
 ValuesScan
 ValuesScanState
 Var
@@ -3489,6 +3512,7 @@ explain_get_index_name_hook_type
 f_smgr
 fasthash_state
 fd_set
+fe_oauth_state
 fe_scram_state
 fe_scram_state_enum
 fetch_range_request
