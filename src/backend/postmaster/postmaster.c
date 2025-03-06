@@ -2329,6 +2329,11 @@ process_pm_child_exit(void)
 			 */
 			StartWorkerNeeded = true;
 
+			/*
+			 * Remember time when database was open to connections
+			 */
+			PgOpenStartTime = GetCurrentTimestamp();
+
 			/* at this point we are really open for business */
 			ereport(LOG,
 					(errmsg("database system is ready to accept connections")));
@@ -3668,6 +3673,11 @@ process_pm_pmsignal(void)
 	{
 		ereport(LOG,
 				(errmsg("database system is ready to accept read-only connections")));
+
+		/*
+		 * Remember time when database was open to connections
+		 */
+		PgOpenStartTime = GetCurrentTimestamp();
 
 		/* Report status */
 		AddToDataDirLockFile(LOCK_FILE_LINE_PM_STATUS, PM_STATUS_READY);

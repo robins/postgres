@@ -89,6 +89,9 @@ IntervalPGetDatum(const Interval *X)
 /* Set at postmaster start */
 extern PGDLLIMPORT TimestampTz PgStartTime;
 
+/* Set when database is open to connections */
+extern PGDLLIMPORT TimestampTz PgOpenStartTime;
+
 /* Set at configuration reload */
 extern PGDLLIMPORT TimestampTz PgReloadTime;
 

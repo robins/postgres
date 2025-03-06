@@ -110,6 +110,7 @@ typedef struct
 	ProcSignalHeader *ProcSignal;
 	pid_t		PostmasterPid;
 	TimestampTz PgStartTime;
+	TimestampTz PgOpenStartTime;
 	TimestampTz PgReloadTime;
 	pg_time_t	first_syslogger_file_time;
 	bool		redirection_done;
@@ -738,6 +739,7 @@ save_backend_variables(BackendParameters *param,
 
 	param->PostmasterPid = PostmasterPid;
 	param->PgStartTime = PgStartTime;
+	param->PgOpenStartTime = PgOpenStartTime;
 	param->PgReloadTime = PgReloadTime;
 	param->first_syslogger_file_time = first_syslogger_file_time;
 
@@ -998,6 +1000,7 @@ restore_backend_variables(BackendParameters *param)
 
 	PostmasterPid = param->PostmasterPid;
 	PgStartTime = param->PgStartTime;
+	PgOpenStartTime = param->PgOpenStartTime;
 	PgReloadTime = param->PgReloadTime;
 	first_syslogger_file_time = param->first_syslogger_file_time;
 

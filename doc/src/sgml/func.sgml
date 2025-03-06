@@ -24922,6 +24922,22 @@ SELECT * FROM pg_ls_dir('.') WITH ORDINALITY AS t(ls,n);
       <row>
        <entry role="func_table_entry"><para role="func_signature">
         <indexterm>
+         <primary>pg_postmaster_open_time</primary>
+        </indexterm>
+        <function>pg_postmaster_open_time</function> ()
+        <returnvalue>timestamp with time zone</returnvalue>
+       </para>
+       <para>
+        Returns the time when the server was open to connections. On a standby
+        this will be the time when the server was open to read-only connections.
+        In single-user mode this returns the time the server was ready to accept
+        user commands.
+       </para></entry>
+      </row>
+
+      <row>
+       <entry role="func_table_entry"><para role="func_signature">
+        <indexterm>
          <primary>pg_current_logfile</primary>
         </indexterm>
         <indexterm>

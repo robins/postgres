@@ -8650,6 +8650,12 @@
   prorettype => 'timestamptz', proargtypes => '',
   prosrc => 'pg_postmaster_start_time' },
 
+# open to connections start time function
+{ oid => '8600', descr => 'open connections start time',
+  proname => 'pg_postmaster_open_time', provolatile => 's',
+  prorettype => 'timestamptz', proargtypes => '',
+  prosrc => 'pg_postmaster_open_time' },
+
 # config reload time function
 { oid => '2034', descr => 'configuration load time',
   proname => 'pg_conf_load_time', provolatile => 's', proparallel => 'r',

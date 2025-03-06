@@ -4120,6 +4120,11 @@ PostgresSingleUserMain(int argc, char *argv[],
 	PgStartTime = GetCurrentTimestamp();
 
 	/*
+	 * Remember when stand-alone was open to user commands.
+	 */
+	PgOpenStartTime = GetCurrentTimestamp();
+
+	/*
 	 * Create a per-backend PGPROC struct in shared memory. We must do this
 	 * before we can use LWLocks.
 	 */
