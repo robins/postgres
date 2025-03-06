@@ -4120,7 +4120,7 @@ PostgresSingleUserMain(int argc, char *argv[],
 	PgStartTime = GetCurrentTimestamp();
 
 	/*
-	 * Remember time when stand-alone came up to accept user commands.
+	 * Remember when stand-alone was open to user commands.
 	 */
 	PgOpenStartTime = GetCurrentTimestamp();
 
